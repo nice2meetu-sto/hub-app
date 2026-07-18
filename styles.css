@@ -497,7 +497,7 @@
   font-size: 28px; font-weight: 900; letter-spacing: 6px; color: var(--main);
   background: var(--main-light); border-radius: 12px; padding: 14px; text-align: center;
 }
-#email-overlay { z-index: 220; }   /* 시작 화면(200) 위에 표시 */
+#email-overlay { z-index: 210; }   /* 시작 화면(200) 바로 한 단계 위 · 토스트(400)/로더(300)보다는 아래 */
 #email-overlay .sheet h2 { font-size: 18px; margin: 4px 2px 12px; font-weight: 900; }
 
 /* 내 허브 드롭다운 */

@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
-  ['전략', '마피아', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+  ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
 
 // Supabase 클라이언트
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1793,7 +1793,7 @@ function switchAddTab(tab) {
 
 // ----- 게임 추가 -----
 // 기본 분류(폴백). 앱 시작 시 Supabase categories 테이블에서 읽어와 덮어씀
-let CATEGORIES = ['전략', '마피아', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+let CATEGORIES = ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
 function renderAddGameForm() {
   const el = document.getElementById('add-game-form');
   el.innerHTML = `
@@ -2624,7 +2624,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1619 분류 관리 운영자 전용 전환';
+const APP_VERSION = 'v1631 기본 분류 8종(파티게임 추가)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

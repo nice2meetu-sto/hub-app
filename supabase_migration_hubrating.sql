@@ -115,14 +115,48 @@ as $$
   select player_id from my;
 $$;
 
--- 기록장 후기 보기: 나와 게임한 사람들의 후기만
+-- 기록장 후기 보기: 나와 게임한 사람들의 후기만.
+-- 이름은 '내가 같이 플레이한 기록에 나온 닉네임'으로 표시(내가 아는 이름).
+-- 여러 허브에서 같이 했다면 가장 최근에 함께한 판의 닉네임 사용
 create or replace function public.get_reviews_mates(p_game_id text)
 returns json
 language sql stable security definer
 set search_path = public
 as $$
+  with my as (
+    select player_id, hub_id from public.players where auth_uid = auth.uid()
+  ),
+  my_sess as (
+    select distinct pl.hub_id, pl.session_id
+    from public.playlogs pl
+    join my on my.player_id = pl.player_id and my.hub_id = pl.hub_id
+  ),
+  mates_raw as (
+    select pl.player_id, max(pl.play_date) as last_date
+    from public.playlogs pl
+    join my_sess ms on ms.hub_id = pl.hub_id and ms.session_id = pl.session_id
+    where coalesce(pl.player_id, '') <> ''
+    group by pl.player_id
+  ),
+  mates as (
+    select player_id from mates_raw
+    union
+    select p2.player_id
+    from mates_raw mr
+    join public.players p1 on p1.player_id = mr.player_id and p1.auth_uid is not null
+    join public.players p2 on p2.auth_uid = p1.auth_uid
+    union
+    select player_id from my
+  )
   select coalesce(json_agg(json_build_object(
-    'name', p.name, 'review', r.review, 'updated_at', r.updated_at,
+    'name', coalesce(
+      (select p2.name from public.players p2
+        join mates_raw mr on mr.player_id = p2.player_id
+        where p2.player_id = r.player_id
+           or (p.auth_uid is not null and p2.auth_uid = p.auth_uid)
+        order by mr.last_date desc nulls last limit 1),
+      p.name),
+    'review', r.review, 'updated_at', r.updated_at,
     'hub_name', coalesce(h.name, r.hub_id)
   ) order by r.updated_at desc nulls last), '[]'::json)
   from public.ratings r
@@ -130,7 +164,7 @@ as $$
   left join public.hubs h on h.hub_id = r.hub_id
   where r.game_id = p_game_id
     and r.review is not null and btrim(r.review) <> ''
-    and r.player_id in (select player_id from public._my_mate_ids());
+    and r.player_id in (select player_id from mates);
 $$;
 revoke all on function public.get_reviews_mates(text) from anon, public;
 grant execute on function public.get_reviews_mates(text) to authenticated;

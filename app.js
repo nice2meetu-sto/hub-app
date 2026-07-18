@@ -1239,6 +1239,21 @@ function applyAuth(user, pin, welcome) {
   renderMy();
 }
 
+
+// 이메일 세션이 있으면 지금 로그인한 멤버를 계정에 자동 연결
+async function autoLinkIfEmail(user, pin) {
+  try {
+    const { data } = await sb.auth.getSession();
+    if (!data || !data.session) return;
+    const me = (state.players || []).find(p => p.player_id === user.player_id);
+    if (me && me.linked) return;
+    await api('linkPlayer', { playerId: user.player_id, pin });
+    state._myLinks = null;
+    toast('이 허브가 내 계정에 연결됐어요 🔗');
+    renderMyLinkRow();
+  } catch (e) { /* 다른 계정에 연결된 멤버 등 — 조용히 무시 */ }
+}
+
 async function doLogin() {
   const name = document.getElementById('auth-name').value.trim();
   const pin = document.getElementById('auth-pin').value.trim();
@@ -1247,6 +1262,7 @@ async function doLogin() {
   try {
     const user = await api('login', { name, pin });
     applyAuth(user, pin, `${user.name}님 환영합니다!`);
+    autoLinkIfEmail(user, pin);
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1265,6 +1281,7 @@ async function doSignup() {
     // 새 회원이 참가자 목록/통계에 바로 반영되도록 갱신
     try { state.players = await api('getPlayers'); } catch (e) {}
     applyAuth(user, pin, `${user.name}님 가입 완료! 환영합니다 🎉`);
+    autoLinkIfEmail(user, pin);
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -2065,6 +2082,17 @@ function acNames(kind) {
   if (kind === 'game') return state.games.map(g => g.name_kr || g.name_en).filter(Boolean);
   return (state.players || []).map(p => p.name).filter(Boolean);
 }
+
+// 공용 도감 검색 결과 캐시(정규화 이름 → 게임). 플레이 추가·게임 추가에서 공용.
+async function fetchCatalog(term) {
+  try {
+    const list = await api('searchCatalog', { term });
+    state._catalogHits = state._catalogHits || {};
+    (list || []).forEach(g => { if (g.name_kr) state._catalogHits[normGameName(g.name_kr)] = g; });
+    return list || [];
+  } catch (e) { return []; }
+}
+
 function acRender(inp, kind) {
   const wrap = inp.closest('.ac-wrap');
   const menu = wrap && wrap.querySelector('.ac-menu');
@@ -2078,17 +2106,41 @@ function acRender(inp, kind) {
     seen.add(low); return true;
   }).sort((a, b) => a.localeCompare(b)).slice(0, 8);
   // 후보가 없거나, 이미 정확히 일치하는 하나뿐이면 표시하지 않음
-  if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === term)) {
-    menu.classList.remove('show'); menu.innerHTML = ''; return;
+  const emptySync = !matches.length || (matches.length === 1 && matches[0].toLowerCase() === term);
+  if (emptySync) {
+    menu.classList.remove('show'); menu.innerHTML = '';
+    if (kind !== 'game') return;   // 게임은 도감 검색을 이어감
+  } else {
+    menu.innerHTML = matches.map(n => `<div class="ac-item" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
+    menu.classList.add('show');
   }
-  menu.innerHTML = matches.map(n => `<div class="ac-item" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
-  menu.classList.add('show');
+
+  // 게임 검색: 우리 선반에 없어도 공용 도감에서 찾아 함께 제시(📚)
+  if (kind === 'game') {
+    clearTimeout(state._acCatTimer);
+    state._acCatTimer = setTimeout(async () => {
+      const now = inp.value.trim().toLowerCase();
+      const list = await fetchCatalog(inp.value.trim());
+      if (inp.value.trim().toLowerCase() !== now) return;   // 입력이 바뀜
+      const extra = (list || []).filter(g =>
+        !g.on_shelf && g.name_kr &&
+        g.name_kr.toLowerCase().includes(now) &&
+        !seen.has(g.name_kr.toLowerCase())
+      ).slice(0, 5);
+      if (!extra.length) { updateGameBadge(); return; }
+      const shelfItems = emptySync ? '' : matches.map(n => `<div class="ac-item" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
+      menu.innerHTML = shelfItems
+        + extra.map(g => `<div class="ac-item" data-name="${esc(g.name_kr)}" onmousedown="acPick(event, this)">📚 ${esc(g.name_kr)}</div>`).join('');
+      menu.classList.add('show');
+      updateGameBadge();
+    }, 300);
+  }
 }
 function acPick(e, item) {
   e.preventDefault();   // 클릭 시 input이 blur되지 않도록 → 포커스 유지
   const wrap = item.closest('.ac-wrap');
   const inp = wrap.querySelector('input');
-  inp.value = item.textContent;
+  inp.value = item.dataset.name || item.textContent;
   const menu = wrap.querySelector('.ac-menu');
   menu.classList.remove('show'); menu.innerHTML = '';
   inp.dispatchEvent(new Event('input', { bubbles: true }));  // 상태 갱신(updatePart 등)
@@ -2104,9 +2156,20 @@ function updateGameBadge() {
   const el = document.getElementById('gmchk');
   const inp = document.getElementById('ap-game');
   if (!el || !inp) return;
-  const ok = !!gameByExactName(inp.value.trim());
-  el.textContent = ok ? '✓ 등록된 게임이에요' : '일치하는 게임이 없어요';
-  el.className = 'mchk ' + (ok ? 'ok' : 'no');
+  const v = inp.value.trim();
+  if (gameByExactName(v)) {
+    el.textContent = '✓ 등록된 게임이에요';
+    el.className = 'mchk ok';
+    return;
+  }
+  const cat = v && state._catalogHits && state._catalogHits[normGameName(v)];
+  if (cat) {
+    el.textContent = '📚 도감의 게임이에요 · 저장하면 우리 허브에 자동 등록';
+    el.className = 'mchk ok';
+    return;
+  }
+  el.textContent = '일치하는 게임이 없어요';
+  el.className = 'mchk no';
 }
 
 // 회원 일치 배지: 정확히 일치하는 회원이면 초록 '회원이에요', 아니면 '일치하는 회원이 없어요'
@@ -2181,7 +2244,13 @@ function toggleWin(i) { addPlayState.participants[i].is_win = !addPlayState.part
 function toggleGuest(i, checked) { addPlayState.participants[i].is_guest = checked; renderParticipants(); }
 
 async function submitAddPlay() {
-  const game = gameByExactName(document.getElementById('ap-game').value);
+  const nameV = document.getElementById('ap-game').value.trim();
+  let game = gameByExactName(nameV);
+  if (!game && nameV && state._catalogHits) {
+    // 우리 선반엔 없지만 공용 도감에 있는 게임 → 그대로 기록(서버가 선반에 자동 등재)
+    const c = state._catalogHits[normGameName(nameV)];
+    if (c) game = { game_id: c.game_id, name_kr: c.name_kr };
+  }
   if (!game) { toast('게임을 목록에 있는 이름으로 정확히 입력/선택하세요.', true); return; }
   const playDate = document.getElementById('ap-date').value;
   const duration = document.getElementById('ap-duration').value;
@@ -2607,7 +2676,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1548 기록장 자동생성·통합은 기록장에서만·내 허브 드롭다운';
+const APP_VERSION = 'v1558 플레이 기록에서 도감 게임 바로 사용·로그인 시 자동 계정 연결';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

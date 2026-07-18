@@ -2628,7 +2628,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1822 시작 화면 전면 개편(2경로·허브 목록·비번찾기·초대 복사)';
+const APP_VERSION = 'v1833 시작 화면에 계정 로그아웃 추가';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2792,7 +2792,21 @@ async function loadStartHubs() {
       </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
     <button class="btn ghost" style="margin-top:8px;" onclick="startShow('invite')">🔑 초대코드로 허브 입장</button>
-    <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>`;
+    <div class="row2" style="margin-top:16px;justify-content:center;gap:18px;">
+      <button class="logout-link" style="color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>
+      <button class="logout-link" style="color:var(--text-sub);" onclick="startSignOut()">🚪 계정 로그아웃</button>
+    </div>`;
+}
+
+// 계정(이메일) 로그아웃 — 허브 멤버(닉네임) 세션은 그대로 둔다
+async function startSignOut() {
+  showLoader('로그아웃 중…');
+  try { await sb.auth.signOut(); } catch (e) {}
+  hideLoader();
+  state._myLinks = null;
+  if (state._myStatsBy) state._myStatsBy = {};
+  toast('계정에서 로그아웃했어요.');
+  startShow('home');
 }
 
 async function startPickHub(hid) {

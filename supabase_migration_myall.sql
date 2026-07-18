@@ -96,6 +96,11 @@ as $$
     'name_en',   g.name_en,
     'category',  coalesce(g.category, ''),
     'image_url', coalesce(g.image_url, ''),
+    'min_players',  g.min_players,
+    'max_players',  g.max_players,
+    'playtime_min', g.playtime_min,
+    'weight',       g.weight,
+    'summary_kr',   coalesce(g.summary_kr, ''),
     'plays',     a.plays,
     'wins',      a.wins,
     'first_rn',  a.first_rn,
@@ -103,7 +108,12 @@ as $$
                   join my m on m.player_id = r.player_id
                   where r.game_id = a.game_id and r.hub_id = a.hub_id
                     and r.rating is not null
-                  limit 1)
+                  limit 1),
+    -- 전체 평점: 공용 도감 기준, 모든 허브 이용자의 평점 평균
+    'all_rating', (select round(avg(r.rating)::numeric, 1) from public.ratings r
+                   where r.game_id = a.game_id and r.rating is not null),
+    'all_rating_count', (select count(*) from public.ratings r
+                         where r.game_id = a.game_id and r.rating is not null)
   ) order by a.first_rn), '[]'::json)
   from agg a
   left join public.games g on g.game_id = a.game_id

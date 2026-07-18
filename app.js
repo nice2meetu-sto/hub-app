@@ -416,9 +416,9 @@ function showGameInfo(gameId) {
 
 // MY-게임기록 펼침: 게임 기본 정보 + 일자별 플레이 요약(일자·승패·내점수·최고점수)
 function myGameDetailHtml(g) {
-  const uid = state.user ? state.user.player_id : null;
-  const mine = state.plays
-    .filter(s => s.game_id === g.game_id && s.participants.some(p => p.player_id === uid))
+  // 기록장 통합 범위에서는 전 허브의 내 세션 합산
+  const mine = myScopeSessions()
+    .filter(s => s.game_id === g.game_id && s.participants.some(p => isMyPid(p.player_id)))
     .slice()
     .sort((a, b) => String(b.play_date).localeCompare(String(a.play_date)));
 
@@ -427,14 +427,14 @@ function myGameDetailHtml(g) {
     rows = `<div class="muted" style="font-size:12px;padding:6px 2px;">플레이 기록이 없어요.</div>`;
   } else {
     rows = mine.map(s => {
-      const me = s.participants.find(p => p.player_id === uid) || {};
+      const me = s.participants.find(p => isMyPid(p.player_id)) || {};
       const scores = s.participants
         .map(p => p.score == null || p.score === '' ? null : Number(p.score))
         .filter(v => v != null && !isNaN(v));
       const top = scores.length ? Math.max(...scores) : null;
       const myScore = (me.score == null || me.score === '') ? null : me.score;
       const win = me.is_win;
-      return `<div class="pdate-row" onclick="showSessionDetail('${esc(s.session_id)}')">
+      return `<div class="pdate-row" onclick="showSessionDetail('${esc(s.session_id)}','${esc(s.hub_id || '')}')">
         <span class="pdate-d">${esc(String(s.play_date).substring(0, 10))}</span>
         <span class="pdate-wl ${win ? 'win' : 'loss'}">${win ? '승 👑' : '패 🥈'}</span>
         <span class="pdate-s">나 ${myScore == null ? '-' : esc(myScore) + '점'}</span>
@@ -456,8 +456,11 @@ function myGameDetailHtml(g) {
 }
 
 // 단일 세션 세부 기록(참가자 전체) 보기 — MY 플레이 기록과 동일 형식
-function showSessionDetail(sid) {
-  const s = state.plays.find(x => String(x.session_id) === String(sid));
+// hub 인자: 통합 범위에서 세션 ID가 허브 간 겹칠 수 있어 허브까지 지정
+function showSessionDetail(sid, hub) {
+  const s = myScopeSessions().find(x => String(x.session_id) === String(sid)
+        && (!hub || x.hub_id === hub))
+    || state.plays.find(x => String(x.session_id) === String(sid));
   if (!s) { toast('플레이 기록을 찾을 수 없습니다.', true); return; }
   const dur = s.duration_min ? ` · ${s.duration_min}분` : '';
   const parts = s.participants.map(p => `
@@ -470,7 +473,9 @@ function showSessionDetail(sid) {
       ${thumb(s.game_image, 'session-thumb')}
       <div style="flex:1;min-width:0;">
         <div class="g-name">${esc(s.game_name)}</div>
-        <div class="g-meta">${esc(String(s.play_date).substring(0, 10))}${dur} · ${s.participants.length}명</div>
+        <div class="g-meta">${esc(String(s.play_date).substring(0, 10))}${dur} · ${s.participants.length}명${
+          s.hub_name && state.hub && s.hub_id !== state.hub.hub_id
+            ? ` · <span style="color:var(--main);">${esc(s.hub_name)}</span>` : ''}</div>
       </div>
     </div>
     <div class="participants">${parts}</div>
@@ -479,8 +484,9 @@ function showSessionDetail(sid) {
 }
 
 // 전체기록의 게임별 통계 카드 탭 → 게임 정보 + 일자별 플레이 요약
-function showMyGameStat(gameId) {
-  const g = gameById(gameId);
+async function showMyGameStat(gameId) {
+  await ensureMyAllData();
+  const g = myGameInfo(gameId);
   if (!g) { toast('게임 정보를 찾을 수 없습니다.', true); return; }
   document.getElementById('detail-body').innerHTML = myGameDetailHtml(g);
   showDetailSheet();
@@ -488,7 +494,7 @@ function showMyGameStat(gameId) {
 
 // 세션 세부 → 게임 상세(일자별 요약 포함)로 돌아가기
 function showGameInfoBackFromSession(gameId) {
-  const g = gameById(gameId);
+  const g = myGameInfo(gameId);
   if (!g) { showGameInfo(gameId); return; }
   document.getElementById('detail-body').innerHTML = myGameDetailHtml(g);
   showDetailSheet();
@@ -499,17 +505,18 @@ function showGameInfoBackFromSession(gameId) {
 // ============================================================
 // 이 게임을 함께 플레이한 플레이어별 통계(나 포함, 게스트 포함)
 function gamePlayerStats(gid) {
-  const uid = state.user ? state.user.player_id : null;
   const map = new Map();
-  state.plays.forEach(s => {
+  myScopeSessions().forEach(s => {
     if (s.game_id !== gid) return;
     // '함께 플레이한 기록': 내가 참가한 세션만 집계 → 같이 한 사람의
-    // 통계도 나와 함께한 판만으로 계산됨
-    if (uid && !s.participants.some(p => p.player_id === uid)) return;
+    // 통계도 나와 함께한 판만으로 계산됨 (통합 범위면 전 허브)
+    if (state.user && !s.participants.some(p => isMyPid(p.player_id))) return;
     s.participants.forEach(p => {
-      const key = p.player_id ? ('m:' + p.player_id) : ('g:' + (p.name || ''));
+      // 통합 범위: 허브마다 다른 내 player_id를 '나' 한 줄로 합침
+      const key = isMyPid(p.player_id) ? 'me'
+        : (p.player_id ? ('m:' + p.player_id) : ('g:' + (p.name || '')));
       let r = map.get(key);
-      if (!r) { r = { name: p.name || '(이름없음)', wins: 0, games: 0, scores: [], isMe: p.player_id && p.player_id === uid }; map.set(key, r); }
+      if (!r) { r = { name: p.name || '(이름없음)', wins: 0, games: 0, scores: [], isMe: key === 'me' }; map.set(key, r); }
       r.games += 1;
       if (p.is_win) r.wins += 1;
       const sc = (p.score == null || p.score === '') ? null : Number(p.score);
@@ -538,12 +545,12 @@ function topRoundRect(x, yy, w, h, r) {
   return `M${x.toFixed(1)},${(yy + h).toFixed(1)} L${x.toFixed(1)},${(yy + r).toFixed(1)} Q${x.toFixed(1)},${yy.toFixed(1)} ${(x + r).toFixed(1)},${yy.toFixed(1)} L${(x + w - r).toFixed(1)},${yy.toFixed(1)} Q${(x + w).toFixed(1)},${yy.toFixed(1)} ${(x + w).toFixed(1)},${(yy + r).toFixed(1)} L${(x + w).toFixed(1)},${(yy + h).toFixed(1)} Z`;
 }
 
-function gameChartSvg(sessions, uid) {
+function gameChartSvg(sessions) {
   const pts = sessions.map(s => {
     const scores = s.participants.map(p => (p.score == null || p.score === '') ? null : Number(p.score)).filter(v => v != null && !isNaN(v));
-    const me = s.participants.find(p => p.player_id === uid) || {};
+    const me = s.participants.find(p => isMyPid(p.player_id)) || {};
     const mine = (me.score == null || me.score === '') ? null : Number(me.score);
-    return { date: String(s.play_date).substring(5, 10), best: scores.length ? Math.max(...scores) : null, mine, sid: s.session_id };
+    return { date: String(s.play_date).substring(5, 10), best: scores.length ? Math.max(...scores) : null, mine, sid: s.session_id, hub: s.hub_id || '' };
   });
   if (!pts.length) return `<div class="muted" style="font-size:12px;padding:10px 2px;text-align:center;">점수 기록이 없어요.</div>`;
   const W = 340, H = 116, padT = 24, padB = 20, padX = 8;
@@ -559,7 +566,7 @@ function gameChartSvg(sessions, uid) {
     const x = cx(i);
     if (p.best != null) {
       const by = y(p.best);
-      bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY - by, 5)}" fill="var(--main)" style="cursor:pointer;" onclick="showBarSession('${esc(p.sid)}')"/>`;
+      bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY - by, 5)}" fill="var(--main)" style="cursor:pointer;" onclick="showBarSession('${esc(p.sid)}','${esc(p.hub)}')"/>`;
       labels += `<text x="${x.toFixed(1)}" y="${(by - 8).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#8a86a8" style="pointer-events:none;">${p.best}</text>`;
     }
     if (p.mine != null) {
@@ -574,7 +581,8 @@ function gameChartSvg(sessions, uid) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">${bars}${path}${labels}</svg>`;
 }
 
-function openGameDetail(gameId) {
+async function openGameDetail(gameId) {
+  await ensureMyAllData();   // 통합 범위면 전 허브 데이터 준비
   const el = document.getElementById('detail-overlay');
   const fromSheet = el.classList.contains('show');   // 공용 시트에서 열렸는지
   el.classList.remove('show');
@@ -589,16 +597,17 @@ function openGameDetail(gameId) {
 function closeGameDetail() { closeOverlay(); }
 
 // 차트 막대 클릭 → 그날 참가자 점수 표
-function showBarSession(sid) {
-  const s = state.plays.find(x => String(x.session_id) === String(sid));
+function showBarSession(sid, hub) {
+  const s = myScopeSessions().find(x => String(x.session_id) === String(sid)
+        && (!hub || x.hub_id === hub))
+    || state.plays.find(x => String(x.session_id) === String(sid));
   if (!s) return;
-  const uid = state.user ? state.user.player_id : null;
   const rows = s.participants.slice().sort((a, b) => {
     const av = (a.score == null || a.score === '') ? -Infinity : Number(a.score);
     const bv = (b.score == null || b.score === '') ? -Infinity : Number(b.score);
     return bv - av;
   }).map(p => {
-    const isMe = p.player_id && p.player_id === uid;
+    const isMe = !!isMyPid(p.player_id);
     return `<tr class="${isMe ? 'me' : ''}">
       <td>${esc(p.name)}${p.is_win ? ' 👑' : ''}${isMe ? ' <span style="color:var(--main);font-size:10px;">나</span>' : ''}</td>
       <td style="text-align:right;">${p.score == null || p.score === '' ? '-' : esc(p.score) + '점'}</td>
@@ -675,15 +684,14 @@ function sortGameDetail(col) {
 
 function renderGameDetail() {
   const gd = state._gd; if (!gd) return;
-  const g = gameById(gd.gid);
+  const g = myGameInfo(gd.gid);
   if (!g) { toast('게임 정보를 찾을 수 없습니다.', true); return; }
-  const uid = state.user ? state.user.player_id : null;
 
-  // 1) 상단: 사진 + 내 통계(판수·승수·평균·최고)
+  // 1) 상단: 사진 + 내 통계(판수·승수·평균·최고) — 통합 범위면 전 허브 합산
   let myGames = 0, myWins = 0; const myScores = [];
-  state.plays.forEach(s => {
+  myScopeSessions().forEach(s => {
     if (s.game_id !== gd.gid) return;
-    const me = s.participants.find(p => p.player_id === uid);
+    const me = s.participants.find(p => isMyPid(p.player_id));
     if (me) {
       myGames++; if (me.is_win) myWins++;
       const sc = (me.score == null || me.score === '') ? null : Number(me.score);
@@ -702,9 +710,10 @@ function renderGameDetail() {
     </div>
   </div>`;
 
-  // 2) 최근 6판 차트(내가 참가한 세션)
-  const mine = state.plays
-    .filter(s => s.game_id === gd.gid && s.participants.some(p => p.player_id === uid))
+  // 2) 최근 판 차트(내가 참가한 세션 — 통합 범위면 전 허브)
+  const mine = myScopeSessions()
+    .filter(s => s.game_id === gd.gid && s.participants.some(p => isMyPid(p.player_id)))
+    .slice()
     .sort((a, b) => String(a.play_date).localeCompare(String(b.play_date)));
   const recent = mine.slice(-10);
   const chart = `<div class="gd-sec">
@@ -712,7 +721,7 @@ function renderGameDetail() {
       <span>📈 최근 ${recent.length}판 점수 추이</span>
       <span class="gd-legend" style="margin-top:0;gap:10px;"><span><i style="background:var(--main);"></i>최고 점수</span><span><i style="background:#d9d5f3;"></i>내 점수</span></span>
     </div>
-    <div class="gd-chart">${gameChartSvg(recent, uid)}</div>
+    <div class="gd-chart">${gameChartSvg(recent)}</div>
   </div>`;
 
   // 3) 플레이어 통계 표(정렬 가능)
@@ -996,7 +1005,9 @@ function gameCardTopHtml(g, showMine) {
 
   let mine = '';
   if (showMine) {
-    const r = (state._myRatings && state._myRatings[g.game_id]) ? state._myRatings[g.game_id].rating : null;
+    // 통합 보기: 카드에 담아온 내 평점(_my_rating) 우선, 아니면 현재 허브 내 평점
+    const r = (g._my_rating != null) ? g._my_rating
+      : ((state._myRatings && state._myRatings[g.game_id]) ? state._myRatings[g.game_id].rating : null);
     mine = (r != null)
       ? `<span class="rate-mine">나 <span class="star">★</span> ${Number(r).toFixed(1)}</span>`
       : `<span style="font-size:12px;color:var(--text-sub);">내 평점 없음</span>`;
@@ -1025,14 +1036,14 @@ function gameCardHtml(g, opts = {}) {
   const actsHtml = acts.length ? `<div class="gcard-actions">${acts.join('')}</div>` : '';
   // 상세·후기 버튼은 평점 줄 오른쪽 끝(우측 하단)에 배치
   const br = [];
-  if (opts.ratingEditor) br.push(`<button class="gcard-pill" onclick="event.stopPropagation(); openGameDetail('${g.game_id}')">상세</button>`);
+  if (opts.ratingEditor || opts.myDetail) br.push(`<button class="gcard-pill" onclick="event.stopPropagation(); openGameDetail('${g.game_id}')">상세</button>`);
   if (opts.review) br.push(reviewPillHtml(g.game_id, g.review_count));
   const reviewHtml = br.length ? `<div class="gcard-actions br">${br.join('')}</div>` : '';
 
   return `<div class="gcard" data-gid="${g.game_id}">
     ${actsHtml}
     <div class="gcard-top" onclick="toggleCard(this)">
-      ${gameCardTopHtml(g, opts.ratingEditor)}
+      ${gameCardTopHtml(g, opts.ratingEditor || opts.showMine)}
       ${reviewHtml}
     </div>
     ${detail}
@@ -1164,6 +1175,55 @@ function myScope() {
   let sc = state.myScope || 'all';
   if (state.hub && sc === state.hub.hub_id) sc = 'hub';   // 기록장 자신 = 일반 모드
   return sc;
+}
+
+// 현재 MY 범위의 '내' 세션 소스: 기록장 통합이면 전 허브, 아니면 현재 허브
+function myScopeSessions() {
+  const scope = myScope();
+  if (scope === 'hub') return state.plays;
+  const all = state._myAllPlays || [];
+  return scope === 'all' ? all : all.filter(s => s.hub_id === scope);
+}
+
+// 통합 범위 화면에 필요한 전 허브 데이터(세션·게임 집계)를 준비
+async function ensureMyAllData() {
+  if (myScope() === 'hub') return;
+  try {
+    if (!state._myAllPlays) state._myAllPlays = await api('getMyPlaysAll') || [];
+    if (!state._myAllGames) state._myAllGames = await api('getMyGamesAll') || [];
+  } catch (e) { /* 미지원(마이그레이션 전) → 현재 허브 데이터로 표시 */ }
+}
+
+// 이 player_id가 '나'인지 — 통합 범위에서는 연결된 모든 허브의 내 멤버가 나
+function isMyPid(pid) {
+  if (!pid || !state.user) return false;
+  if (myScope() === 'hub') return pid === state.user.player_id;
+  return (state._myLinks || []).some(l => l.player_id === pid);
+}
+
+// 게임 정보: 선반(gameById) 우선, 통합 범위에서는 도감 집계(_myAllGames)로 구성
+function myGameInfo(gid) {
+  const scope = myScope();
+  if (scope === 'hub') return gameById(gid);
+  let rows = (state._myAllGames || []).filter(r => r.game_id === gid);
+  if (scope !== 'all') {
+    const sub = rows.filter(r => r.hub_id === scope);
+    if (sub.length) rows = sub;
+  }
+  if (!rows.length) return gameById(gid);
+  const r = rows[0];
+  const myRatings = rows.filter(x => x.my_rating != null && x.my_rating !== '')
+    .map(x => Number(x.my_rating));
+  return {
+    game_id: gid, name_kr: r.name_kr, name_en: r.name_en || '',
+    category: r.category || '', image_url: r.image_url || '',
+    min_players: r.min_players, max_players: r.max_players,
+    playtime_min: r.playtime_min, weight: r.weight, summary_kr: r.summary_kr || '',
+    club_rating: r.all_rating != null ? Number(r.all_rating) : null,
+    rating_count: r.all_rating_count || 0, review_count: 0,
+    _my_rating: myRatings.length
+      ? Math.round(myRatings.reduce((a, b) => a + b, 0) / myRatings.length * 10) / 10 : null,
+  };
 }
 
 function myScopeChipsHtml(scope) {
@@ -1355,7 +1415,6 @@ async function renderMyOverview() {
   const el = document.getElementById('my-overview');
   const links = state._myLinks || [];
   const scope = myScope();
-  state._myRestricted = scope !== 'hub';   // 다른 허브/통합 데이터 → 점수·상세 비활성
   state._myStatsBy = state._myStatsBy || {};
   if (!state._myStatsBy[scope]) {
     el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
@@ -1374,6 +1433,7 @@ async function renderMyOverview() {
     }
   }
   state._myStats = state._myStatsBy[scope];
+  await ensureMyAllData();   // 통합 범위: 점수·상세·카테고리 차트용 전 허브 데이터
   try {
     const stats = state._myStats;
     const scopeChips = myScopeChipsHtml(scope);
@@ -1434,8 +1494,7 @@ function toggleMyChart() {
 function myChartCardInner() {
   const stats = state._myStats; if (!stats) return '';
   const titleStyle = 'margin-top:0;margin-bottom: 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;';
-  const allMode = !!state._myRestricted;
-  if (!allMode && state.myChartMode === 'category') {
+  if (state.myChartMode === 'category') {
     return `
       <div class="section-title" style="${titleStyle}" onclick="toggleMyChart()">
         <span>카테고리별 플레이</span>
@@ -1466,23 +1525,24 @@ function myChartCardInner() {
     </div>`;
   }).join('');
   return `
-    <div class="section-title" style="${titleStyle}" ${allMode ? '' : 'onclick="toggleMyChart()"'}>
-      <span>월별 플레이 결과${allMode ? ' (선택 범위)' : ''}</span>
+    <div class="section-title" style="${titleStyle}" onclick="toggleMyChart()">
+      <span>월별 플레이 결과</span>
       <small class="legend-chips">
         <small><i style="background:var(--main-soft);"></i>승률</small>
         <small><i style="background:var(--main);"></i>판수</small>
       </small>
     </div>
-    <div class="barchart" ${allMode ? '' : 'onclick="toggleMyChart()"'} style="margin:0 -8px -10px;">${bars}</div>`;
+    <div class="barchart" onclick="toggleMyChart()" style="margin:0 -8px -10px;">${bars}</div>`;
 }
 
 // 카테고리별: 막대=내 플레이 횟수, 추이선=플레이한 게임 수 (동일 스케일)
+// 기록장 통합 범위에서는 전 허브 세션 기준
 function myCategoryChartSvg() {
-  const uid = state.user.player_id;
   const byCat = {};
-  state.plays.forEach(s => {
-    if (!s.participants.some(p => p.player_id === uid)) return;
-    const g = gameById(s.game_id);
+  myScopeSessions().forEach(s => {
+    if (!s.participants.some(p => isMyPid(p.player_id))) return;
+    const g = gameById(s.game_id)
+      || (state._myAllGames || []).find(r => r.game_id === s.game_id);
     const cat = (g && g.category) || '기타';
     if (!byCat[cat]) byCat[cat] = { plays: 0, games: new Set() };
     byCat[cat].plays++;
@@ -1545,13 +1605,12 @@ function renderMyGameStatList() {
   }
   // 동일 값(정렬 기준) = 공동 순위. 승률순이면 승률, 판수순이면 판수 기준
   const ranks = competitionRanks(rows, g => sort === 'plays' ? g.plays : g.win_rate);
-  const allMode = !!state._myRestricted;
   listEl.innerHTML = rows.map((g, i) => {
-    const sc = allMode ? { has: false } : myGameScores(g.game_id);
-    const scoreText = sc.has ? `평균 ${sc.avg}점 · 최고 ${sc.max}점` : (allMode ? '집계' : '점수 없음');
+    const sc = myGameScores(g.game_id);
+    const scoreText = sc.has ? `평균 ${sc.avg}점 · 최고 ${sc.max}점` : '점수 없음';
     const rightNum = sort === 'plays' ? `${g.plays}` : `${g.win_rate}%`;
     const rightLbl = sort === 'plays' ? '판수' : '승률';
-    return `<div class="grow" ${allMode ? '' : `style="cursor:pointer;" onclick="showMyGameStat('${esc(g.game_id)}')"`}>
+    return `<div class="grow" style="cursor:pointer;" onclick="showMyGameStat('${esc(g.game_id)}')">
       <div class="grow-rank">${ranks[i]}</div>
       <div class="grow-body">
         <div class="grow-name">${esc(g.game)}</div>
@@ -1599,12 +1658,13 @@ async function renderMyPlaysTab() {
 }
 
 // 로그인한 본인이 특정 게임에서 낸 점수들의 평균/최고 (점수 없으면 has=false)
+// 기록장 통합 범위에서는 전 허브의 내 점수를 합산
 function myGameScores(gameId) {
   const scores = [];
-  state.plays.forEach(s => {
+  myScopeSessions().forEach(s => {
     if (s.game_id !== gameId) return;
     s.participants.forEach(p => {
-      if (p.player_id === state.user.player_id && p.score != null && p.score !== '') {
+      if (isMyPid(p.player_id) && p.score != null && p.score !== '') {
         const n = Number(p.score);
         if (!isNaN(n)) scores.push(n);
       }
@@ -1699,8 +1759,9 @@ async function renderMyGames() {
   }
 }
 
-// 게임 기록 통합(전체/특정 허브): 허브×게임 집계를 범위에 맞게 합산해 표시.
-// 평점·후기·메모 편집은 각 허브에서 — 여기서는 모아보기(읽기 전용)
+// 게임 기록 통합(전체/특정 허브): 허브 게임 기록과 같은 카드 형식.
+// ★=전체 이용자 평점(공용 도감 기준), 나 ★=내 평점(허브별 평균).
+// 평점·후기·메모 편집은 각 허브의 게임 기록에서.
 async function renderMyGamesAll(el, scope) {
   const chips = myScopeChipsHtml(scope);
   if (!state._myAllGames) {
@@ -1712,30 +1773,33 @@ async function renderMyGamesAll(el, scope) {
       return;
     }
   }
+  // 내 최근 플레이 순으로 게임 목록 구성(카드 정보는 myGameInfo가 합산)
   const rows = state._myAllGames.filter(r => scope === 'all' || r.hub_id === scope);
-  const by = {};
-  rows.forEach(r => {
-    if (!by[r.game_id]) by[r.game_id] = {
-      game_id: r.game_id, name_kr: r.name_kr, name_en: r.name_en,
-      category: r.category, image_url: r.image_url,
-      plays: 0, wins: 0, hubs: [], ratings: [], first: r.first_rn,
-    };
-    const o = by[r.game_id];
-    o.plays += r.plays; o.wins += r.wins;
-    if (r.hub_name && !o.hubs.includes(r.hub_name)) o.hubs.push(r.hub_name);
-    if (r.my_rating != null && r.my_rating !== '') o.ratings.push(Number(r.my_rating));
-    o.first = Math.min(o.first, r.first_rn);
+  const order = []; const seen = new Set();
+  rows.slice().sort((a, b) => a.first_rn - b.first_rn).forEach(r => {
+    if (!seen.has(r.game_id)) { seen.add(r.game_id); order.push(r.game_id); }
   });
-  const games = Object.values(by).sort((a, b) => a.first - b.first);   // 내 최근 플레이 순
+  const games = order.map(gid => myGameInfo(gid)).filter(Boolean);
   if (!games.length) {
     el.innerHTML = `${chips}<div class="empty"><div class="big">🎮</div>이 범위에는 아직 참가한 게임이 없어요.</div>`;
     return;
   }
   state._myGamesAllList = games;
   el.innerHTML = `${chips}
-    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요.<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
-    <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
-    <div id="my-gamesall-cards" style="margin-top:10px;"></div>`;
+    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=전체 이용자 평점)<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
+    <div class="searchrow">
+      <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
+      <button class="sortbtn ${state.myGamesSortRating ? 'on' : ''}" id="my-gamesall-sort-btn" title="내 평점 정렬" onclick="cycleMyGamesAllSort()">${sortBtnLabel(state.myGamesSortRating)}</button>
+    </div>
+    <div id="my-gamesall-cards"></div>`;
+  filterMyGamesAll();
+}
+
+function cycleMyGamesAllSort() {
+  state.myGamesSortRating = nextSortMode(state.myGamesSortRating);
+  const b = document.getElementById('my-gamesall-sort-btn');
+  b.textContent = sortBtnLabel(state.myGamesSortRating);
+  b.classList.toggle('on', !!state.myGamesSortRating);
   filterMyGamesAll();
 }
 
@@ -1743,30 +1807,17 @@ function filterMyGamesAll() {
   const all = state._myGamesAllList || [];
   const input = document.getElementById('my-gamesall-search');
   const term = (input ? input.value : '').trim().toLowerCase();
-  const list = !term ? all : all.filter(g =>
+  let list = !term ? all : all.filter(g =>
     String(g.name_kr || '').toLowerCase().includes(term) ||
     String(g.name_en || '').toLowerCase().includes(term) ||
     String(g.category || '').toLowerCase().includes(term));
+  // 내 평점 기준 정렬(해제 시 최근 플레이 순 유지)
+  list = applyRatingSort(list, state.myGamesSortRating, g => g._my_rating);
   const cards = document.getElementById('my-gamesall-cards');
   if (!cards) return;
-  cards.innerHTML = list.length ? list.map(g => {
-    const wr = g.plays ? Math.round(g.wins / g.plays * 1000) / 10 : 0;
-    const rating = g.ratings.length
-      ? Math.round(g.ratings.reduce((a, b) => a + b, 0) / g.ratings.length * 10) / 10 : null;
-    return `<div class="card" style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
-      ${thumb(g.image_url, 'session-thumb')}
-      <div style="flex:1;min-width:0;">
-        <div class="g-name">${esc(g.name_kr || g.name_en || g.game_id)}</div>
-        <div class="g-meta">${g.plays}판 · ${g.wins}승 · 승률 ${wr}%${g.category ? ' · ' + esc(g.category) : ''}</div>
-        <div class="hint" style="margin-top:2px;">${g.hubs.map(esc).join(' · ')}</div>
-      </div>
-      <div style="flex:0 0 auto;text-align:right;">
-        ${rating != null
-          ? `<div style="font-weight:800;color:var(--main);white-space:nowrap;">★ ${rating}</div><div class="hint">내 평점</div>`
-          : `<div class="hint">평점 없음</div>`}
-      </div>
-    </div>`;
-  }).join('') : `<div class="empty">검색 결과가 없어요.</div>`;
+  cards.innerHTML = list.length
+    ? list.map(g => gameCardHtml(g, { showMine: true, myDetail: true })).join('')
+    : `<div class="empty">검색 결과가 없어요.</div>`;
 }
 
 function cycleMyGamesSort() {
@@ -2742,7 +2793,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1930 기록장 플레이·게임 기록 통합(전 허브 모아보기)';
+const APP_VERSION = 'v1946 기록장 완전 통합: 상세·차트·게임카드까지 전 허브 합산';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

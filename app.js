@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
-  ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+  ['전략', '마피아', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
 
 // Supabase 클라이언트
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -69,7 +69,7 @@ async function api(action, params = {}) {
     }
     case 'getCategories': {
       const { data, error } = await sb.from('categories').select('name')
-        .eq('hub_id', hubId()).order('sort_order').order('name');
+        .order('sort_order').order('name');
       if (error || !data || !data.length) return DEFAULT_CATEGORIES_FALLBACK;
       return data.map(r => r.name);
     }
@@ -99,7 +99,7 @@ async function api(action, params = {}) {
       return sbrpc('admin_delete_game', { p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId });
     case 'getCategoriesFull': {
       const { data, error } = await sb.from('categories').select('name,sort_order')
-        .eq('hub_id', hubId()).order('sort_order').order('name');
+        .order('sort_order').order('name');
       if (error) throw new Error(acErr(error));
       return data || [];
     }
@@ -1797,7 +1797,7 @@ function switchAddTab(tab) {
 
 // ----- 게임 추가 -----
 // 기본 분류(폴백). 앱 시작 시 Supabase categories 테이블에서 읽어와 덮어씀
-let CATEGORIES = ['전략', '마피아', '트릭테이킹', '파티', '협력', '덱빌딩', '추리', '가족', '아브스트랙트', '기타'];
+let CATEGORIES = ['전략', '마피아', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
 function renderAddGameForm() {
   const el = document.getElementById('add-game-form');
   el.innerHTML = `
@@ -2676,7 +2676,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1558 플레이 기록에서 도감 게임 바로 사용·로그인 시 자동 계정 연결';
+const APP_VERSION = 'v1615 카테고리 전역 공통 7종·기록장 kind 보수';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

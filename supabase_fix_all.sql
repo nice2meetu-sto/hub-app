@@ -593,7 +593,9 @@ begin
                            'linked', true, 'role_admin', v_is_admin);
 end $$;
 
--- get_my_links에 초대코드 포함(허브 전환 메뉴에서 초대 문구 복사용)
+-- get_my_links에 초대코드·PIN 포함
+-- (초대코드: 허브 전환 메뉴 복사용 / PIN: 기록장 관리자탭 셀프 관리용 —
+--  login_linked가 이미 본인에게 pin을 돌려주는 것과 동일 수준의 접근)
 create or replace function public.get_my_links()
 returns json
 language sql stable security definer
@@ -602,13 +604,52 @@ as $$
   select coalesce(json_agg(json_build_object(
     'hub_id', p.hub_id, 'hub_name', h.name, 'kind', coalesce(h.kind,'hub'),
     'invite', coalesce(h.invite_code, ''),
-    'player_id', p.player_id, 'name', p.name,
+    'player_id', p.player_id, 'name', p.name, 'pin', coalesce(p.pin, ''),
     'status', coalesce(p.status,'active')
   ) order by (coalesce(h.kind,'hub') = 'personal') desc, p.hub_id), '[]'::json)
   from public.players p
   join public.hubs h on h.hub_id = p.hub_id
   where p.auth_uid = auth.uid();
 $$;
+
+-- 내 멤버 정보 셀프 수정: 계정에 연결된 허브의 내 닉네임·비밀번호 변경
+create or replace function public.update_my_member(p_hub_id text, p_name text, p_pin text)
+returns json
+language plpgsql security definer
+set search_path = public
+as $$
+declare v_uid uuid := public._auth_uid(); r public.players;
+        v_name text := btrim(coalesce(p_name, ''));
+begin
+  if v_uid is null then raise exception '이메일 로그인이 필요합니다.'; end if;
+  select * into r from public.players
+   where hub_id = p_hub_id and auth_uid = v_uid
+     and coalesce(status,'active') <> 'left'
+   order by player_id limit 1;
+  if not found then raise exception '이 허브에 연결된 멤버가 없습니다.'; end if;
+
+  if v_name <> '' and lower(v_name) <> lower(btrim(r.name)) then
+    if exists (select 1 from public.players
+               where hub_id = p_hub_id and lower(btrim(name)) = lower(v_name)
+                 and player_id <> r.player_id) then
+      raise exception '이미 사용 중인 닉네임입니다.'; end if;
+    update public.players set name = v_name where player_id = r.player_id;
+    -- 플레이 기록의 이름 스냅샷도 함께 갱신(기록 표시가 새 닉네임을 따르도록)
+    update public.playlogs set player_name = v_name
+     where player_id = r.player_id and coalesce(btrim(player_name), '') <> '';
+  end if;
+
+  if coalesce(p_pin, '') <> '' then
+    if p_pin !~ '^\d{4}$' then raise exception '비밀번호는 숫자 4자리로 입력하세요.'; end if;
+    update public.players set pin = p_pin where player_id = r.player_id;
+  end if;
+
+  return json_build_object('player_id', r.player_id, 'hub_id', p_hub_id,
+                           'name', case when v_name <> '' then v_name else r.name end);
+end $$;
+
+revoke all on function public.update_my_member(text, text, text) from anon, public;
+grant execute on function public.update_my_member(text, text, text) to authenticated;
 
 revoke all on function public.get_my_plays_all() from anon, public;
 revoke all on function public.get_my_games_all() from anon, public;

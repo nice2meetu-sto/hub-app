@@ -2582,7 +2582,10 @@ function openAdminPage() {
   page.classList.add('show');
   page.scrollTop = 0;
   openOverlay(() => page.classList.remove('show'));
-  switchAdminTab('games');
+  // 기록장: 게임·플레이 관리가 필요 없어 가입자(내 정보) 화면만 표시
+  const personal = isPersonalHub(state.hub);
+  page.querySelector('.subtabs').style.display = personal ? 'none' : '';
+  switchAdminTab(personal ? 'players' : 'games');
 }
 function closeAdminPage() { closeOverlay(); }
 
@@ -2684,19 +2687,21 @@ function adminPlaySearch() {
 function renderAdminHubSection() {
   const el = document.getElementById('adm-hub-section');
   if (!el) return;
+  const personal = isPersonalHub(state.hub);
   el.innerHTML = `
     <div class="card" style="margin-bottom:14px;">
-      <div class="section-title" style="margin-top:0;">🏠 허브 설정 <small class="muted" style="font-weight:500;">(허브 개설 계정 전용)</small></div>
+      <div class="section-title" style="margin-top:0;">${personal ? '📔 기록장 설정' : '🏠 허브 설정'} <small class="muted" style="font-weight:500;">(개설 계정 전용)</small></div>
       <div style="display:flex;gap:8px;">
         <input class="input" id="adm-hub-name" value="${esc(state.hub ? state.hub.name : '')}" maxlength="30" style="flex:1;min-width:0;" />
         <button class="btn sm" style="flex:0 0 auto;" onclick="adminHubRename()">이름 저장</button>
       </div>
+      ${personal ? '' : `
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
         <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;">초대코드 ●●●●●●</div>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminShowInvite()">보기</button>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminCopyInvite()">복사</button>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminRotateInvite()">재발급</button>
-      </div>
+      </div>`}
     </div>`;
 }
 
@@ -2752,12 +2757,15 @@ async function renderAdminPlayers() {
   if (pin == null) { el.innerHTML = `<div class="empty">PIN 확인이 필요합니다.</div>`; return; }
   try {
     state._admPlayers = await api('adminGetPlayers', { playerId: state.user.player_id, pin });
+    const personal = isPersonalHub(state.hub);
     el.innerHTML = `
       <div id="adm-hub-section"></div>
-      <div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-player-search" placeholder="닉네임 검색 (쉼표로 여러 조건)" oninput="adminPlayerSearch()" /></div>
-      <div id="adm-player-list"></div>`;
+      ${personal ? '' : `<div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-player-search" placeholder="닉네임 검색 (쉼표로 여러 조건)" oninput="adminPlayerSearch()" /></div>`}
+      <div id="adm-player-list" ${personal ? 'style="display:none;"' : ''}></div>
+      ${personal ? '<div id="adm-mylinks"></div>' : ''}`;
     renderAdminHubSection();
     adminPlayerSearch();
+    if (personal) renderAdminMyLinks();
   } catch (e) {
     el.innerHTML = `<div class="empty">불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
   }
@@ -2783,6 +2791,51 @@ function adminPlayerSearch() {
         : `<input class="pin" inputmode="numeric" maxlength="4" value="${esc(p.pin)}" />
       <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSavePin(this)">저장</button>`}
     </div>`).join('');
+}
+
+// 기록장 관리자탭: 연결된 허브별 내 닉네임·비밀번호 셀프 관리
+async function renderAdminMyLinks() {
+  const el = document.getElementById('adm-mylinks');
+  if (!el) return;
+  el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  state._myLinks = null;
+  try { await loadMyLinks(); } catch (e) {}
+  const links = state._myLinks || [];
+  el.innerHTML = `
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">🔗 연결된 허브 관리</div>
+      <div class="hint" style="margin-bottom:10px;">각 허브에서 쓰는 닉네임과 비밀번호를 여기서 바로 수정할 수 있어요.</div>
+      ${links.map(l => `
+        <div class="adm-prow" data-hid="${esc(l.hub_id)}">
+          <div class="nm">${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</div>
+          <input class="input lk-name" value="${esc(l.name)}" maxlength="20"
+                 style="flex:0 1 96px;min-width:0;padding:8px;" />
+          <input class="pin lk-pin" inputmode="numeric" maxlength="4" value="${esc(l.pin || '')}" />
+          <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSaveMyLink(this)">저장</button>
+        </div>`).join('') || '<div class="hint">연결된 허브가 없어요</div>'}
+    </div>`;
+}
+
+async function adminSaveMyLink(btn) {
+  const row = btn.closest('.adm-prow');
+  const hid = row.getAttribute('data-hid');
+  const name = row.querySelector('.lk-name').value.trim();
+  const pin = row.querySelector('.lk-pin').value.trim();
+  if (!name) { toast('닉네임을 입력하세요.', true); return; }
+  if (!/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력하세요.', true); return; }
+  showLoader('저장 중…');
+  try {
+    await sbrpc('update_my_member', { p_hub_id: hid, p_name: name, p_pin: pin });
+    if (state.hub && state.hub.hub_id === hid && state.user) {   // 현재 허브(기록장) 본인이면 세션 갱신
+      state.user.name = name;
+      localStorage.setItem('bg_user', JSON.stringify(state.user));
+      localStorage.setItem('bg_pin', pin);
+      updateWhoami();
+    }
+    state._myLinks = null;
+    state._myAllPlays = null; state._myAllGames = null; state._myStatsBy = null;
+    toast('저장했어요!');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 function admRevealPin(pid) {
@@ -2811,7 +2864,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2135 계정연결확인에서 추가 연결(코드+닉네임+PIN)';
+const APP_VERSION = 'v2140 기록장 관리자탭 정리·연결 허브 닉네임/비밀번호 관리';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

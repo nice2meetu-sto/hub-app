@@ -45,7 +45,12 @@ async function sbWriteWithPayload(fn, payloadStr) {
 async function api(action, params = {}) {
   const P = params;
   switch (action) {
-    case 'login':          return sbrpc('login',  { p_name: P.name, p_pin: P.pin });
+    case 'login': {
+      // v2: 실패 시 예외 대신 {ok:false, error}를 반환(PIN 시도 잠금 카운터 유지용)
+      const d = await sbrpc('login', { p_name: P.name, p_pin: P.pin });
+      if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
+      return d;
+    }
     case 'signup':         return sbrpc('signup', { p_name: P.name, p_pin: P.pin });
     case 'getGames':       return sbrpc('get_games');
     case 'getPlays':       return sbrpc('get_plays');
@@ -2389,7 +2394,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1428 파일 분리(index.html + styles.css + app.js)';
+const APP_VERSION = 'v1457 인증 로직: PIN 잠금·허브 개설·관리 RPC(2-1)';
 function init() {
   console.log('BoardGameHub build:', APP_VERSION);
   const saved = localStorage.getItem('bg_user');

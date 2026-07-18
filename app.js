@@ -1141,21 +1141,39 @@ async function ensurePersonalHub(nick, pin) {
 }
 
 // ===== 좌측 상단: 내 허브 드롭다운 =====
+// 허브 전환 메뉴의 한 줄: 이름 + 초대코드(탭=초대 문구 복사) + 이동 표시
+function hubMenuRowHtml(hid, name, kind, invite, cur, clickable) {
+  const inv = invite
+    ? `<span class="invite-mini" onclick="event.stopPropagation(); copyInvite('${esc(name)}','${esc(invite)}')" title="초대 문구 복사">🔑 ${esc(invite)}</span>`
+    : '';
+  return `<button class="hubmenu-item ${cur ? 'cur' : ''}" ${clickable ? `onclick="switchToHub('${hid}')"` : 'onclick="closeHubMenu()"'}>
+    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${kind === 'personal' ? '📔' : '🏠'} ${esc(name)}</span>
+    <span style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+      ${inv}${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
+    </span>
+  </button>`;
+}
+
 async function openHubMenu() {
   try { await loadMyLinks(); } catch (e) {}
   const links = state._myLinks || [];
-  if (!links.length) { openStartPage(true); return; }   // 이메일 연동 없으면 기존 시작 화면
   const el = document.getElementById('hubmenu-body');
+  let rows;
+  if (links.length) {
+    rows = links.map(l => {
+      const cur = state.hub && state.hub.hub_id === l.hub_id;
+      const inv = l.invite || (cur && state.hub.invite) || '';
+      return hubMenuRowHtml(l.hub_id, l.hub_name, isPersonalHub(l) ? 'personal' : 'hub', inv, cur, true);
+    }).join('');
+  } else if (state.hub) {
+    // 이메일 미연결: 현재 허브 정보(이름·초대코드)만 동일한 형식으로
+    rows = hubMenuRowHtml(state.hub.hub_id, state.hub.name,
+      isPersonalHub(state.hub) ? 'personal' : 'hub', state.hub.invite || '', true, false);
+  } else { openStartPage(true); return; }
   el.innerHTML = `
     <h2 style="font-size:17px;font-weight:900;margin:2px 2px 12px;">내 허브</h2>
-    ${links.map(l => {
-      const cur = state.hub && state.hub.hub_id === l.hub_id;
-      return `<button class="hubmenu-item ${cur ? 'cur' : ''}" onclick="switchToHub('${l.hub_id}')">
-        <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span>
-        ${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
-      </button>`;
-    }).join('')}
-    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); openStartPage(true);">🔑 초대코드로 다른 허브 입장</button>`;
+    ${rows}
+    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
@@ -1308,7 +1326,7 @@ function renderMyLinkRow() {
   if (me && me.linked) {
     el.innerHTML = `<span class="hint">✓ 이메일 계정 연결됨 · 여러 허브 기록을 모아볼 수 있어요</span>`;
   } else {
-    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="openEmailAuth('link')">📧 이메일 계정에 연결하기</button>
+    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="linkCurrentMember()">📧 이메일 계정에 연결하기</button>
       <div class="hint" style="margin-top:4px;">연결하면 여러 허브의 내 기록을 통합해 볼 수 있어요</div>`;
   }
 }
@@ -1397,17 +1415,27 @@ function applyAuth(user, pin, welcome) {
 
 
 // 이메일 세션이 있으면 지금 로그인한 멤버를 계정에 자동 연결
-async function autoLinkIfEmail(user, pin) {
+// 현재 멤버를 이메일 계정에 수동 연결(자동 연결 없음 — 버튼으로만).
+// 이미 이 허브에 연결된 멤버가 있는 계정이면 중복 연결을 막는다
+async function linkCurrentMember() {
+  if (!state.user) return;
+  let session = null;
+  try { const { data } = await sb.auth.getSession(); session = data && data.session; } catch (e) {}
+  if (!session) { openEmailAuth('link'); return; }   // 이메일 로그인부터
+  state._myLinks = null;
+  try { await loadMyLinks(); } catch (e) {}
+  if ((state._myLinks || []).some(l => l.hub_id === hubId())) {
+    toast('이미 연결된 허브예요.', true); return;
+  }
+  showLoader('연결 중…');
   try {
-    const { data } = await sb.auth.getSession();
-    if (!data || !data.session) return;
-    const me = (state.players || []).find(p => p.player_id === user.player_id);
-    if (me && me.linked) return;
-    await api('linkPlayer', { playerId: user.player_id, pin });
+    const pin = localStorage.getItem('bg_pin');
+    await api('linkPlayer', { playerId: state.user.player_id, pin });
     state._myLinks = null;
+    try { state.players = await api('getPlayers'); } catch (e) {}
     toast('이 허브가 내 계정에 연결됐어요 🔗');
     renderMyLinkRow();
-  } catch (e) { /* 다른 계정에 연결된 멤버 등 — 조용히 무시 */ }
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 async function doLogin() {
@@ -1418,7 +1446,6 @@ async function doLogin() {
   try {
     const user = await api('login', { name, pin });
     applyAuth(user, pin, `${user.name}님 환영합니다!`);
-    autoLinkIfEmail(user, pin);
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1437,7 +1464,6 @@ async function doSignup() {
     // 새 회원이 참가자 목록/통계에 바로 반영되도록 갱신
     try { state.players = await api('getPlayers'); } catch (e) {}
     applyAuth(user, pin, `${user.name}님 가입 완료! 환영합니다 🎉`);
-    autoLinkIfEmail(user, pin);
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -1445,19 +1471,8 @@ async function doSignup() {
   }
 }
 
-function logout() {
-  state.user = null;
-  state._myStats = null;
-  state._myRatings = null;
-  state._myRatingsPromise = null;
-  localStorage.removeItem('bg_user');
-  localStorage.removeItem('bg_pin');
-  updateWhoami();
-  renderGames();
-  renderMy();
-  toast('로그아웃 되었습니다.');
-  openStartPage(true);   // 초대코드/허브 만들기/개인 기록장 선택 화면으로 (✕ = 현재 허브로 복귀)
-}
+// 메인(시작 화면)으로 이동 — 멤버 세션은 그대로 (계정 로그아웃은 메인에서)
+function goMain() { openStartPage(true); }
 
 function updateWhoami() {
   const el = document.getElementById('whoami');
@@ -2758,6 +2773,7 @@ function renderAdminHubSection() {
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
         <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;">초대코드 ●●●●●●</div>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminShowInvite()">보기</button>
+        <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminCopyInvite()">복사</button>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminRotateInvite()">재발급</button>
       </div>
     </div>`;
@@ -2787,6 +2803,15 @@ async function adminHubRename() {
 async function adminShowInvite() {
   const r = await hubAuthCall(() => api('hubGetInvite'));
   if (r) document.getElementById('adm-invite-view').textContent = '초대코드 ' + r.invite_code;
+}
+
+// 초대 문구 복사(허브 개설 완료 화면과 같은 멘트)
+async function adminCopyInvite() {
+  const r = await hubAuthCall(() => api('hubGetInvite'));
+  if (r) {
+    document.getElementById('adm-invite-view').textContent = '초대코드 ' + r.invite_code;
+    copyInvite(state.hub ? state.hub.name : '', r.invite_code);
+  }
 }
 
 async function adminRotateInvite() {
@@ -2854,7 +2879,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2027 계정연결확인 메뉴(연결 목록·연결해제)';
+const APP_VERSION = 'v2049 수동 연결·중복 연결 금지·허브메뉴 초대코드·메인으로 정리';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3302,12 +3327,19 @@ async function emailAuthGo(isSignup) {
         closeEmailAuth();
       } catch (err) {
         closeEmailAuth();
-        toast('이 허브에 연결된 멤버가 없어요. 닉네임+PIN으로 로그인하면 자동 연결돼요.', true);
-        // 세션은 만들어졌으므로, 이어서 닉네임+PIN 로그인 시 autoLinkIfEmail이 연결해줌
+        toast('이 허브에 연결된 멤버가 없어요. 닉네임+PIN 로그인 후 [연결하기]를 눌러주세요.', true);
+        // 세션은 만들어졌으므로, 멤버 로그인 뒤 MY 하단 [연결하기]로 수동 연결
       }
       return;
     }
     if (emailFlow.purpose === 'link') {          // 현재 멤버를 이 계정에 연결
+      state._myLinks = null;
+      try { await loadMyLinks(); } catch (err) {}
+      if ((state._myLinks || []).some(l => l.hub_id === hubId())) {
+        closeEmailAuth();
+        toast('이미 연결된 허브예요.', true);
+        return;
+      }
       const pin = localStorage.getItem('bg_pin');
       await api('linkPlayer', { playerId: state.user.player_id, pin });
       closeEmailAuth();

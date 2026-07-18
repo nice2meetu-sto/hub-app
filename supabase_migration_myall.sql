@@ -141,6 +141,55 @@ as $$
     and r.review is not null and btrim(r.review) <> '';
 $$;
 
+-- 안전장치: 한 계정은 한 허브에 멤버 1명만 연결 가능(중복 연결 금지)
+create or replace function public.link_player(p_hub_id text, p_player_id text, p_pin text)
+returns json
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare v_uid uuid := public._auth_uid(); r public.players; v_is_admin boolean;
+begin
+  if v_uid is null then raise exception '이메일 로그인이 필요합니다.'; end if;
+  r := public._verify(p_player_id, p_pin);
+  if r.hub_id <> p_hub_id then raise exception '이 허브의 멤버가 아닙니다.'; end if;
+  if r.auth_uid is not null and r.auth_uid is distinct from v_uid then
+    raise exception '이미 다른 계정에 연결된 멤버입니다.'; end if;
+  if exists (select 1 from public.players
+             where hub_id = p_hub_id and auth_uid = v_uid
+               and player_id <> p_player_id) then
+    raise exception '이미 연결된 허브예요.'; end if;
+
+  v_is_admin := exists (select 1 from public.hubs
+                        where hub_id = p_hub_id and owner_uid = v_uid)
+             or exists (select 1 from public.hub_admins
+                        where hub_id = p_hub_id and auth_uid = v_uid);
+
+  update public.players
+     set auth_uid = v_uid,
+         role = case when v_is_admin then 'admin' else role end
+   where player_id = p_player_id;
+
+  return json_build_object('player_id', p_player_id, 'hub_id', p_hub_id,
+                           'linked', true, 'role_admin', v_is_admin);
+end $$;
+
+-- get_my_links에 초대코드 포함(허브 전환 메뉴에서 초대 문구 복사용)
+create or replace function public.get_my_links()
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select coalesce(json_agg(json_build_object(
+    'hub_id', p.hub_id, 'hub_name', h.name, 'kind', coalesce(h.kind,'hub'),
+    'invite', coalesce(h.invite_code, ''),
+    'player_id', p.player_id, 'name', p.name,
+    'status', coalesce(p.status,'active')
+  ) order by (coalesce(h.kind,'hub') = 'personal') desc, p.hub_id), '[]'::json)
+  from public.players p
+  join public.hubs h on h.hub_id = p.hub_id
+  where p.auth_uid = auth.uid();
+$$;
+
 revoke all on function public.get_my_plays_all() from anon, public;
 revoke all on function public.get_my_games_all() from anon, public;
 grant execute on function public.get_my_plays_all() to authenticated;

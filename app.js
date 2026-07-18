@@ -2165,9 +2165,10 @@ function checkNewGameName() {
 
 // 정확히 일치하는 게임/플레이어만 허용(데이터 오류 방지)
 function gameByExactName(name) {
-  name = (name || '').trim();
-  if (!name) return null;
-  return state.games.find(g => (g.name_kr || '') === name || (g.name_en || '') === name) || null;
+  const key = normGameName(name);
+  if (!key) return null;
+  return state.games.find(g =>
+    normGameName(g.name_kr) === key || normGameName(g.name_en) === key) || null;
 }
 function playerByExactName(name) {
   name = (name || '').trim();
@@ -2232,21 +2233,22 @@ function acRender(inp, kind) {
   const wrap = inp.closest('.ac-wrap');
   const menu = wrap && wrap.querySelector('.ac-menu');
   if (!menu) return;
-  const term = inp.value.trim().toLowerCase();
+  const term = kind === 'game' ? normGameName(inp.value) : inp.value.trim().toLowerCase();
   if (!term) { menu.classList.remove('show'); menu.innerHTML = ''; return; }
+  const norm = kind === 'game' ? normGameName : (s => String(s || '').toLowerCase());
   const seen = new Set();
   const matches = acNames(kind).filter(n => {
-    const low = n.toLowerCase();
+    const low = norm(n);
     if (!low.startsWith(term) || seen.has(low)) return false;
     seen.add(low); return true;
   }).sort((a, b) => a.localeCompare(b)).slice(0, 8);
   // 후보가 없거나, 이미 정확히 일치하는 하나뿐이면 표시하지 않음
-  const emptySync = !matches.length || (matches.length === 1 && matches[0].toLowerCase() === term);
+  const emptySync = !matches.length || (matches.length === 1 && norm(matches[0]) === term);
   if (emptySync) {
     menu.classList.remove('show'); menu.innerHTML = '';
     if (kind !== 'game') return;   // 게임은 도감 검색을 이어감
   } else {
-    menu.innerHTML = matches.map(n => `<div class="ac-item" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
+    menu.innerHTML = matches.map(n => `<div class="ac-item" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
     menu.classList.add('show');
   }
 
@@ -2254,18 +2256,18 @@ function acRender(inp, kind) {
   if (kind === 'game') {
     clearTimeout(state._acCatTimer);
     state._acCatTimer = setTimeout(async () => {
-      const now = inp.value.trim().toLowerCase();
+      const now = normGameName(inp.value);
       const list = await fetchCatalog(inp.value.trim());
-      if (inp.value.trim().toLowerCase() !== now) return;   // 입력이 바뀜
+      if (normGameName(inp.value) !== now) return;   // 입력이 바뀜
       const extra = (list || []).filter(g =>
         !g.on_shelf && g.name_kr &&
-        g.name_kr.toLowerCase().includes(now) &&
-        !seen.has(g.name_kr.toLowerCase())
+        normGameName(g.name_kr).includes(now) &&
+        !seen.has(normGameName(g.name_kr))
       ).slice(0, 5);
       if (!extra.length) { updateGameBadge(); return; }
-      const shelfItems = emptySync ? '' : matches.map(n => `<div class="ac-item" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
+      const shelfItems = emptySync ? '' : matches.map(n => `<div class="ac-item" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
       menu.innerHTML = shelfItems
-        + extra.map(g => `<div class="ac-item" data-name="${esc(g.name_kr)}" onmousedown="acPick(event, this)">📚 ${esc(g.name_kr)}</div>`).join('');
+        + extra.map(g => `<div class="ac-item" data-name="${esc(g.name_kr)}" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">📚 ${esc(g.name_kr)}</div>`).join('');
       menu.classList.add('show');
       updateGameBadge();
     }, 300);
@@ -2274,6 +2276,7 @@ function acRender(inp, kind) {
 function acPick(e, item) {
   e.preventDefault();   // 클릭 시 input이 blur되지 않도록 → 포커스 유지
   const wrap = item.closest('.ac-wrap');
+  if (!wrap) return;    // pointerdown+mousedown 중복 호출 가드(이미 처리됨)
   const inp = wrap.querySelector('input');
   inp.value = item.dataset.name || item.textContent;
   const menu = wrap.querySelector('.ac-menu');
@@ -2837,7 +2840,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0037 후기 출처 표시 제거·iOS 자동 링크(파란 글씨) 방지';
+const APP_VERSION = 'v0106 자동완성 탭 선택 개선·게임명 띄어쓰기 무시 매칭';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

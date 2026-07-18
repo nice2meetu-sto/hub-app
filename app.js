@@ -14,6 +14,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== 전역 상태 =====
 const state = {
+  hub: null,           // {hub_id, name, invite?} — 현재 허브 컨텍스트
   user: null,          // {player_id, name, role}
   games: [],
   plays: [],
@@ -28,6 +29,9 @@ const state = {
 // 기존 Apps Script api(action, params) 인터페이스를 그대로 유지하는 호환 레이어.
 // 조회는 RPC/뷰(anon 허용), 쓰기는 전부 PIN을 검증하는 Postgres RPC로 처리.
 function acErr(error) { return (error && (error.message || error.hint)) || '요청 실패'; }
+
+// 현재 허브 ID (없으면 기본 허브 — 개편 전 사용자 하위호환)
+function hubId() { return state.hub ? state.hub.hub_id : 'H001'; }
 
 async function sbrpc(fn, args = {}) {
   const { data, error } = await sb.rpc(fn, args);
@@ -47,22 +51,25 @@ async function api(action, params = {}) {
   switch (action) {
     case 'login': {
       // v2: 실패 시 예외 대신 {ok:false, error}를 반환(PIN 시도 잠금 카운터 유지용)
-      const d = await sbrpc('login', { p_name: P.name, p_pin: P.pin });
+      const d = await sbrpc('login', { p_name: P.name, p_pin: P.pin, p_hub_id: hubId() });
       if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
       return d;
     }
-    case 'signup':         return sbrpc('signup', { p_name: P.name, p_pin: P.pin });
-    case 'getGames':       return sbrpc('get_games');
-    case 'getPlays':       return sbrpc('get_plays');
+    case 'signup':         return sbrpc('signup', { p_name: P.name, p_pin: P.pin,
+                             p_hub_id: hubId(), p_invite: (state.hub && state.hub.invite) || null });
+    case 'getGames':       return sbrpc('get_games', { p_hub_id: hubId() });
+    case 'getPlays':       return sbrpc('get_plays', { p_hub_id: hubId() });
     case 'getPlayerStats': return sbrpc('get_player_stats', { p_player_id: P.playerId });
     case 'getMyRatings':   return sbrpc('get_my_ratings',   { p_player_id: P.playerId });
     case 'getPlayers': {
-      const { data, error } = await sb.from('players_public').select('player_id,name,role').order('player_id');
+      const { data, error } = await sb.from('players_public')
+        .select('player_id,name,role,status').eq('hub_id', hubId()).order('player_id');
       if (error) throw new Error(acErr(error));
-      return data || [];
+      return (data || []).filter(p => p.status !== 'left');
     }
     case 'getCategories': {
-      const { data, error } = await sb.from('categories').select('name').order('sort_order').order('name');
+      const { data, error } = await sb.from('categories').select('name')
+        .eq('hub_id', hubId()).order('sort_order').order('name');
       if (error || !data || !data.length) return DEFAULT_CATEGORIES_FALLBACK;
       return data.map(r => r.name);
     }
@@ -78,7 +85,7 @@ async function api(action, params = {}) {
       return sbrpc('save_memo', {
         p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId, p_memo: P.memo || ''
       });
-    case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId });
+    case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
@@ -91,7 +98,8 @@ async function api(action, params = {}) {
     case 'adminDeleteGame':
       return sbrpc('admin_delete_game', { p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId });
     case 'getCategoriesFull': {
-      const { data, error } = await sb.from('categories').select('name,sort_order').order('sort_order').order('name');
+      const { data, error } = await sb.from('categories').select('name,sort_order')
+        .eq('hub_id', hubId()).order('sort_order').order('name');
       if (error) throw new Error(acErr(error));
       return data || [];
     }
@@ -103,6 +111,13 @@ async function api(action, params = {}) {
       return sbrpc('delete_play', { p_player_id: P.playerId, p_pin: P.pin, p_session_id: P.sessionId });
     case 'updateGame':
       return sbrpc('update_game', { p_player_id: P.playerId, p_pin: P.pin, p_payload: JSON.parse(P.payload) });
+    // ===== 멀티허브 / 이메일 계정 =====
+    case 'hubByInvite':   return sbrpc('hub_by_invite', { p_code: P.code });
+    case 'getHub':        return sbrpc('get_hub', { p_hub_id: hubId() });
+    case 'createHub':     return sbrpc('create_hub', { p_name: P.name });
+    case 'myHubs':        return sbrpc('my_hubs');
+    case 'hubGetInvite':  return sbrpc('hub_get_invite', { p_hub_id: hubId() });
+    case 'linkPlayer':    return sbrpc('link_player', { p_hub_id: hubId(), p_player_id: P.playerId, p_pin: P.pin });
     default: throw new Error('Unknown action: ' + action);
   }
 }
@@ -187,6 +202,7 @@ function switchView(name) {
 //  데이터 로드
 // ============================================================
 async function loadCore(manual) {
+  if (!state.hub) return;   // 허브 미선택 상태(시작 화면)
   showLoader(manual ? '업데이트 중…' : '데이터 불러오는 중…');
   try {
     // getCategories는 옛 백엔드엔 없을 수 있으므로 실패해도 기본값 유지
@@ -2394,12 +2410,163 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1457 인증 로직: PIN 잠금·허브 개설·관리 RPC(2-1)';
+const APP_VERSION = 'v1506 UI 개편: 허브 컨텍스트·시작 화면·이메일 허브 개설(2-6)';
+
+// ============================================================
+//  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
+// ============================================================
+function saveHub(h) {
+  state.hub = h;
+  localStorage.setItem('bg_hub', JSON.stringify(h));
+  updateHubTitle();
+}
+
+function updateHubTitle() {
+  const el = document.getElementById('hub-title');
+  if (el) el.textContent = state.hub ? state.hub.name + ' Hub' : '보드게임 Hub';
+}
+
+// 허브 이름 최신화(관리자가 이름을 바꿨을 수 있음) — 실패해도 무시
+async function refreshHubName() {
+  try {
+    const h = await api('getHub');
+    if (h && h.name && state.hub && h.hub_id === state.hub.hub_id && h.name !== state.hub.name) {
+      saveHub(Object.assign({}, state.hub, { name: h.name }));
+    }
+  } catch (e) {}
+}
+
+// 시작/허브전환 화면. closable=true면 우측 상단 ✕ 표시(허브 있는 상태에서 전환용)
+function openStartPage(closable) {
+  const el = document.getElementById('start-page');
+  document.getElementById('start-close').style.display = closable ? '' : 'none';
+  document.getElementById('start-invite').value = '';
+  el.classList.add('show');
+}
+function closeStartPage() { document.getElementById('start-page').classList.remove('show'); }
+
+// 초대코드로 허브 입장/전환
+async function joinByInvite() {
+  const code = document.getElementById('start-invite').value.trim();
+  if (!code) { toast('초대코드를 입력하세요.', true); return; }
+  showLoader('허브 찾는 중…');
+  try {
+    const h = await api('hubByInvite', { code });
+    const switching = state.hub && state.hub.hub_id !== h.hub_id;
+    if (switching || !state.hub) {
+      // 허브가 바뀌면 이전 허브의 로그인은 무효(멤버는 허브 소속)
+      state.user = null;
+      localStorage.removeItem('bg_user');
+      localStorage.removeItem('bg_pin');
+      state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
+    }
+    saveHub({ hub_id: h.hub_id, name: h.name, invite: code.toUpperCase() });
+    updateWhoami();
+    closeStartPage();
+    toast(h.name + ' 허브에 들어왔어요!');
+    await loadCore();
+    switchView('my');   // 로그인/가입으로 안내
+  } catch (e) {
+    toast(e.message, true);
+  } finally { hideLoader(); }
+}
+
+// ----- 이메일 계정 플로우 (허브 만들기 / 개인 기록장) -----
+const emailFlow = { purpose: null };   // 'create' | 'personal'
+
+function openEmailAuth(purpose) {
+  emailFlow.purpose = purpose;
+  document.getElementById('email-overlay').classList.add('show');
+  renderEmailStep('auth');
+}
+function closeEmailAuth() { document.getElementById('email-overlay').classList.remove('show'); }
+
+function renderEmailStep(step, extra) {
+  const el = document.getElementById('email-body');
+  const isCreate = emailFlow.purpose === 'create';
+  if (step === 'auth') {
+    el.innerHTML = `
+      <h2>${isCreate ? '🏠 새 허브 만들기' : '📔 개인 기록장 시작'}</h2>
+      <div class="hint" style="margin-bottom:14px;">${isCreate
+        ? '허브 개설에는 이메일 계정이 필요해요 (관리자 계정).'
+        : '개인 기록장은 이메일 계정으로 관리돼요.'}</div>
+      <div class="field"><label>이메일</label>
+        <input class="input" id="em-email" type="email" placeholder="you@example.com" autocomplete="email" /></div>
+      <div class="field"><label>비밀번호 (6자 이상)</label>
+        <input class="input" id="em-pw" type="password" placeholder="••••••" autocomplete="current-password" /></div>
+      <button class="btn" onclick="emailAuthGo(false)">로그인</button>
+      <button class="btn ghost" style="margin-top:8px;" onclick="emailAuthGo(true)">처음이에요 — 이메일로 가입</button>`;
+  } else if (step === 'setup') {
+    el.innerHTML = `
+      <h2>${isCreate ? '허브 정보 입력' : '기록장 정보 입력'}</h2>
+      ${isCreate ? `<div class="field"><label>허브 이름</label>
+        <input class="input" id="em-hubname" placeholder="예: 슈필" maxlength="30" /></div>` : ''}
+      <div class="field"><label>내 닉네임</label>
+        <input class="input" id="em-nick" placeholder="허브에서 쓸 이름" maxlength="20" /></div>
+      <div class="field"><label>내 PIN (숫자 4자리)</label>
+        <input class="input" id="em-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" /></div>
+      <button class="btn" onclick="emailSetupGo()">${isCreate ? '허브 만들기' : '기록장 만들기'}</button>`;
+  } else if (step === 'done') {
+    el.innerHTML = `
+      <h2>완료! 🎉</h2>
+      ${isCreate ? `<div class="hint" style="margin-bottom:10px;">멤버들에게 초대코드를 알려주세요.</div>
+      <div class="invite-code">${esc(extra.invite_code)}</div>` : ''}
+      <button class="btn" style="margin-top:14px;" onclick="closeEmailAuth()">시작하기</button>`;
+  }
+}
+
+async function emailAuthGo(isSignup) {
+  const email = document.getElementById('em-email').value.trim();
+  const pw = document.getElementById('em-pw').value;
+  if (!email || !pw) { toast('이메일과 비밀번호를 입력하세요.', true); return; }
+  showLoader(isSignup ? '가입 중…' : '로그인 중…');
+  try {
+    const { data, error } = isSignup
+      ? await sb.auth.signUp({ email, password: pw })
+      : await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw new Error(error.message);
+    if (!data.session) {
+      toast('확인 메일을 보냈어요. 메일 인증 후 로그인해주세요.');
+      return;
+    }
+    renderEmailStep('setup');
+  } catch (e) {
+    toast(e.message === 'Invalid login credentials' ? '이메일 또는 비밀번호가 올바르지 않아요.' : e.message, true);
+  } finally { hideLoader(); }
+}
+
+async function emailSetupGo() {
+  const isCreate = emailFlow.purpose === 'create';
+  const nick = document.getElementById('em-nick').value.trim();
+  const pin = document.getElementById('em-pin').value.trim();
+  const hubName = isCreate ? document.getElementById('em-hubname').value.trim() : nick + '의 기록장';
+  if (isCreate && !hubName) { toast('허브 이름을 입력하세요.', true); return; }
+  if (!nick || !/^\d{4}$/.test(pin)) { toast('닉네임과 숫자 4자리 PIN을 입력하세요.', true); return; }
+  showLoader('만드는 중…');
+  try {
+    const hub = await api('createHub', { name: hubName });          // 허브 생성(owner=내 계정)
+    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code });
+    const user = await api('signup', { name: nick, pin });          // 첫 멤버로 가입(자동 admin)
+    await api('linkPlayer', { playerId: user.player_id, pin });     // 내 계정에 연결
+    applyAuth(user, pin, hub.name + ' 시작!');
+    renderEmailStep('done', hub);
+    closeStartPage();
+    await loadCore();
+  } catch (e) {
+    toast(e.message, true);
+  } finally { hideLoader(); }
+}
+
 function init() {
   console.log('BoardGameHub build:', APP_VERSION);
   const saved = localStorage.getItem('bg_user');
   if (saved) { try { state.user = JSON.parse(saved); } catch (e) {} }
+  const savedHub = localStorage.getItem('bg_hub');
+  if (savedHub) { try { state.hub = JSON.parse(savedHub); } catch (e) {} }
+  // 개편 전 사용자(허브 저장 없음 + 계정 있음) → 기본 허브로 자동 배정
+  if (!state.hub && state.user) saveHub({ hub_id: 'H001', name: '우리 허브' });
   updateWhoami();
+  updateHubTitle();
   if (!window.supabase || !SUPABASE_URL || !SUPABASE_ANON_KEY || !/^https?:\/\//.test(SUPABASE_URL)) {
     document.getElementById('play-list').innerHTML =
       `<div class="empty"><div class="big">⚙️</div>Supabase 설정이 필요합니다.<br/>` +
@@ -2407,7 +2574,9 @@ function init() {
     toast('Supabase 설정을 확인하세요 (index.html 상단)', true);
     return;
   }
+  if (!state.hub) { openStartPage(false); return; }   // 허브 없으면 시작 화면부터
   loadCore();
+  refreshHubName();
 }
 init();
 

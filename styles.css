@@ -474,3 +474,27 @@
     text-align: left; margin: 0; min-height: 1.45em;
   }
   .logout-link { font-size: 12px; color: var(--danger); text-decoration: underline; background: none; }
+
+/* ===== 시작/허브전환 화면 ===== */
+#start-page {
+  position: fixed; inset: 0; z-index: 200; background: var(--bg);
+  max-width: var(--maxw); margin: 0 auto; overflow-y: auto; display: none;
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom, 0));
+}
+#start-page.show { display: block; }
+#start-close {
+  position: absolute; top: 14px; right: 16px; font-size: 20px; color: var(--text-sub);
+  background: none; padding: 6px 10px;
+}
+.start-wrap { max-width: 360px; margin: 0 auto; padding-top: 12vh; text-align: center; }
+.start-logo { font-size: 54px; }
+.start-div {
+  display: flex; align-items: center; gap: 10px; color: var(--text-sub);
+  font-size: 12px; margin: 22px 0 14px;
+}
+.start-div::before, .start-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.invite-code {
+  font-size: 28px; font-weight: 900; letter-spacing: 6px; color: var(--main);
+  background: var(--main-light); border-radius: 12px; padding: 14px; text-align: center;
+}
+#email-overlay .sheet h2 { font-size: 18px; margin: 4px 2px 12px; font-weight: 900; }

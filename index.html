@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <div class="appbar">
-    <h1><span class="dice">🎲</span> 보드게임 Hub <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1457</span></h1>
+    <h1 onclick="openStartPage(true)" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1506</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -143,6 +143,36 @@
   <div id="adm-games"></div>
   <div id="adm-plays" style="display:none;"></div>
   <div id="adm-players" style="display:none;"></div>
+</div>
+
+<!-- ===== 시작/허브전환 화면 ===== -->
+<div id="start-page">
+  <button id="start-close" onclick="closeStartPage()">✕</button>
+  <div class="start-wrap">
+    <div class="start-logo">🎲</div>
+    <h2 style="margin:6px 0 2px;">보드게임 Hub</h2>
+    <div class="hint" style="margin-bottom:26px;">동호회 보드게임 기록 관리</div>
+    <div class="field" style="text-align:left;">
+      <label>초대코드로 허브 들어가기</label>
+      <div style="display:flex;gap:8px;">
+        <input class="input" id="start-invite" placeholder="예: AB12CD" maxlength="12"
+               style="text-transform:uppercase;flex:1;" onkeydown="if(event.key==='Enter')joinByInvite()" />
+        <button class="btn sm" style="flex:0 0 auto;" onclick="joinByInvite()">입장</button>
+      </div>
+    </div>
+    <div class="start-div"><span>또는 이메일로</span></div>
+    <button class="btn ghost" style="margin-bottom:10px;" onclick="openEmailAuth('create')">🏠 새 허브 만들기</button>
+    <button class="btn ghost" onclick="openEmailAuth('personal')">📔 개인 기록장 시작</button>
+  </div>
+</div>
+
+<!-- ===== 이메일 계정 시트 ===== -->
+<div class="overlay" id="email-overlay">
+  <div class="sheet" style="height:auto;min-height:40vh;">
+    <div class="sheet-grip"></div>
+    <div id="email-body"></div>
+    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeEmailAuth()">닫기</button>
+  </div>
 </div>
 
 <div id="toast"></div>

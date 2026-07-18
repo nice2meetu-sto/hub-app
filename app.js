@@ -259,8 +259,15 @@ function setPlayScope(scope) {
   renderPlay();
 }
 
+// 기기 시간대 기준 날짜 문자열(YYYY-MM-DD) — UTC 변환으로 하루 밀리는 것 방지
+function localDateStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+       + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 function renderPlay() {
-  const nowYM = new Date().toISOString().substring(0, 7);
+  const nowYM = localDateStr().substring(0, 7);
   const scope = state.playScope || 'month';
   // 기록장 통합이면 전 허브의 내 세션·게임이 소스
   const plays = hubPlays();
@@ -2181,7 +2188,7 @@ function renderAddPlayForm() {
     addPlayState.participants = [{ name: '', score: '', is_win: false, is_guest: false }];
   }
   const el = document.getElementById('add-play-form');
-  const today = new Date().toISOString().substring(0, 10);
+  const today = localDateStr();
 
   el.innerHTML = `
     <div class="row2 wrapdate">
@@ -2891,7 +2898,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0140 관리자 넘기기·멤버 탈퇴/복귀 처리(관리자 전용)';
+const APP_VERSION = 'v0203 기록 시간 KST 통일(서버 시간대·오늘 날짜 로컬 기준)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

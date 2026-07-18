@@ -117,6 +117,7 @@ async function api(action, params = {}) {
     case 'myHubs':        return sbrpc('my_hubs');
     case 'hubGetInvite':  return sbrpc('hub_get_invite', { p_hub_id: hubId() });
     case 'linkPlayer':    return sbrpc('link_player', { p_hub_id: hubId(), p_player_id: P.playerId, p_pin: P.pin });
+    case 'unlinkPlayer':  return sbrpc('unlink_player', { p_player_id: P.playerId });
     case 'getMyLinks':    return sbrpc('get_my_links');
     case 'getMyStatsAll': return sbrpc('get_my_stats_all');
     case 'getMyPlaysAll': return sbrpc('get_my_plays_all');
@@ -2853,7 +2854,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2007 기록장 플레이·게임탭 통합, 메인으로 버튼, 차트 높이 제한';
+const APP_VERSION = 'v2027 계정연결확인 메뉴(연결 목록·연결해제)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3069,10 +3070,50 @@ async function loadStartHubs() {
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
     <button class="btn ghost" style="margin-top:8px;" onclick="startShow('invite')">🔑 초대코드로 허브 입장</button>
-    <div class="row2" style="margin-top:16px;justify-content:center;gap:18px;">
+    <div class="row2" style="margin-top:16px;justify-content:center;gap:12px;">
       <button class="logout-link" style="color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>
+      <button class="logout-link" style="color:var(--text-sub);" onclick="startShowLinks()">🔗 계정연결확인</button>
       <button class="logout-link" style="color:var(--text-sub);" onclick="startSignOut()">🚪 계정 로그아웃</button>
     </div>`;
+}
+
+// 계정 연결 확인: 연결된 허브·닉네임 목록 + [연결해제]
+// · 비밀번호(PIN)는 표시하지 않음 — 잘못 연결된 남의 PIN 노출 방지
+// · 개인 기록장은 연결이 유일한 열쇠(PIN 자동발급·미공개)라 해제 불가
+async function startShowLinks() {
+  startShow('links');
+  const el = document.getElementById('sv-links');
+  el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  state._myLinks = null;
+  try { await loadMyLinks(); } catch (e) {}
+  const links = state._myLinks || [];
+  el.innerHTML = `
+    <h3 style="margin:0 0 6px;">🔗 계정 연결 확인</h3>
+    <div class="hint" style="margin-bottom:12px;">이 계정에 연결된 허브와 닉네임이에요.<br>잘못 연결된 멤버는 [연결해제]로 정리할 수 있어요.</div>
+    ${links.map(l => `
+      <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;text-align:left;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:700;">${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</div>
+          <div class="hint">닉네임: ${esc(l.name)}</div>
+        </div>
+        ${isPersonalHub(l)
+          ? `<span class="hint" style="flex:0 0 auto;">내 기록장 · 해제 불가</span>`
+          : `<button class="btn danger sm" style="flex:0 0 auto;padding:7px 12px;" onclick="unlinkFromStart('${esc(l.player_id)}','${esc(l.hub_name)}')">연결해제</button>`}
+      </div>`).join('') || '<div class="hint" style="margin-bottom:10px;">연결된 허브가 없어요</div>'}
+    <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
+}
+
+async function unlinkFromStart(pid, hubName) {
+  if (!confirm(hubName + ' 연결을 해제할까요?\n\n해제하면 통합 기록에서 이 허브가 빠져요.\n(그 허브에서 닉네임+비밀번호로 로그인하면 다시 연결돼요)')) return;
+  showLoader('해제 중…');
+  try {
+    await api('unlinkPlayer', { playerId: pid });
+    state._myLinks = null;
+    state._myAllPlays = null; state._myAllGames = null;
+    state._myStatsBy = null;
+    toast('연결을 해제했어요.');
+    await startShowLinks();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 // 계정(이메일) 로그아웃 — 허브 멤버(닉네임) 세션은 그대로 둔다

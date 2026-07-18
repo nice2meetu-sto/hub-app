@@ -1098,7 +1098,7 @@ async function openHubMenu() {
     ${links.map(l => {
       const cur = state.hub && state.hub.hub_id === l.hub_id;
       return `<button class="hubmenu-item ${cur ? 'cur' : ''}" onclick="switchToHub('${l.hub_id}')">
-        <span>${l.kind === 'personal' ? '📔' : '🏠'} ${esc(l.hub_name)}</span>
+        <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span>
         ${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
       </button>`;
     }).join('')}
@@ -1119,6 +1119,7 @@ async function switchToHub(hid) {
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
     closeHubMenu();
+    closeStartPage();
     await loadCore();
   } catch (e) {
     toast(e.message, true);
@@ -1135,7 +1136,7 @@ async function loadMyLinks() {
     if (!data || !data.session) return;
     state._myLinks = await api('getMyLinks') || [];
     if (state._myLinks.length >= 2 && state.myTab === 'overview'
-        && state.hub && state.hub.kind === 'personal') renderMyOverview();
+        && isPersonalHub(state.hub)) renderMyOverview();
   } catch (e) { /* 비로그인/미지원 → 통합 숨김 */ }
 }
 
@@ -1318,7 +1319,7 @@ function updateWhoami() {
 async function renderMyOverview() {
   const el = document.getElementById('my-overview');
   // 통합/허브별 전환은 '개인 기록장'에서만 제공. 일반 허브 MY는 그 허브 데이터만.
-  const isPersonal = state.hub && state.hub.kind === 'personal';
+  const isPersonal = isPersonalHub(state.hub);
   const links = state._myLinks || [];
   const canScope = isPersonal && links.length >= 2;
   let scope = 'hub';
@@ -1352,7 +1353,7 @@ async function renderMyOverview() {
         <span class="chip ${scope === 'all' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('all')">전체(통합)</span>
         ${links.map(l => {
           const on = (scope === 'hub' && l.hub_id === state.hub.hub_id) || scope === l.hub_id;
-          return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${l.kind === 'personal' ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
+          return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${isPersonalHub(l) ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
         }).join('')}
       </div>` : '';
     // '플레이 게임' = 내 플레이 기록이 있는 게임 수(= MY-게임기록 목록 개수와 동일)
@@ -2627,7 +2628,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1805 기록장 있는 계정은 이메일 로그인 즉시 재입장';
+const APP_VERSION = 'v1822 시작 화면 전면 개편(2경로·허브 목록·비번찾기·초대 복사)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2658,8 +2659,181 @@ async function refreshHubName() {
 function openStartPage(closable) {
   const el = document.getElementById('start-page');
   document.getElementById('start-close').style.display = closable ? '' : 'none';
-  document.getElementById('start-invite').value = '';
+  const inv = document.getElementById('start-invite');
+  if (inv) inv.value = '';
   el.classList.add('show');
+  startShow('home');
+  // 이메일 세션이 이미 있으면 바로 내 허브 목록으로
+  sb.auth.getSession().then(({ data }) => {
+    if (data && data.session
+        && el.classList.contains('show')
+        && document.getElementById('sv-home').style.display !== 'none') loadStartHubs();
+  }).catch(() => {});
+}
+
+// 시작 페이지 내부 화면 전환
+function startShow(view) {
+  document.querySelectorAll('#start-page .start-view').forEach(v => v.style.display = 'none');
+  const el = document.getElementById('sv-' + view);
+  if (el) el.style.display = 'block';
+}
+
+// 개인 기록장 여부: kind 우선, 없으면 이름 패턴 폴백(마이그레이션 이전 데이터 호환)
+function isPersonalHub(h) {
+  if (!h) return false;
+  return h.kind === 'personal' || /의 기록장$/.test(h.name || h.hub_name || '');
+}
+
+// 초대 문구 붙여넣기 → 코드만 추출 ("... 초대코드: AB12CD" / 6자리 토큰)
+function extractInvite(text) {
+  const t = String(text || '');
+  const m = t.match(/초대코드[^A-Za-z0-9]*([A-Za-z0-9]{6})/);
+  if (m) return m[1].toUpperCase();
+  const all = t.match(/(?:^|[^A-Za-z0-9])([A-Za-z0-9]{6})(?![A-Za-z0-9])/g);
+  if (all && all.length) {
+    const last = all[all.length - 1].match(/[A-Za-z0-9]{6}/);
+    return last[0].toUpperCase();
+  }
+  return t.trim().toUpperCase();
+}
+function inviteAutoExtract(inp) {
+  const v = inp.value;
+  if (v.length > 8 || /초대코드/.test(v)) inp.value = extractInvite(v);
+}
+
+// ----- 이메일로 시작 -----
+function startEmailEntry() {
+  sb.auth.getSession().then(({ data }) => {
+    if (data && data.session) loadStartHubs();
+    else { seSetMode('login'); startShow('email'); }
+  }).catch(() => { seSetMode('login'); startShow('email'); });
+}
+
+function seSetMode(mode) {
+  state._seMode = mode;
+  document.getElementById('se-tab-login').classList.toggle('on', mode === 'login');
+  document.getElementById('se-tab-signup').classList.toggle('on', mode === 'signup');
+  document.getElementById('se-nick-row').style.display = mode === 'signup' ? 'block' : 'none';
+  document.getElementById('se-go').textContent = mode === 'signup' ? '가입하고 시작하기' : '로그인';
+}
+
+async function doStartEmail() {
+  const email = document.getElementById('se-email').value.trim();
+  const pw = document.getElementById('se-pw').value;
+  const isSignup = state._seMode === 'signup';
+  const nick = document.getElementById('se-nick').value.trim();
+  if (!email || !pw) { toast('이메일과 비밀번호를 입력하세요.', true); return; }
+  if (isSignup && !nick) { toast('닉네임을 입력하세요.', true); return; }
+  showLoader(isSignup ? '가입 중…' : '로그인 중…');
+  try {
+    const { data, error } = isSignup
+      ? await sb.auth.signUp({ email, password: pw })
+      : await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw new Error(error.message === 'Invalid login credentials'
+      ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message);
+    if (!data.session) { toast('확인 메일을 보냈어요. 메일 인증 후 로그인해주세요.'); return; }
+    if (isSignup) await ensurePersonalNamed(nick);   // 가입 = 개인 기록장 자동 생성(입력한 닉네임)
+    await loadStartHubs();
+  } catch (e) {
+    toast(e.message, true);
+  } finally { hideLoader(); }
+}
+
+// 개인 기록장 자동 생성(닉네임 지정, PIN은 자동 발급 — 이메일 로그인이 열쇠)
+async function ensurePersonalNamed(nick) {
+  try {
+    const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
+    if (!hub.existing) {
+      const pin = String(Math.floor(1000 + Math.random() * 9000));
+      const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
+      await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
+    }
+    state._myLinks = null;
+  } catch (e) { /* 이미 있음 등 — 목록에서 확인됨 */ }
+}
+
+async function forgotPw() {
+  const email = document.getElementById('se-email').value.trim();
+  if (!email) { toast('먼저 이메일을 입력해주세요.', true); return; }
+  showLoader('메일 보내는 중…');
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email,
+      { redirectTo: location.origin + location.pathname });
+    if (error) throw new Error(error.message);
+    toast('비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요!');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+async function doRecovery() {
+  const pw = document.getElementById('sr-pw').value;
+  if (!pw || pw.length < 6) { toast('6자 이상으로 입력해주세요.', true); return; }
+  showLoader('변경 중…');
+  try {
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) throw new Error(error.message);
+    toast('비밀번호를 변경했어요!');
+    await loadStartHubs();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// 로그인 후: 내 허브/기록장 목록 + 허브 개설
+async function loadStartHubs() {
+  startShow('hubs');
+  const el = document.getElementById('sv-hubs');
+  el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  state._myLinks = null;
+  try { await loadMyLinks(); } catch (e) {}
+  const links = state._myLinks || [];
+  el.innerHTML = `
+    <h3 style="margin:0 0 12px;">어디로 들어갈까요?</h3>
+    ${links.map(l => `
+      <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
+        <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span><span class="hint">›</span>
+      </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
+    <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="startShow('invite')">🔑 초대코드로 허브 입장</button>
+    <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>`;
+}
+
+async function startPickHub(hid) {
+  await switchToHub(hid);
+}
+
+// 허브 개설(개설자는 기록장 닉네임으로 자동 가입·연결)
+async function startCreateHub() {
+  const name = document.getElementById('sc-name').value.trim();
+  if (!name) { toast('허브 이름을 입력하세요.', true); return; }
+  showLoader('허브 만드는 중…');
+  try {
+    const hub = await api('createHub', { name, kind: 'hub' });
+    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code, kind: 'hub' });
+    const links = state._myLinks || [];
+    const personal = links.find(l => isPersonalHub(l));
+    const nick = personal ? personal.name : (document.getElementById('se-nick')?.value.trim() || '허브장');
+    const pin = String(Math.floor(1000 + Math.random() * 9000));
+    const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
+    await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
+    applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: hub.hub_id }, pin, hub.name + ' 개설 완료!');
+    state._myLinks = null;
+    startShow('created');
+    document.getElementById('sv-created').innerHTML = `
+      <h3 style="margin:0 0 8px;">🎉 ${esc(hub.name)} Hub 개설 완료!</h3>
+      <div class="hint" style="margin-bottom:10px;">멤버들에게 초대코드를 공유하세요.</div>
+      <div class="invite-code">${esc(hub.invite_code)}</div>
+      <button class="btn ghost" style="margin-top:12px;" onclick="copyInvite('${esc(hub.name)}','${esc(hub.invite_code)}')">📋 초대 문구 복사</button>
+      <button class="btn" style="margin-top:8px;" onclick="startEnterHub()">시작하기</button>`;
+    await loadCore();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+function startEnterHub() { closeStartPage(); switchView('play'); }
+
+function copyInvite(name, code) {
+  const text = '같이 ' + name + ' Hub에서 보드게임 기록해요! 초대코드: ' + code;
+  const done = () => toast('초대 문구를 복사했어요!');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => prompt('아래 문구를 복사하세요', text));
+  } else { prompt('아래 문구를 복사하세요', text); }
 }
 function closeStartPage() { document.getElementById('start-page').classList.remove('show'); }
 
@@ -2868,6 +3042,12 @@ function init() {
       `<div class="empty"><div class="big">⚙️</div>Supabase 설정이 필요합니다.<br/>` +
       `<span class="hint">index.html 상단의 <b>SUPABASE_URL</b>·<b>SUPABASE_ANON_KEY</b>를 확인하세요. (README 참고)</span></div>`;
     toast('Supabase 설정을 확인하세요 (index.html 상단)', true);
+    return;
+  }
+  if (/type=recovery/.test(location.hash)) {          // 비밀번호 재설정 링크로 진입
+    openStartPage(!!state.hub);
+    startShow('recovery');
+    if (state.hub) loadCore();
     return;
   }
   if (!state.hub) { openStartPage(false); return; }   // 허브 없으면 시작 화면부터

@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1805</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1822</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -146,24 +146,72 @@
   <div id="adm-players" style="display:none;"></div>
 </div>
 
-<!-- ===== 시작/허브전환 화면 ===== -->
+<!-- ===== 시작 화면 (첫 진입 페이지) ===== -->
 <div id="start-page">
   <button id="start-close" onclick="closeStartPage()">✕</button>
   <div class="start-wrap">
     <div class="start-logo">🎲</div>
     <h2 style="margin:6px 0 2px;">보드게임 Hub</h2>
     <div class="hint" style="margin-bottom:26px;">동호회 보드게임 기록 관리</div>
-    <div class="field" style="text-align:left;">
-      <label>초대코드로 허브 들어가기</label>
-      <div style="display:flex;gap:8px;">
-        <input class="input" id="start-invite" placeholder="예: AB12CD" maxlength="12"
-               style="text-transform:uppercase;flex:1;" onkeydown="if(event.key==='Enter')joinByInvite()" />
-        <button class="btn sm" style="flex:0 0 auto;" onclick="joinByInvite()">입장</button>
-      </div>
+
+    <!-- 홈: 두 가지 시작 경로 -->
+    <div class="start-view" id="sv-home">
+      <button class="btn" style="margin-bottom:10px;" onclick="startShow('invite')">🔑 초대코드로 시작</button>
+      <button class="btn ghost" onclick="startEmailEntry()">📧 이메일로 시작</button>
     </div>
-    <div class="start-div"><span>또는 이메일로</span></div>
-    <button class="btn ghost" style="margin-bottom:10px;" onclick="openEmailAuth('create')">🏠 새 허브 만들기</button>
-    <button class="btn ghost" onclick="openEmailAuth('personal')">📔 개인 기록장 시작</button>
+
+    <!-- 초대코드 입장 -->
+    <div class="start-view" id="sv-invite" style="display:none;">
+      <div class="field" style="text-align:left;">
+        <label>허브 초대코드</label>
+        <input class="input" id="start-invite" placeholder="예: AB12CD"
+               oninput="inviteAutoExtract(this)" onkeydown="if(event.key==='Enter')joinByInvite()" />
+        <div class="hint" style="margin-top:6px;">받은 초대 문구를 통째로 붙여넣어도 코드만 쏙 들어가요</div>
+      </div>
+      <button class="btn" onclick="joinByInvite()">입장</button>
+      <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="startShow('home')">‹ 뒤로</button>
+    </div>
+
+    <!-- 이메일 로그인/가입 -->
+    <div class="start-view" id="sv-email" style="display:none;">
+      <div class="subtabs" style="margin-bottom:16px;">
+        <button id="se-tab-login" class="on" onclick="seSetMode('login')">로그인</button>
+        <button id="se-tab-signup" onclick="seSetMode('signup')">가입하기</button>
+      </div>
+      <div class="field" style="text-align:left;"><label>이메일</label>
+        <input class="input" id="se-email" type="email" placeholder="you@example.com" autocomplete="email" /></div>
+      <div class="field" style="text-align:left;"><label>비밀번호 (6자 이상)</label>
+        <input class="input" id="se-pw" type="password" placeholder="••••••" /></div>
+      <div class="field" id="se-nick-row" style="text-align:left;display:none;"><label>닉네임 (개인 기록장에 사용)</label>
+        <input class="input" id="se-nick" placeholder="예: 수민" maxlength="20" /></div>
+      <button class="btn" id="se-go" onclick="doStartEmail()">로그인</button>
+      <div style="margin-top:12px;">
+        <button class="logout-link" style="color:var(--main);" onclick="forgotPw()">비밀번호를 잊었어요</button>
+      </div>
+      <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="startShow('home')">‹ 뒤로</button>
+    </div>
+
+    <!-- 로그인 후: 내 허브 목록 -->
+    <div class="start-view" id="sv-hubs" style="display:none;"></div>
+
+    <!-- 허브 개설 -->
+    <div class="start-view" id="sv-create" style="display:none;">
+      <div class="field" style="text-align:left;"><label>허브 이름</label>
+        <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
+      <button class="btn" onclick="startCreateHub()">허브 만들기</button>
+      <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>
+    </div>
+
+    <!-- 허브 개설 완료 (초대코드 안내/복사) -->
+    <div class="start-view" id="sv-created" style="display:none;"></div>
+
+    <!-- 비밀번호 재설정 -->
+    <div class="start-view" id="sv-recovery" style="display:none;">
+      <h3 style="margin:0 0 12px;">🔐 새 비밀번호 설정</h3>
+      <div class="field" style="text-align:left;"><label>새 비밀번호 (6자 이상)</label>
+        <input class="input" id="sr-pw" type="password" placeholder="••••••" /></div>
+      <button class="btn" onclick="doRecovery()">비밀번호 변경</button>
+    </div>
   </div>
 </div>
 

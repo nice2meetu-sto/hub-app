@@ -2837,7 +2837,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0011 평점 범위 정리: 허브=가입자 기준, 기록장=함께한 사람들';
+const APP_VERSION = 'v0022 계정 로그아웃 완전화·허브/아이디 정합성 가드';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3146,15 +3146,25 @@ async function unlinkFromStart(pid, hubName) {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
-// 계정(이메일) 로그아웃 — 허브 멤버(닉네임) 세션은 그대로 둔다
+// 계정 로그아웃 = 완전 로그아웃: 이메일 세션 + 멤버 세션 + 허브 컨텍스트 정리
+// (허브는 유지한 채 화면만 나가는 건 '메인으로'가 담당)
 async function startSignOut() {
   showLoader('로그아웃 중…');
   try { await sb.auth.signOut(); } catch (e) {}
   hideLoader();
-  state._myLinks = null;
-  if (state._myStatsBy) state._myStatsBy = {};
-  toast('계정에서 로그아웃했어요.');
-  startShow('home');
+  state.user = null;
+  state.hub = null;
+  localStorage.removeItem('bg_user');
+  localStorage.removeItem('bg_pin');
+  localStorage.removeItem('bg_hub');
+  state.games = []; state.plays = []; state.players = [];
+  state._myLinks = null; state._myStatsBy = null;
+  state._myAllPlays = null; state._myAllGames = null;
+  state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
+  updateWhoami();
+  updateHubTitle();
+  toast('로그아웃했어요.');
+  openStartPage(false);   // 돌아갈 허브 없음 → ✕ 숨김, 처음 화면부터
 }
 
 async function startPickHub(hid) {
@@ -3451,6 +3461,14 @@ function init() {
   if (saved) { try { state.user = JSON.parse(saved); } catch (e) {} }
   const savedHub = localStorage.getItem('bg_hub');
   if (savedHub) { try { state.hub = JSON.parse(savedHub); } catch (e) {} }
+  // 정합성 가드: 저장된 로그인의 소속 허브와 현재 허브가 어긋나면(과거
+  // 버전 잔재) 멤버 세션을 무효화 — 허브와 아이디가 다르게 뜨는 것 방지
+  if (state.user && state.hub && state.user.hub_id
+      && state.user.hub_id !== state.hub.hub_id) {
+    state.user = null;
+    localStorage.removeItem('bg_user');
+    localStorage.removeItem('bg_pin');
+  }
   // 개편 전 사용자(허브 저장 없음 + 계정 있음) → 기본 허브로 자동 배정
   if (!state.hub && state.user) saveHub({ hub_id: 'H001', name: '우리 허브' });
   updateWhoami();

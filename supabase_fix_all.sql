@@ -529,18 +529,41 @@ as $$
                   where r.game_id = a.game_id and r.hub_id = a.hub_id
                     and r.rating is not null
                   limit 1),
-    -- 전체 평점: 공용 도감 기준, 모든 허브 이용자의 평점 평균
+    -- 전체 평점/후기: 공용 도감 기준, 모든 허브 이용자 집계
     'all_rating', (select round(avg(r.rating)::numeric, 1) from public.ratings r
                    where r.game_id = a.game_id and r.rating is not null),
     'all_rating_count', (select count(*) from public.ratings r
-                         where r.game_id = a.game_id and r.rating is not null)
+                         where r.game_id = a.game_id and r.rating is not null),
+    'all_review_count', (select count(*) from public.ratings r
+                         where r.game_id = a.game_id
+                           and r.review is not null and btrim(r.review) <> '')
   ) order by a.first_rn), '[]'::json)
   from agg a
   left join public.games g on g.game_id = a.game_id
   left join public.hubs h on h.hub_id = a.hub_id;
 $$;
 
+-- 게임의 전체 후기(모든 허브) — 공용 도감 기준 모아보기용.
+-- get_reviews(허브 범위)와 동일 형태 + hub_name
+create or replace function public.get_reviews_all(p_game_id text)
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select coalesce(json_agg(json_build_object(
+    'name', p.name, 'review', r.review, 'updated_at', r.updated_at,
+    'hub_name', coalesce(h.name, r.hub_id)
+  ) order by r.updated_at desc nulls last), '[]'::json)
+  from public.ratings r
+  join public.players p on p.player_id = r.player_id
+  left join public.hubs h on h.hub_id = r.hub_id
+  where r.game_id = p_game_id
+    and r.review is not null and btrim(r.review) <> '';
+$$;
+
 revoke all on function public.get_my_plays_all() from anon, public;
 revoke all on function public.get_my_games_all() from anon, public;
 grant execute on function public.get_my_plays_all() to authenticated;
 grant execute on function public.get_my_games_all() to authenticated;
+grant execute on function public.get_reviews_all(text) to anon;
+grant execute on function public.get_reviews_all(text) to authenticated;

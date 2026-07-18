@@ -86,6 +86,7 @@ async function api(action, params = {}) {
         p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId, p_memo: P.memo || ''
       });
     case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
+    case 'getReviewsAll': return sbrpc('get_reviews_all', { p_game_id: P.gameId });
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
@@ -222,6 +223,18 @@ async function loadCore(manual) {
     state._myStats = null; state._myStatsHub = null; state._myStatsAll = null; state._myStatsBy = null;
     state._myRatings = null;
     state._myRatingsPromise = null;
+    // 기록장: 플레이·게임 탭도 전 허브 통합으로 — 렌더 전에 통합 데이터 준비
+    state._myAllPlays = null; state._myAllGames = null;
+    if (isPersonalHub(state.hub)) {
+      try { await loadMyLinks(); } catch (e) {}
+      if (hubIntegrated()) {
+        try {
+          const [ap, ag] = await Promise.all([api('getMyPlaysAll'), api('getMyGamesAll')]);
+          state._myAllPlays = ap || [];
+          state._myAllGames = ag || [];
+        } catch (e) { /* 미지원(마이그레이션 전) → 기록장 자체 데이터로 표시 */ }
+      }
+    }
     renderPlay();
     renderGames();
     if (state.user && document.getElementById('view-my').classList.contains('active')) renderMy();
@@ -247,16 +260,20 @@ function setPlayScope(scope) {
 function renderPlay() {
   const nowYM = new Date().toISOString().substring(0, 7);
   const scope = state.playScope || 'month';
+  // 기록장 통합이면 전 허브의 내 세션·게임이 소스
+  const plays = hubPlays();
+  const gamesSrc = hubGamesList();
 
   // game_id -> category 맵
   const catOf = {};
-  state.games.forEach(g => { catOf[g.game_id] = g.category || '기타'; });
+  gamesSrc.forEach(g => { catOf[g.game_id] = g.category || '기타'; });
+  state.games.forEach(g => { if (!catOf[g.game_id]) catOf[g.game_id] = g.category || '기타'; });
 
   // 게임별 + 카테고리별 플레이 횟수 집계(전체/이번 달)
   const agg = {};       // gid -> {id, name, image, all, month}
   const catAgg = {};    // category -> {all, month}
   let totalMonth = 0;
-  state.plays.forEach(s => {
+  plays.forEach(s => {
     const isMonth = String(s.play_date).substring(0, 7) === nowYM;
     if (isMonth) totalMonth++;
     const gid = s.game_id || s.game_name;
@@ -268,11 +285,11 @@ function renderPlay() {
     catAgg[cat].all++;
     if (isMonth) catAgg[cat].month++;
   });
-  const totalAll = state.plays.length;
+  const totalAll = plays.length;
 
-  // 최고 평점 = 우리Hub 평점(club_rating)이 가장 높은 게임(평가 있는 게임 중, 동점이면 평가 수 많은 순)
+  // 최고 평점 = 평점(club_rating: 통합이면 전체 평점)이 가장 높은 게임
   let topGame = '-', topRating = -1, topCnt = -1, topId = '';
-  state.games.forEach(g => {
+  gamesSrc.forEach(g => {
     if (g.club_rating == null) return;
     const r = Number(g.club_rating), c = Number(g.rating_count || 0);
     if (r > topRating || (r === topRating && c > topCnt)) {
@@ -317,9 +334,11 @@ function renderPlay() {
     scope === 'month' ? '이번 달 게임별 플레이 횟수' : '게임별 플레이 횟수';
 
   // 게임별 순위(선택 범위 기준, 횟수 내림차순). 평점은 매 렌더 시 state.games에서 조회 → 새 게임에도 자동 반영
+  const ginfo = {};
+  gamesSrc.forEach(g => { ginfo[g.game_id] = g; });
   const list = Object.keys(agg)
     .map(gid => {
-      const gm = gameById(agg[gid].id) || {};
+      const gm = ginfo[agg[gid].id] || gameById(agg[gid].id) || {};
       return {
         id: agg[gid].id, name: agg[gid].name, image: agg[gid].image,
         count: scope === 'month' ? agg[gid].month : agg[gid].all,
@@ -388,9 +407,10 @@ function gameInfoInnerHtml(g) {
   if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
 
+  const ratingLbl = hubIntegrated() ? '전체 평점' : '우리Hub평점';
   const club = g.club_rating != null
-    ? `<span class="rate-club"><span class="star">★</span> ${g.club_rating.toFixed(1)}</span> <small class="muted">우리Hub평점 (평가 ${g.rating_count || 0})</small>`
-    : `<span class="muted">우리Hub평점 없음</span>`;
+    ? `<span class="rate-club"><span class="star">★</span> ${g.club_rating.toFixed(1)}</span> <small class="muted">${ratingLbl} (평가 ${g.rating_count || 0})</small>`
+    : `<span class="muted">${ratingLbl} 없음</span>`;
 
   return `
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
@@ -406,9 +426,11 @@ function gameInfoInnerHtml(g) {
     <div style="white-space:pre-wrap;font-size:13px;color:#444;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없습니다.</span>'}</div>`;
 }
 
-// 게임 정보 보기(읽기 전용 시트)
+// 게임 정보 보기(읽기 전용 시트) — 기록장 통합이면 도감(전체 평점) 기준
 function showGameInfo(gameId) {
-  const g = gameById(gameId);
+  const g = hubIntegrated()
+    ? (myGameInfo(gameId, 'all') || gameById(gameId))
+    : gameById(gameId);
   if (!g) { toast('게임 정보를 찾을 수 없습니다.', true); return; }
   document.getElementById('detail-body').innerHTML = gameInfoInnerHtml(g);
   showDetailSheet();
@@ -578,7 +600,7 @@ function gameChartSvg(sessions) {
   });
   const curve = smoothPath(line);
   const path = curve ? `<path d="${curve}" fill="none" stroke="#d9d5f3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"/>` : '';
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">${bars}${path}${labels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px;margin:0 auto;">${bars}${path}${labels}</svg>`;
 }
 
 async function openGameDetail(gameId) {
@@ -631,18 +653,21 @@ function reviewPillHtml(gameId, count, extraClass) {
 }
 
 // 게임 탭: [후기] 버튼 → 사람들이 남긴 후기(닉네임 + 코멘트)
+// 기록장 통합이면 모든 허브의 후기를 모아 표시
 async function openReviews(gameId) {
-  const g = gameById(gameId);
+  const g = hubIntegrated()
+    ? (myGameInfo(gameId, 'all') || gameById(gameId))
+    : gameById(gameId);
   const title = g ? esc(g.name_kr || g.name_en) : '';
   const head = `<h2 style="font-size:20px;font-weight:900;margin:2px 2px 12px;">💬<span class="muted" style="font-size:13px;font-weight:500;">· ${title}</span></h2>`;
   const body = document.getElementById('detail-body');
   body.innerHTML = head + `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
   showDetailSheet();
   try {
-    const reviews = await api('getReviews', { gameId });
+    const reviews = await api(hubIntegrated() ? 'getReviewsAll' : 'getReviews', { gameId });
     const list = (reviews && reviews.length)
       ? reviews.map(r => `<div class="rv-row">
-          <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}</span></div>
+          <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}${r.hub_name ? ' · ' + esc(r.hub_name) : ''}</span></div>
           <div class="rv-text">${esc(r.review)}</div>
         </div>`).join('')
       : `<div class="empty"><div class="big">💬</div>아직 남긴 후기가 없어요.<br/>플레이한 게임이면<br/>MY-게임기록에서 후기를 남겨보세요.</div>`;
@@ -832,7 +857,9 @@ function refreshMySessions() {
   if (myScope() !== 'hub') {   // 통합/다른 허브 범위: 서버에서 다시 합산
     state._myAllPlays = null;
     state._myAllGames = null;
-    renderMyPlaysTab();
+    renderMyPlaysTab().then(() => {
+      if (hubIntegrated()) { renderPlay(); renderGames(); }   // 플레이·게임 탭도 갱신
+    });
     return;
   }
   state._mySessions = state.plays.filter(s =>
@@ -920,7 +947,7 @@ function renderGames() {
 }
 
 function renderCategoryFilter() {
-  const cats = [...new Set(state.games.map(g => g.category).filter(Boolean))];
+  const cats = [...new Set(hubGamesList().map(g => g.category).filter(Boolean))];
   const cur = state.gameFilter.category;
   const el = document.getElementById('cat-filter');
   el.innerHTML =
@@ -956,7 +983,7 @@ document.getElementById('game-search').addEventListener('input', e => {
 
 function filteredGames() {
   const f = state.gameFilter;
-  let list = state.games.slice();
+  let list = hubGamesList().slice();
   if (f.category) list = list.filter(g => g.category === f.category);
   if (f.playerCount) {
     const n = f.playerCount;
@@ -982,9 +1009,13 @@ function filteredGames() {
       (g.name_kr || '').toLowerCase().includes(f.search) ||
       (g.name_en || '').toLowerCase().includes(f.search));
   }
-  // 기본 정렬: 최근 추가된 게임(게임번호 큰 순)이 위로
-  const gidNum = g => parseInt(String(g.game_id).replace(/\D/g, ''), 10) || 0;
-  list.sort((a, b) => gidNum(b) - gidNum(a));
+  // 기본 정렬: 최근 추가 순(통합이면 내 최근 플레이 순)
+  if (hubIntegrated()) {
+    list.sort((a, b) => (a._first ?? 1e9) - (b._first ?? 1e9));
+  } else {
+    const gidNum = g => parseInt(String(g.game_id).replace(/\D/g, ''), 10) || 0;
+    list.sort((a, b) => gidNum(b) - gidNum(a));
+  }
   return list;
 }
 
@@ -1131,7 +1162,10 @@ function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.r
 async function switchToHub(hid) {
   const link = (state._myLinks || []).find(l => l.hub_id === hid);
   if (!link) return;
-  if (state.hub && state.hub.hub_id === hid) { closeHubMenu(); return; }
+  // 같은 허브라도 멤버 로그인이 풀려 있으면(메인으로 나온 뒤) 다시 로그인해서 입장
+  if (state.hub && state.hub.hub_id === hid && state.user) {
+    closeHubMenu(); closeStartPage(); return;
+  }
   showLoader('이동 중…');
   try {
     const u = await sbrpc('login_linked', { p_hub_id: hid });   // 연결 계정 자동 로그인
@@ -1202,8 +1236,9 @@ function isMyPid(pid) {
 }
 
 // 게임 정보: 선반(gameById) 우선, 통합 범위에서는 도감 집계(_myAllGames)로 구성
-function myGameInfo(gid) {
-  const scope = myScope();
+// scopeOverride: 게임탭 등 MY 범위 선택과 무관하게 'all'로 강제할 때 사용
+function myGameInfo(gid, scopeOverride) {
+  const scope = scopeOverride || myScope();
   if (scope === 'hub') return gameById(gid);
   let rows = (state._myAllGames || []).filter(r => r.game_id === gid);
   if (scope !== 'all') {
@@ -1220,10 +1255,35 @@ function myGameInfo(gid) {
     min_players: r.min_players, max_players: r.max_players,
     playtime_min: r.playtime_min, weight: r.weight, summary_kr: r.summary_kr || '',
     club_rating: r.all_rating != null ? Number(r.all_rating) : null,
-    rating_count: r.all_rating_count || 0, review_count: 0,
+    rating_count: r.all_rating_count || 0, review_count: r.all_review_count || 0,
     _my_rating: myRatings.length
       ? Math.round(myRatings.reduce((a, b) => a + b, 0) / myRatings.length * 10) / 10 : null,
   };
+}
+
+// ===== 기록장의 플레이·게임 탭 통합 =====
+// 개인 기록장(연결 2개 이상)에서는 플레이·게임 탭도 전 허브의 내 기록 기준
+function hubIntegrated() {
+  return isPersonalHub(state.hub) && (state._myLinks || []).length >= 2;
+}
+// 플레이 탭 세션 소스
+function hubPlays() {
+  return hubIntegrated() ? (state._myAllPlays || []) : state.plays;
+}
+// 게임 탭 게임 소스: 통합이면 내가 플레이한 도감 게임(내 최근 플레이 순, ★=전체 평점)
+function hubGamesList() {
+  if (!hubIntegrated()) return state.games;
+  const rows = state._myAllGames || [];
+  if (!rows.length) return state.games;
+  const order = []; const seen = new Set();
+  rows.slice().sort((a, b) => a.first_rn - b.first_rn).forEach(r => {
+    if (!seen.has(r.game_id)) { seen.add(r.game_id); order.push(r.game_id); }
+  });
+  return order.map((gid, i) => {
+    const g = myGameInfo(gid, 'all');
+    if (g) g._first = i;
+    return g;
+  }).filter(Boolean);
 }
 
 function myScopeChipsHtml(scope) {
@@ -1573,7 +1633,7 @@ function myCategoryChartSvg() {
   });
   const curve = smoothPath(line);
   const path = curve ? `<path d="${curve}" fill="none" stroke="#d9d5f3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : '';
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">${bars}${path}${labels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px;margin:0 auto;">${bars}${path}${labels}</svg>`;
 }
 
 function setMyGameSort(sort) {
@@ -2793,7 +2853,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1946 기록장 완전 통합: 상세·차트·게임카드까지 전 허브 합산';
+const APP_VERSION = 'v2007 기록장 플레이·게임탭 통합, 메인으로 버튼, 차트 높이 제한';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

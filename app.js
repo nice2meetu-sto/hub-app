@@ -1208,6 +1208,9 @@ function renderLoginForm() {
           ? '닉네임과 숫자 4자리만 입력하면 바로 시작할 수 있어요.'
           : '처음이신가요? 위 <b>가입하기</b> 탭을 눌러주세요.'}
       </div>
+      <div class="start-div"><span>또는</span></div>
+      <button class="btn ghost" onclick="openEmailAuth('signin')">📧 이메일로 로그인</button>
+      <div class="hint" style="text-align:center;margin-top:6px;">계정에 연결해뒀다면 PIN 없이 바로 들어와져요</div>
       <div style="text-align:center;margin-top:18px;">
         <button class="logout-link" style="color:var(--main);" onclick="openStartPage(true)">🔁 다른 허브/기록장으로 이동</button>
       </div>
@@ -2624,7 +2627,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1716 이메일 시트 층 정리(시작화면 바로 위)';
+const APP_VERSION = 'v1758 허브 로그인 화면에 이메일 로그인 추가(연결 멤버 자동 로그인)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2701,11 +2704,13 @@ function renderEmailStep(step, extra) {
   const isCreate = emailFlow.purpose === 'create';
   if (step === 'auth') {
     const titles = { create: '🏠 새 허브 만들기', personal: '📔 개인 기록장 시작',
-                     link: '📧 이메일 계정에 연결', admin: '🔐 허브 관리자 로그인' };
+                     link: '📧 이메일 계정에 연결', admin: '🔐 허브 관리자 로그인',
+                     signin: '📧 이메일로 로그인' };
     const hints = { create: '허브 개설에는 이메일 계정이 필요해요 (관리자 계정).',
                     personal: '개인 기록장은 이메일 계정으로 관리돼요.',
                     link: '연결하면 여러 허브의 내 기록을 모아볼 수 있어요.',
-                    admin: '허브 이름·초대코드 관리는 허브 개설 계정으로 로그인해야 해요.' };
+                    admin: '허브 이름·초대코드 관리는 허브 개설 계정으로 로그인해야 해요.',
+                    signin: '계정에 연결된 멤버로 PIN 없이 로그인해요.' };
     el.innerHTML = `
       <h2>${titles[emailFlow.purpose] || titles.create}</h2>
       <div class="hint" style="margin-bottom:14px;">${hints[emailFlow.purpose] || ''}</div>
@@ -2752,6 +2757,20 @@ async function emailAuthGo(isSignup) {
     if (error) throw new Error(error.message);
     if (!data.session) {
       renderEmailStep('sent');
+      return;
+    }
+    if (emailFlow.purpose === 'signin') {
+      try {
+        const u = await sbrpc('login_linked', { p_hub_id: hubId() });
+        applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
+                  u.pin, u.name + '님 환영합니다!');
+        state._myLinks = null;
+        closeEmailAuth();
+      } catch (err) {
+        closeEmailAuth();
+        toast('이 허브에 연결된 멤버가 없어요. 닉네임+PIN으로 로그인하면 자동 연결돼요.', true);
+        // 세션은 만들어졌으므로, 이어서 닉네임+PIN 로그인 시 autoLinkIfEmail이 연결해줌
+      }
       return;
     }
     if (emailFlow.purpose === 'link') {          // 현재 멤버를 이 계정에 연결

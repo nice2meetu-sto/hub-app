@@ -1,9 +1,11 @@
 // 보드게임 Hub — 서비스워커 (PWA 설치 + 앱 셸 오프라인 대비)
 // 캐시 버전만 올리면 갱신됩니다.
-const CACHE = 'bgh-v7';
+const CACHE = 'bgh-v8';
 const SHELL = [
   './',
   './index.html',
+  './styles.css',
+  './app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

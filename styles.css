@@ -1,0 +1,476 @@
+:root {
+    --main: #534AB7;
+    --main-dark: #3f379a;
+    --main-light: #ece9fb;
+    --main-soft: #b9b3ec;
+    --bg: #f5f5f8;
+    --card: #ffffff;
+    --text: #1b1b21;
+    --text-sub: #6b6b78;
+    --border: #eaeaef;
+    --win: #f4b740;
+    --danger: #e2564d;
+    --ok: #2fa96b;
+    --radius: 16px;
+    --tabbar-h: 62px;
+    --maxw: 720px;
+    --sheet-h: 85vh;   /* 하단 시트 최대 높이(공통) */
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #dcdce3;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  #app {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    min-height: 100vh;
+    background: var(--bg);
+    position: relative;
+    box-shadow: 0 0 40px rgba(0,0,0,.08);
+    display: flex;
+    flex-direction: column;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  input, select, textarea { font-family: inherit; font-size: 15px; }
+  a { color: var(--main); }
+
+  /* ===== Header ===== */
+  .appbar {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+  }
+  .appbar h1 { font-size: 18px; font-weight: 900; margin: 0; letter-spacing: -.02em; }
+  .appbar h1 .dice { color: var(--main); }
+  .appbar .who { font-size: 12px; color: var(--text-sub); }
+  .appbar .who b { color: var(--main); }
+
+  /* ===== Content ===== */
+  .view { flex: 1; padding: 16px 16px calc(var(--tabbar-h) + 84px); display: none; }
+  .view.active { display: block; }
+
+  /* ===== Cards / common ===== */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--text-sub); margin: 4px 2px 10px; }
+
+  /* summary blocks */
+  .summary-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .stat {
+    flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 9px 10px; text-align: center;
+  }
+  .stat .num { font-size: 22px; font-weight: 900; color: var(--main); }
+  .stat .lbl { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
+  .stat.hero { background: var(--main); border-color: var(--main); }
+  .stat.hero .num, .stat.hero .lbl { color: #fff; }
+
+  /* pills / badges */
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px;
+    border-radius: 999px; background: var(--main-light); color: var(--main);
+  }
+  .chip {
+    display: inline-flex; align-items: center; white-space: nowrap;
+    font-size: 13px; padding: 7px 14px; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--border); color: var(--text-sub);
+    font-weight: 500;
+  }
+  .chip.on { background: var(--main); color: #fff; border-color: var(--main); }
+  .chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 4px; -webkit-overflow-scrolling: touch; }
+  .chip-row::-webkit-scrollbar { display: none; }
+  /* 마지막 필터줄(난이도)과 첫 게임카드 사이 간격 = 검색창↔필터 간격과 동일하게 */
+  #games-list { margin-top: 10px; }
+
+  /* inputs */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sub); margin-bottom: 6px; }
+  .input, select.input, textarea.input {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+    border-radius: 12px; background: #fafafc; color: var(--text); outline: none;
+  }
+  .input:focus { border-color: var(--main); background: #fff; }
+  textarea.input { resize: vertical; min-height: 72px; }
+  .btn {
+    width: 100%; padding: 14px; border-radius: 12px; background: var(--main);
+    color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .btn:active { background: var(--main-dark); }
+  .btn.ghost { background: var(--main-light); color: var(--main); }
+  .btn.sm { width: auto; padding: 9px 16px; font-size: 13px; }
+  .btn:disabled { opacity: .5; }
+  .btn.danger { background: var(--danger); }
+
+  /* search box */
+  .searchbox {
+    display: flex; align-items: center; gap: 8px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+  }
+  .searchbox input { border: none; background: none; outline: none; width: 100%; }
+  /* 검색창 + 평점 정렬 버튼 한 줄 배치 */
+  .searchrow { display: flex; gap: 8px; align-items: stretch; margin-bottom: 12px; }
+  .searchrow .searchbox { flex: 1; margin-bottom: 0; }
+  .sortbtn {
+    flex: 0 0 auto; display: flex; align-items: center;
+    padding: 0 13px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text-sub); font-size: 13px; font-weight: 700;
+    white-space: nowrap;
+  }
+  .sortbtn.on { background: var(--main); border-color: var(--main); color: #fff; }
+
+  /* ===== Play session card ===== */
+  .session {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 10px;
+  }
+  .session-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+  /* thumbnail wrapper: shows 🎲 placeholder behind the image; if the image
+     fails to load (e.g. BGG hotlink block) the placeholder stays visible */
+  .thumb {
+    position: relative; flex-shrink: 0; overflow: hidden;
+    background: var(--main-light);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .thumb::after { content: '🎲'; font-size: 22px; }
+  .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .session-thumb {
+    width: 46px; height: 46px; border-radius: 12px;
+  }
+  .session-head .g-name { font-weight: 700; font-size: 15px; }
+  .session-head .g-meta { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .participants { display: flex; flex-direction: column; gap: 6px; }
+  .prow {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 7px 10px; border-radius: 10px; background: #fafafc;
+  }
+  .prow.win { background: #fff8e8; }
+  .prow .pname { font-weight: 500; font-size: 14px; }
+  .prow .pscore { font-size: 13px; color: var(--text-sub); font-weight: 700; }
+  .crown { margin-left: 4px; }
+
+  /* ===== Game card ===== */
+  .gcard {
+    position: relative;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 10px; overflow: hidden;
+  }
+  .gcard-edit {
+    position: absolute; top: 6px; right: 6px; z-index: 2;
+    width: 20px; height: 20px; border-radius: 6px; padding: 0;
+    background: transparent; color: var(--text-sub); font-size: 12px; line-height: 1; opacity: .6;
+  }
+  .gcard-edit:active { opacity: 1; }
+  .rate-mine { font-size: 13px; font-weight: 700; color: var(--ok); }
+  .rate-mine .star { color: var(--win); }
+  .gcard-top { display: flex; gap: 12px; }
+  .gcard-img {
+    width: 68px; height: 68px; border-radius: 12px;
+  }
+  .gcard-body { flex: 1; min-width: 0; }
+  .gcard-name { font-weight: 700; font-size: 15px; letter-spacing: -.01em; }
+  .gcard-en { font-size: 11px; color: var(--text-sub); margin-top: 1px; }
+  .gcard-meta { font-size: 12px; color: var(--text-sub); margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .gcard-ratings { display: flex; gap: 14px; margin-top: 5px; align-items: center; }
+  .rate-club { font-weight: 900; font-size: 16px; color: var(--main); }
+  .rate-club .star { color: var(--win); }
+  .rate-club small { font-size: 11px; color: var(--text-sub); font-weight: 500; }
+  .gcard-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: #444; white-space: pre-wrap; }
+  .gcard.open .gcard-detail { display: block; }
+  .gcard-editwrap { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .gcard.open .gcard-editwrap { display: block; }
+
+  /* MY 게임기록: 일자별 플레이 요약 */
+  /* 게임 정보 + 요약 제목은 시트 상단에 고정, 아래 리스트만 스크롤 */
+  .mgstat-head { position: sticky; top: 0; z-index: 2; background: var(--bg); padding-bottom: 4px; }
+  .pdate-head { font-size: 13px; font-weight: 800; color: var(--text-sub); margin: 14px 0 8px; }
+  .pdate-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px; }
+  .pdate-row { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 13px; }
+  .pdate-row:active { background: #f0f0f3; }
+  .pdate-d { font-weight: 700; flex: 0 0 auto; }
+  .pdate-wl { flex: 0 0 auto; font-weight: 700; font-size: 12px; padding: 1px 8px; border-radius: 999px; }
+  .pdate-wl.win { color: var(--win); background: #fff7e6; }
+  .pdate-wl.loss { color: var(--text-sub); background: #f0f0f3; }
+  .pdate-s { flex: 1 1 auto; text-align: right; white-space: nowrap; }
+  .pdate-s.muted { flex: 0 0 auto; }
+  .pdate-arrow { flex: 0 0 auto; color: var(--text-sub); font-size: 16px; }
+
+  /* 게임 상세 페이지 (전체 화면) */
+  #gd-page { position: fixed; inset: 0; z-index: 130; background: var(--bg); overflow-y: auto; display: none;
+    max-width: var(--maxw); margin: 0 auto;
+    padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0)); }
+  #gd-page.show { display: block; }
+  .gd-header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 4px 8px;
+    margin: 0 -16px; padding-left: 12px; padding-right: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .gd-back { font-size: 15px; font-weight: 700; color: var(--main); padding: 6px 8px; }
+  .gd-back:active { opacity: .6; }
+  .gd-memo-btn { padding: 6px 12px; border-radius: 999px; background: var(--main-light); color: var(--main); font-size: 12px; font-weight: 800; }
+  .gd-memo-btn:active { background: #ddd7f7; }
+  /* [상세] 버튼 (일자별요약 헤더: 평점 줄 오른쪽 끝) */
+  .gcard-detail-btn { position: absolute; right: 0; bottom: -2px; z-index: 2;
+    padding: 4px 10px; border-radius: 999px; background: var(--main-light); color: var(--main);
+    font-size: 11px; font-weight: 800; line-height: 1.4; }
+  .gcard-detail-btn:active { background: #ddd7f7; }
+  /* 카드 우측 상단 액션 버튼들(상세/후기/수정) */
+  .gcard-actions { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; align-items: center; }
+  /* 후기 버튼 우측 하단 배치(br): 플레이탭 카드는 카드 하단, 게임탭 카드는 평점 줄 끝 */
+  .gcard-actions.br { top: auto; bottom: 11px; }
+  .gcard-top { position: relative; }
+  .gcard-top .gcard-actions.br { right: 0; bottom: -2px; }
+  .gcard-pill { padding: 4px 10px; border-radius: 999px; background: var(--main-light); color: var(--main);
+    font-size: 11px; font-weight: 800; line-height: 1.4; white-space: nowrap; }
+  .gcard-pill:active { background: #ddd7f7; }
+  .gcard-pill.edit { padding: 4px 8px; }
+  .gcard-pill.review { background: transparent; }
+  .gcard-pill.review:active { background: var(--main-light); }
+  /* 후기 목록 시트 */
+  .rv-row { padding: 11px 2px; border-bottom: 1px solid var(--border); }
+  .rv-row:last-child { border-bottom: none; }
+  .rv-name { font-weight: 800; font-size: 13px; }
+  .rv-name .rv-when { font-weight: 500; font-size: 11px; color: var(--text-sub); margin-left: 6px; }
+  .rv-text { font-size: 13px; color: #444; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+  /* 게임메모 편집 오버레이 (게임 상세 위) */
+  #gd-memo-overlay, #gd-session-overlay { position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
+    display: none; align-items: center; justify-content: center; padding: 20px; }
+  #gd-memo-overlay.show, #gd-session-overlay.show { display: flex; }
+  #gd-session-card h3 { font-size: 15px; font-weight: 800; margin: 0 0 2px; }
+
+  /* 관리자 페이지 (전체 화면, 오버레이(100)보다 아래라 수정 시트가 위에 뜸) */
+  #admin-page { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow-y: auto; display: none;
+    max-width: var(--maxw); margin: 0 auto;
+    padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0)); }
+  #admin-page.show { display: block; }
+  .adm-searchrow { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .adm-searchrow .searchbox { flex: 1; margin: 0; }
+  .adm-pill { flex: 0 0 auto; padding: 9px 14px; border-radius: 999px; background: var(--main-light);
+    color: var(--main); font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .adm-pill:active { background: #ddd7f7; }
+  .adm-gcard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; margin-bottom: 12px; cursor: pointer; }
+  .adm-gcard:active { background: #f6f5fb; }
+  .adm-summary { font-size: 12px; color: var(--text-sub); margin-top: 8px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .adm-creator { display: inline-block; font-size: 11px; font-weight: 700; color: var(--text-sub);
+    background: #ececf1; border-radius: 6px; padding: 2px 8px; margin-left: 6px; }
+  /* 기간 필터: 두 날짜칸을 한 묶음(라벨+입력)으로 만들고, 폭이 좁으면 겹치지 않게 줄바꿈(세로 배치) */
+  .adm-daterow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+  .adm-datefield { flex: 1 1 160px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .adm-datefield label { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--text-sub); white-space: nowrap; }
+  .adm-daterow input[type="date"] { flex: 1 1 auto; min-width: 120px; padding: 7px 8px; font-size: 12px; }
+  .adm-prow { display: flex; gap: 8px; align-items: center; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+  .adm-prow .nm { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; }
+  .adm-prow .jd { font-size: 11px; color: var(--text-sub); }
+  .adm-prow input.pin { width: 64px; padding: 8px; border: 1px solid var(--border); border-radius: 8px;
+    background: #fafafc; text-align: center; font-weight: 700; }
+  .cat-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .cat-row input.cname { flex: 1; min-width: 0; }
+  .cat-row input.csort { width: 58px; text-align: center; }
+  .gd-memo-card { width: 100%; max-width: 420px; background: var(--card); border-radius: 16px; padding: 16px; }
+  .gd-memo-card h3 { font-size: 15px; font-weight: 800; margin: 0 0 4px; }
+  .gd-memo-card .muted { font-size: 12px; }
+  .gd-memo-card textarea { width: 100%; min-height: 250px; margin-top: 10px; }
+  .gd-top { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+  .gd-mystat { font-size: 12.5px; color: var(--text-sub); margin-top: 6px; }
+  .gd-sec { margin-top: 18px; }
+  .gd-sec-title { font-size: 13px; font-weight: 800; color: var(--text-sub); margin: 0 0 8px; }
+  .gd-chart { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 6px 4px; }
+  .gd-legend { display: flex; gap: 16px; justify-content: center; font-size: 11px; color: var(--text-sub); margin-top: 8px; }
+  .gd-legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+  .gd-table-wrap { overflow-x: auto; }
+  .gd-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .gd-table th, .gd-table td { padding: 9px 6px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .gd-table th:first-child, .gd-table td:first-child { text-align: left; }
+  .gd-table th { color: var(--text-sub); font-weight: 700; font-size: 11px; cursor: pointer; user-select: none; }
+  .gd-table th.act { color: var(--main); }
+  .gd-table tbody tr.me { background: var(--main-light); }
+  .gd-table td:first-child { font-weight: 600; }
+
+  /* rating editor (MY 게임기록) */
+  .rate-edit { }
+  .stars { display: flex; gap: 1px; font-size: 22px; user-select: none; }
+  .stars .s { color: #dcdce3; cursor: pointer; line-height: 1; }
+  .stars .s.filled { color: var(--win); }
+  .stars .s.half { position: relative; color: #dcdce3; }
+  .stars .s.half::before { content: '★'; position: absolute; left: 0; width: 50%; overflow: hidden; color: var(--win); }
+  .rate-val { font-size: 13px; color: var(--text-sub); margin: 6px 0; font-weight: 700; }
+
+  /* monthly mini chart */
+  .barchart { display: flex; align-items: flex-end; gap: 8px; height: 96px; padding: 4px 2px 0; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar-col .bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 100%; flex: 1; }
+  .bwrap { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; }
+  .bar {
+    width: 60%; max-width: 26px; background: var(--main); border-radius: 6px 6px 0 0; min-height: 3px;
+    transition: height .3s;
+  }
+  .bars .bar { width: 13px; }
+  .bar.soft { background: var(--main-soft); }
+  .bar-col .bc { font-size: 9px; color: var(--text-sub); line-height: 1.1; }
+  .bar-col .bc.soft { color: var(--main-soft); }
+  .bar-col .bm { font-size: 10px; color: var(--text-sub); }
+  .legend-chips { display: flex; gap: 10px; font-size: 11px; font-weight: 700; color: var(--text-sub); }
+  .legend-chips i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+
+  /* game-stat list rows (MY 플레이) */
+  .grow {
+    display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--border);
+  }
+  .grow:last-child { border-bottom: none; }
+  .grow-rank { width: 22px; text-align: center; font-weight: 900; color: var(--text-sub); font-size: 13px; }
+  .grow-body { flex: 1; min-width: 0; }
+  .grow-name { font-weight: 700; font-size: 14px; }
+  .grow-sub { font-size: 12px; color: var(--text-sub); }
+  .grow-rate { text-align: right; }
+  .grow-rate .r { font-weight: 900; color: var(--main); font-size: 16px; }
+  .grow-rate .rl { font-size: 10px; color: var(--text-sub); }
+  .winbar { height: 5px; background: var(--border); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+  .winbar > i { display: block; height: 100%; background: var(--main); border-radius: 3px; }
+
+  /* ===== Bottom tabbar ===== */
+  .tabbar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: var(--maxw); height: var(--tabbar-h);
+    background: var(--card); border-top: 1px solid var(--border);
+    display: flex; z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; color: var(--text-sub); font-size: 11px; font-weight: 500;
+  }
+  .tab .ico { font-size: 20px; line-height: 1; }
+  .tab.on { color: var(--main); font-weight: 700; }
+  .fab {
+    position: fixed; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0)); z-index: 55;
+    left: 50%; margin-left: calc(var(--maxw) / 2 - 74px);
+    width: 56px; height: 56px; border-radius: 50%; background: var(--main); color: #fff;
+    font-size: 30px; font-weight: 300; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(83,74,183,.45);
+  }
+  @media (max-width: 720px) { .fab { left: auto; right: 18px; margin-left: 0; } }
+  .fab:active { background: var(--main-dark); }
+
+  /* ===== Modal / sheet ===== */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20,20,30,.45); z-index: 100;
+    display: none; align-items: flex-end; justify-content: center;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    width: 100%; max-width: var(--maxw); background: var(--bg);
+    border-radius: 22px 22px 0 0; max-height: var(--sheet-h); overflow-y: auto;
+    padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0));
+    animation: slideup .25s ease;
+  }
+  /* 저장 버튼을 시트 하단에 고정 — 스크롤 위치와 관계없이 항상 눌리게 */
+  .sheet-save {
+    position: sticky; bottom: 0; z-index: 3; margin-top: 14px;
+    box-shadow: 0 -12px 16px 10px var(--bg);
+  }
+  /* 추가 시트: 항상 최대 높이(--sheet-h)로 열림.
+     플레이 결과 폼은 세로 flex — 일자·게임·참가자 헤더줄은 고정,
+     참가자 목록(#ap-participants)만 내부 스크롤 */
+  #add-overlay .sheet { height: var(--sheet-h); display: flex; flex-direction: column; }
+  #add-play-form { flex: 1; min-height: 0; flex-direction: column; }  /* display는 탭 전환 JS가 지정 */
+  .ap-parts-field { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .ap-parts-field > #ap-participants { flex: 1; min-height: 0; overflow-y: auto; }
+  @keyframes slideup { from { transform: translateY(30px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+  .sheet-grip { width: 40px; height: 4px; background: #d3d3dc; border-radius: 3px; margin: 8px auto 12px; }
+  .sheet h2 { font-size: 18px; margin: 4px 2px 16px; font-weight: 900; }
+  .sheet-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .sheet-tabs button {
+    flex: 1; padding: 10px; border-radius: 10px; background: var(--card);
+    border: 1px solid var(--border); font-weight: 700; font-size: 14px; color: var(--text-sub);
+  }
+  .sheet-tabs button.on { background: var(--main); color: #fff; border-color: var(--main); }
+
+  /* participant rows in addPlay */
+  .ppart { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .ppart select { flex: 2; }
+  .ppart input { flex: 1; min-width: 0; }
+  .wintoggle {
+    flex-shrink: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: #fafafc; font-weight: 700; font-size: 13px; color: var(--text-sub);
+  }
+  .wintoggle.on { background: var(--win); color: #fff; border-color: var(--win); }
+  .rm-btn { flex-shrink: 0; color: var(--danger); font-size: 20px; padding: 4px 8px; }
+  /* 회원 일치 배지 (플레이 결과 추가) */
+  .mchk { font-size: 12px; }
+  .mchk.ok { color: var(--ok); font-weight: 700; }
+  .mchk.no { color: var(--text-sub); }
+  .mchk.dup { color: var(--danger); font-weight: 700; }
+
+  /* 접두어 자동완성 드롭다운 */
+  .ac-wrap { position: relative; }
+  .ac-wrap > input { width: 100%; }
+  .ac-menu {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+    background: #fff; border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(20,20,40,.14); max-height: 190px; overflow-y: auto;
+  }
+  .ac-menu.show { display: block; }
+  .ac-item { padding: 10px 12px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:active { background: var(--main-light); color: var(--main); }
+
+  /* ===== Toast / loader ===== */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 30px); transform: translateX(-50%);
+    background: #22222c; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 14px;
+    z-index: 200; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
+    max-width: 88%; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+  #toast.err { background: var(--danger); }
+  #loader {
+    position: fixed; inset: 0; background: rgba(245,245,248,.7); z-index: 300;
+    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+  }
+  #loader.show { display: flex; }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid var(--main-light); border-top-color: var(--main);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loader .ltxt { font-size: 13px; color: var(--text-sub); }
+
+  .empty { text-align: center; color: var(--text-sub); padding: 40px 20px; font-size: 14px; }
+  .empty .big { font-size: 34px; margin-bottom: 8px; }
+  .muted { color: var(--text-sub); }
+  .hint { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+  .center-login { padding: 30px 8px; }
+  .center-login .lg-ico { text-align: center; font-size: 46px; margin-bottom: 6px; }
+  .center-login h2 { text-align: center; font-size: 20px; margin: 0 0 24px; }
+  .subtabs { display: flex; gap: 6px; background: var(--main-light); padding: 4px; border-radius: 12px; margin-bottom: 14px; }
+  .subtabs button { flex: 1; padding: 9px; border-radius: 9px; font-weight: 700; font-size: 13px; color: var(--main); }
+  .subtabs button.on { background: var(--card); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > * { flex: 1; min-width: 0; }   /* date 등 고유폭 입력칸도 화면에 맞게 줄어들도록 */
+  /* 날짜칸이 든 행: 좁은 화면에서 강제로 줄이지 않고, 안 들어가면 겹침 없이 세로로 줄바꿈 */
+  .row2.wrapdate { flex-wrap: wrap; }
+  .row2.wrapdate > * { flex: 1 1 150px; }
+  /* iOS 사파리: 날짜칸이 고유 폭을 고집하며 CSS 폭을 무시하고 옆 칸을 덮는 버그
+     → 네이티브 외형을 끄면(appearance:none) 지정한 폭을 그대로 따름 */
+  input[type="date"] {
+    -webkit-appearance: none; appearance: none;
+    min-width: 0; max-width: 100%;
+  }
+  /* iOS: appearance 해제 후 값이 비면 높이가 주저앉음 → 글자 높이 확보,
+     기본 가운데 정렬 → 다른 입력칸처럼 왼쪽 정렬 */
+  input[type="date"]::-webkit-date-and-time-value {
+    text-align: left; margin: 0; min-height: 1.45em;
+  }
+  .logout-link { font-size: 12px; color: var(--danger); text-decoration: underline; background: none; }

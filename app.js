@@ -1358,47 +1358,19 @@ function renderLoginForm() {
   document.getElementById('my-content').style.display = 'none';
   const el = document.getElementById('my-login');
   el.style.display = 'block';
-  const isSignup = state.authMode === 'signup';
+  // 로그인/가입은 시작 화면에서 한 번에 끝나는 구조 — 여기서는 안내만
   el.innerHTML = `
     <div class="center-login">
-      <div class="lg-ico">${isSignup ? '✨' : '🔐'}</div>
+      <div class="lg-ico">🔐</div>
       <h2>MY 페이지</h2>
-      <div class="subtabs" style="margin-bottom:20px;">
-        <button class="${!isSignup ? 'on' : ''}" onclick="setAuthMode('login')">로그인</button>
-        <button class="${isSignup ? 'on' : ''}" onclick="setAuthMode('signup')">가입하기</button>
+      <div class="hint" style="text-align:center;margin-bottom:20px;">
+        로그인 정보가 없어요.<br/>메인 화면에서 로그인하고 들어와주세요.
       </div>
-      <div class="field">
-        <label>${isSignup ? '닉네임' : '닉네임(이름)'}</label>
-        <input class="input" id="auth-name" placeholder="닉네임" autocomplete="off" maxlength="20" />
-      </div>
-      <div class="field">
-        <label>비밀번호 (숫자 4자리)</label>
-        <input class="input" id="auth-pin" type="password" inputmode="numeric" pattern="[0-9]*"
-               maxlength="4" placeholder="••••" autocomplete="off" />
-      </div>
-      <button class="btn" onclick="${isSignup ? 'doSignup()' : 'doLogin()'}">${isSignup ? '가입하고 시작하기' : '로그인'}</button>
-      <div class="hint" style="text-align:center;margin-top:14px;">
-        ${isSignup
-          ? '닉네임과 숫자 4자리만 입력하면 바로 시작할 수 있어요.'
-          : '처음이신가요? 위 <b>가입하기</b> 탭을 눌러주세요.'}
-      </div>
-      <div class="start-div"><span>또는</span></div>
-      <button class="btn ghost" onclick="openEmailAuth('signin')">📧 이메일로 로그인</button>
-      <div class="hint" style="text-align:center;margin-top:6px;">계정에 연결해뒀다면 PIN 없이 바로 들어와져요</div>
-      <div style="text-align:center;margin-top:18px;">
-        <button class="logout-link" style="color:var(--main);" onclick="openStartPage(true)">🔁 다른 허브/기록장으로 이동</button>
-      </div>
+      <button class="btn" onclick="goMain()">메인으로</button>
     </div>`;
-  el.querySelector('#auth-pin').addEventListener('keydown', e => {
-    if (e.key === 'Enter') { isSignup ? doSignup() : doLogin(); }
-  });
 }
 
-function setAuthMode(mode) {
-  state.authMode = mode;
-  renderLoginForm();
-}
-
+// 메인(시작 화면)으로 이동 — 멤버 세션은 그대로 (계정 로그아웃은 메인에서)
 function applyAuth(user, pin, welcome) {
   state.user = user;
   localStorage.setItem('bg_user', JSON.stringify(user));
@@ -1413,8 +1385,6 @@ function applyAuth(user, pin, welcome) {
   renderMy();
 }
 
-
-// 이메일 세션이 있으면 지금 로그인한 멤버를 계정에 자동 연결
 // 현재 멤버를 이메일 계정에 수동 연결(자동 연결 없음 — 버튼으로만).
 // 이미 이 허브에 연결된 멤버가 있는 계정이면 중복 연결을 막는다
 async function linkCurrentMember() {
@@ -1438,40 +1408,6 @@ async function linkCurrentMember() {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
-async function doLogin() {
-  const name = document.getElementById('auth-name').value.trim();
-  const pin = document.getElementById('auth-pin').value.trim();
-  if (!name || !pin) { toast('닉네임과 PIN을 입력하세요.', true); return; }
-  showLoader('로그인 중…');
-  try {
-    const user = await api('login', { name, pin });
-    applyAuth(user, pin, `${user.name}님 환영합니다!`);
-  } catch (e) {
-    toast(e.message, true);
-  } finally {
-    hideLoader();
-  }
-}
-
-async function doSignup() {
-  const name = document.getElementById('auth-name').value.trim();
-  const pin = document.getElementById('auth-pin').value.trim();
-  if (!name) { toast('닉네임을 입력하세요.', true); return; }
-  if (!/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력하세요.', true); return; }
-  showLoader('가입 중…');
-  try {
-    const user = await api('signup', { name, pin });
-    // 새 회원이 참가자 목록/통계에 바로 반영되도록 갱신
-    try { state.players = await api('getPlayers'); } catch (e) {}
-    applyAuth(user, pin, `${user.name}님 가입 완료! 환영합니다 🎉`);
-  } catch (e) {
-    toast(e.message, true);
-  } finally {
-    hideLoader();
-  }
-}
-
-// 메인(시작 화면)으로 이동 — 멤버 세션은 그대로 (계정 로그아웃은 메인에서)
 function goMain() { openStartPage(true); }
 
 function updateWhoami() {
@@ -2890,7 +2826,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2112 초대코드+로그인 원큐·백업PIN·이메일가입 배지';
+const APP_VERSION = 'v2127 캐시버스팅·MY 로그인폼 정리·입장 후 게임탭';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3274,7 +3210,7 @@ async function joinByInvite() {
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');
     await loadCore();
-    switchView('play');
+    switchView('games');   // 입장하면 그 허브의 통합 게임 탭이 메인
   } catch (e) {
     toast(e.message, true);
   } finally { hideLoader(); }

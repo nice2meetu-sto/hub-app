@@ -2624,7 +2624,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1631 기본 분류 8종(파티게임 추가)';
+const APP_VERSION = 'v1713 메일 발송 안내 화면·토스트 최상위 표시';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2725,6 +2725,11 @@ function renderEmailStep(step, extra) {
       <div class="field"><label>내 PIN (숫자 4자리)</label>
         <input class="input" id="em-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" /></div>
       <button class="btn" onclick="emailSetupGo()">${isCreate ? '허브 만들기' : '기록장 만들기'}</button>`;
+  } else if (step === 'sent') {
+    el.innerHTML = `
+      <h2>📮 확인 메일을 보냈어요</h2>
+      <div class="hint" style="margin-bottom:14px;">메일함에서 인증 링크를 누른 뒤,<br/>여기로 돌아와 <b>로그인</b>을 눌러주세요.<br/><small>(메일이 안 보이면 스팸함도 확인!)</small></div>
+      <button class="btn" onclick="renderEmailStep('auth')">로그인하러 가기</button>`;
   } else if (step === 'done') {
     el.innerHTML = `
       <h2>${extra && extra.existing ? '다시 만나서 반가워요! 👋' : '완료! 🎉'}</h2>
@@ -2746,7 +2751,7 @@ async function emailAuthGo(isSignup) {
       : await sb.auth.signInWithPassword({ email, password: pw });
     if (error) throw new Error(error.message);
     if (!data.session) {
-      toast('확인 메일을 보냈어요. 메일 인증 후 로그인해주세요.');
+      renderEmailStep('sent');
       return;
     }
     if (emailFlow.purpose === 'link') {          // 현재 멤버를 이 계정에 연결

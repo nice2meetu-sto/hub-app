@@ -114,7 +114,9 @@ async function api(action, params = {}) {
     // ===== 멀티허브 / 이메일 계정 =====
     case 'hubByInvite':   return sbrpc('hub_by_invite', { p_code: P.code });
     case 'getHub':        return sbrpc('get_hub', { p_hub_id: hubId() });
-    case 'createHub':     return sbrpc('create_hub', { p_name: P.name });
+    case 'createHub':     return sbrpc('create_hub', { p_name: P.name, p_kind: P.kind || 'hub' });
+    case 'loginLinked':   return sbrpc('login_linked', { p_hub_id: hubId() });
+    case 'searchCatalog': return sbrpc('search_catalog', { p_hub_id: hubId(), p_term: P.term });
     case 'myHubs':        return sbrpc('my_hubs');
     case 'hubGetInvite':  return sbrpc('hub_get_invite', { p_hub_id: hubId() });
     case 'linkPlayer':    return sbrpc('link_player', { p_hub_id: hubId(), p_player_id: P.playerId, p_pin: P.pin });
@@ -1927,6 +1929,19 @@ function checkNewGameName() {
     el.className = 'mchk ok';
     el.textContent = '✓ 등록 가능한 새 게임명이에요';
   }
+  // 공용 도감(다른 허브 등록분) 검사 — 있으면 정보를 끌어온다고 안내
+  clearTimeout(state._catalogTimer);
+  state._catalogTimer = setTimeout(async () => {
+    try {
+      const list = await api('searchCatalog', { term: name });
+      if (document.getElementById('ag-namekr')?.value.trim() !== name) return;  // 입력이 바뀜
+      const hit = (list || []).find(g => normGameName(g.name_kr) === key && !g.on_shelf);
+      if (hit) {
+        el.className = 'mchk ok';
+        el.textContent = `📚 "${hit.name_kr}" — 다른 허브에 등록된 게임이에요. 추가하면 정보를 그대로 가져와요`;
+      }
+    } catch (e) {}
+  }, 350);
 }
 
 // 정확히 일치하는 게임/플레이어만 허용(데이터 오류 방지)
@@ -2525,7 +2540,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1522 통합 기록·계정 연결·허브 설정(2-5) + 모달 z-index 수정';
+const APP_VERSION = 'v1535 개인 기록장 계정당 1개·도감 끌어오기 안내';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2627,8 +2642,9 @@ function renderEmailStep(step, extra) {
       <button class="btn" onclick="emailSetupGo()">${isCreate ? '허브 만들기' : '기록장 만들기'}</button>`;
   } else if (step === 'done') {
     el.innerHTML = `
-      <h2>완료! 🎉</h2>
-      ${isCreate ? `<div class="hint" style="margin-bottom:10px;">멤버들에게 초대코드를 알려주세요.</div>
+      <h2>${extra && extra.existing ? '다시 만나서 반가워요! 👋' : '완료! 🎉'}</h2>
+      ${extra && extra.existing ? `<div class="hint" style="margin-bottom:10px;">이미 만든 기록장이 있어서 그리로 들어왔어요.</div>` : ''}
+      ${isCreate && !(extra && extra.existing) ? `<div class="hint" style="margin-bottom:10px;">멤버들에게 초대코드를 알려주세요.</div>
       <div class="invite-code">${esc(extra.invite_code)}</div>` : ''}
       <button class="btn" style="margin-top:14px;" onclick="closeEmailAuth()">시작하기</button>`;
   }
@@ -2677,8 +2693,18 @@ async function emailSetupGo() {
   if (!nick || !/^\d{4}$/.test(pin)) { toast('닉네임과 숫자 4자리 PIN을 입력하세요.', true); return; }
   showLoader('만드는 중…');
   try {
-    const hub = await api('createHub', { name: hubName });          // 허브 생성(owner=내 계정)
+    const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal' });
     saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code });
+    if (hub.existing) {
+      // 개인 기록장은 계정당 1개 — 이미 있으면 그 기록장으로 재입장(연결 계정 자동 로그인)
+      const user = await api('loginLinked');
+      applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: user.hub_id },
+                user.pin, '이미 만든 기록장으로 들어왔어요!');
+      renderEmailStep('done', hub);
+      closeStartPage();
+      await loadCore();
+      return;
+    }
     const user = await api('signup', { name: nick, pin });          // 첫 멤버로 가입(자동 admin)
     await api('linkPlayer', { playerId: user.player_id, pin });     // 내 계정에 연결
     applyAuth(user, pin, hub.name + ' 시작!');

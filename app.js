@@ -87,6 +87,7 @@ async function api(action, params = {}) {
       });
     case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
     case 'getReviewsAll': return sbrpc('get_reviews_all', { p_game_id: P.gameId });
+    case 'getReviewsMates': return sbrpc('get_reviews_mates', { p_game_id: P.gameId });
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
@@ -408,7 +409,7 @@ function gameInfoInnerHtml(g) {
   if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
 
-  const ratingLbl = '전체 평점';
+  const ratingLbl = hubIntegrated() ? '함께한 사람들 평점' : '우리Hub평점';
   const club = g.club_rating != null
     ? `<span class="rate-club"><span class="star">★</span> ${g.club_rating.toFixed(1)}</span> <small class="muted">${ratingLbl} (평가 ${g.rating_count || 0})</small>`
     : `<span class="muted">${ratingLbl} 없음</span>`;
@@ -665,7 +666,7 @@ async function openReviews(gameId) {
   body.innerHTML = head + `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
   showDetailSheet();
   try {
-    const reviews = await api('getReviewsAll', { gameId });
+    const reviews = await api(hubIntegrated() ? 'getReviewsMates' : 'getReviews', { gameId });
     const list = (reviews && reviews.length)
       ? reviews.map(r => `<div class="rv-row">
           <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}${r.hub_name ? ' · ' + esc(r.hub_name) : ''}</span></div>
@@ -1755,7 +1756,7 @@ async function renderMyGamesAll(el, scope) {
   }
   state._myGamesAllList = games;
   el.innerHTML = `${chips}
-    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=전체 이용자 평점)<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
+    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=나와 게임한 사람들 평점)<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
     <div class="searchrow">
       <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
       <button class="sortbtn ${state.myGamesSortRating ? 'on' : ''}" id="my-gamesall-sort-btn" title="내 평점 정렬" onclick="cycleMyGamesAllSort()">${sortBtnLabel(state.myGamesSortRating)}</button>
@@ -2836,7 +2837,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2357 평점·후기 사람 중심 통합(허브 무관)';
+const APP_VERSION = 'v0011 평점 범위 정리: 허브=가입자 기준, 기록장=함께한 사람들';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

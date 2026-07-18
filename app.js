@@ -2628,7 +2628,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1856 기록장 실패 원인 표시·합본 마이그레이션 supabase_fix_all.sql';
+const APP_VERSION = 'v1904 가입 중복시 미발송 안내·인증링크 리다이렉트 명시';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2727,7 +2727,8 @@ async function doStartEmail() {
   showLoader(isSignup ? '가입 중…' : '로그인 중…');
   try {
     const { data, error } = isSignup
-      ? await sb.auth.signUp({ email, password: pw })
+      ? await sb.auth.signUp({ email, password: pw,
+          options: { emailRedirectTo: location.origin + location.pathname } })
       : await sb.auth.signInWithPassword({ email, password: pw });
     if (error) {
       if (/already registered|already exists/i.test(error.message)) {
@@ -2735,7 +2736,7 @@ async function doStartEmail() {
         throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
       }
       if (/rate limit|security purposes.*after \d+ seconds/i.test(error.message)) {
-        throw new Error('메일 발송 한도에 걸렸어요(기본 발송기는 시간당 2통). 잠시 후 다시 시도해주세요.');
+        throw new Error('메일 발송이 잠시 제한됐어요(한도/재요청 대기). 잠시 후 다시 시도해주세요.');
       }
       throw new Error(error.message === 'Invalid login credentials'
         ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message);
@@ -2786,9 +2787,9 @@ async function forgotPw() {
     const { error } = await sb.auth.resetPasswordForEmail(email,
       { redirectTo: location.origin + location.pathname });
     if (error) throw new Error(/rate limit|security purposes.*after \d+ seconds/i.test(error.message)
-      ? '메일 발송 한도에 걸렸어요(기본 발송기는 시간당 2통). 잠시 후 다시 시도해주세요.'
+      ? '메일 발송이 잠시 제한됐어요(한도/재요청 대기). 잠시 후 다시 시도해주세요.'
       : error.message);
-    toast('비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요!');
+    toast('비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요! (스팸함도 확인)');
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
@@ -3011,9 +3012,17 @@ async function emailAuthGo(isSignup) {
   showLoader(isSignup ? '가입 중…' : '로그인 중…');
   try {
     const { data, error } = isSignup
-      ? await sb.auth.signUp({ email, password: pw })
+      ? await sb.auth.signUp({ email, password: pw,
+          options: { emailRedirectTo: location.origin + location.pathname } })
       : await sb.auth.signInWithPassword({ email, password: pw });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(/already registered|already exists/i.test(error.message)
+      ? '이미 가입된 이메일이에요. 로그인 탭에서 로그인해주세요.' : error.message);
+    // 이미 가입·인증된 이메일로 가입 시 supabase는 메일을 보내지 않고
+    // identities가 빈 가짜 성공 응답을 줌 → '메일 보냈어요'로 오인하지 않게 구분
+    if (isSignup && data.user && Array.isArray(data.user.identities)
+        && data.user.identities.length === 0) {
+      throw new Error('이미 가입된 이메일이에요. 로그인 탭에서 로그인해주세요.');
+    }
     if (!data.session) {
       renderEmailStep('sent');
       return;

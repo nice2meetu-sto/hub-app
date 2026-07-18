@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v2049</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v2112</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -162,13 +162,23 @@
 
     <!-- 초대코드 입장 -->
     <div class="start-view" id="sv-invite" style="display:none;">
+      <div class="subtabs" style="margin-bottom:14px;">
+        <button id="ji-tab-signup" class="on" onclick="jiSetMode('signup')">처음이에요</button>
+        <button id="ji-tab-login" onclick="jiSetMode('login')">로그인</button>
+      </div>
       <div class="field" style="text-align:left;">
         <label>허브 초대코드</label>
         <input class="input" id="start-invite" placeholder="예: AB12CD"
-               oninput="inviteAutoExtract(this)" onkeydown="if(event.key==='Enter')joinByInvite()" />
+               oninput="inviteAutoExtract(this)" />
         <div class="hint" style="margin-top:6px;">받은 초대 문구를 통째로 붙여넣어도 코드만 쏙 들어가요</div>
       </div>
-      <button class="btn" onclick="joinByInvite()">입장</button>
+      <div class="field" style="text-align:left;"><label>닉네임</label>
+        <input class="input" id="ji-name" placeholder="허브에서 쓸 이름" maxlength="20" autocomplete="off" /></div>
+      <div class="field" style="text-align:left;"><label>비밀번호 (숫자 4자리)</label>
+        <input class="input" id="ji-pin" type="password" inputmode="numeric" pattern="[0-9]*"
+               maxlength="4" placeholder="••••" autocomplete="off"
+               onkeydown="if(event.key==='Enter')joinByInvite()" /></div>
+      <button class="btn" id="ji-go" onclick="joinByInvite()">가입하고 입장</button>
       <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="startShow('home')">‹ 뒤로</button>
     </div>
 
@@ -184,6 +194,9 @@
         <input class="input" id="se-pw" type="password" placeholder="••••••" /></div>
       <div class="field" id="se-nick-row" style="text-align:left;display:none;"><label>닉네임 (개인 기록장에 사용)</label>
         <input class="input" id="se-nick" placeholder="예: 수민" maxlength="20" /></div>
+      <div class="field" id="se-pin-row" style="text-align:left;display:none;"><label>백업PIN (숫자 4자리)</label>
+        <input class="input" id="se-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" />
+        <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
       <button class="btn" id="se-go" onclick="doStartEmail()">로그인</button>
       <div style="margin-top:12px;">
         <button class="logout-link" style="color:var(--main);" onclick="forgotPw()">비밀번호를 잊었어요</button>
@@ -200,6 +213,9 @@
         <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
       <div class="field" style="text-align:left;"><label>허브에서 쓸 닉네임</label>
         <input class="input" id="sc-nick" placeholder="비우면 기록장 닉네임 사용" maxlength="20" /></div>
+      <div class="field" style="text-align:left;"><label>백업PIN (숫자 4자리)</label>
+        <input class="input" id="sc-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" />
+        <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
       <button class="btn" onclick="startCreateHub()">허브 만들기</button>
       <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>
     </div>

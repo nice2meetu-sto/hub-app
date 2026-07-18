@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openStartPage(true)" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span><span style="font-size:11px;color:var(--text-sub);vertical-align:middle;"> ▾</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1514</span></h1>
+    <h1 onclick="openStartPage(true)" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1522</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -66,7 +66,8 @@
       <div id="my-overview"></div>
       <div id="my-plays" style="display:none;"></div>
       <div id="my-games" style="display:none;"></div>
-      <div style="text-align:center;margin:20px 0 4px;">
+      <div id="my-linkrow" style="text-align:center;margin:18px 0 0;"></div>
+      <div style="text-align:center;margin:14px 0 4px;">
         <button class="logout-link" onclick="logout()">로그아웃</button>
       </div>
     </div>

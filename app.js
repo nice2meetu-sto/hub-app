@@ -1326,7 +1326,7 @@ function renderMyLinkRow() {
   if (me && me.linked) {
     el.innerHTML = `<span class="hint">✓ 이메일 계정 연결됨 · 여러 허브 기록을 모아볼 수 있어요</span>`;
   } else {
-    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="linkCurrentMember()">📧 이메일 계정에 연결하기</button>
+    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 메인의 [계정연결확인]에서 이메일 계정에 연결할 수 있어요</button>
       <div class="hint" style="margin-top:4px;">연결하면 여러 허브의 내 기록을 통합해 볼 수 있어요</div>`;
   }
 }
@@ -1385,27 +1385,12 @@ function applyAuth(user, pin, welcome) {
   renderMy();
 }
 
-// 현재 멤버를 이메일 계정에 수동 연결(자동 연결 없음 — 버튼으로만).
-// 이미 이 허브에 연결된 멤버가 있는 계정이면 중복 연결을 막는다
-async function linkCurrentMember() {
-  if (!state.user) return;
+// MY에서 계정연결확인으로 바로 이동(세션 없으면 이메일 로그인부터)
+async function goLinksPage() {
+  openStartPage(true);
   let session = null;
   try { const { data } = await sb.auth.getSession(); session = data && data.session; } catch (e) {}
-  if (!session) { openEmailAuth('link'); return; }   // 이메일 로그인부터
-  state._myLinks = null;
-  try { await loadMyLinks(); } catch (e) {}
-  if ((state._myLinks || []).some(l => l.hub_id === hubId())) {
-    toast('이미 연결된 허브예요.', true); return;
-  }
-  showLoader('연결 중…');
-  try {
-    const pin = localStorage.getItem('bg_pin');
-    await api('linkPlayer', { playerId: state.user.player_id, pin });
-    state._myLinks = null;
-    try { state.players = await api('getPlayers'); } catch (e) {}
-    toast('이 허브가 내 계정에 연결됐어요 🔗');
-    renderMyLinkRow();
-  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+  if (session) startShowLinks(); else startEmailEntry();
 }
 
 function goMain() { openStartPage(true); }
@@ -2826,7 +2811,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2127 캐시버스팅·MY 로그인폼 정리·입장 후 게임탭';
+const APP_VERSION = 'v2135 계정연결확인에서 추가 연결(코드+닉네임+PIN)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3079,7 +3064,47 @@ async function startShowLinks() {
           ? `<span class="hint" style="flex:0 0 auto;">내 기록장 · 해제 불가</span>`
           : `<button class="btn danger sm" style="flex:0 0 auto;padding:7px 12px;" onclick="unlinkFromStart('${esc(l.player_id)}','${esc(l.hub_name)}')">연결해제</button>`}
       </div>`).join('') || '<div class="hint" style="margin-bottom:10px;">연결된 허브가 없어요</div>'}
+    <button class="btn ghost" style="margin-top:10px;" onclick="toggleAddLink()">➕ 추가 연결</button>
+    <div id="sl-form" style="display:none;text-align:left;margin-top:12px;">
+      <div class="field"><label>허브 초대코드</label>
+        <input class="input" id="sl-code" placeholder="예: AB12CD" oninput="inviteAutoExtract(this)" /></div>
+      <div class="field"><label>닉네임</label>
+        <input class="input" id="sl-name" placeholder="그 허브에서 쓰는 이름" maxlength="20" autocomplete="off" /></div>
+      <div class="field"><label>비밀번호 (숫자 4자리)</label>
+        <input class="input" id="sl-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+               placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')addLinkFromStart()" /></div>
+      <button class="btn" onclick="addLinkFromStart()">연결하기</button>
+    </div>
     <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
+}
+
+function toggleAddLink() {
+  const f = document.getElementById('sl-form');
+  if (f) f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+// 추가 연결: 초대코드+닉네임+PIN으로 그 허브의 내 멤버를 이 계정에 연결
+// (login을 거치므로 PIN 5회 실패 잠금도 그대로 적용)
+async function addLinkFromStart() {
+  const code = extractInvite(document.getElementById('sl-code').value.trim());
+  const name = document.getElementById('sl-name').value.trim();
+  const pin = document.getElementById('sl-pin').value.trim();
+  if (!code) { toast('초대코드를 입력하세요.', true); return; }
+  if (!name || !pin) { toast('닉네임과 비밀번호를 입력하세요.', true); return; }
+  showLoader('연결 중…');
+  try {
+    const h = await api('hubByInvite', { code });
+    if ((state._myLinks || []).some(l => l.hub_id === h.hub_id)) {
+      throw new Error('이미 연결된 허브예요.');
+    }
+    const d = await sbrpc('login', { p_name: name, p_pin: pin, p_hub_id: h.hub_id });
+    if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
+    await sbrpc('link_player', { p_hub_id: h.hub_id, p_player_id: d.player_id, p_pin: pin });
+    state._myLinks = null;
+    state._myAllPlays = null; state._myAllGames = null; state._myStatsBy = null;
+    toast(h.name + ' 허브가 연결됐어요 🔗');
+    await startShowLinks();   // 목록으로 복귀(입장은 '어디로 들어갈까요?'에서)
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 async function unlinkFromStart(pid, hubName) {

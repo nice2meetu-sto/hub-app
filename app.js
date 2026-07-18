@@ -1189,7 +1189,6 @@ async function switchToHub(hid) {
   try {
     const u = await sbrpc('login_linked', { p_hub_id: hid });   // 연결 계정 자동 로그인
     saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub' });
-    state.myScope = null;
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
     closeHubMenu();
@@ -1215,19 +1214,10 @@ async function loadMyLinks() {
   } catch (e) { /* 비로그인/미지원 → 통합 숨김 */ }
 }
 
-function setMyScope(sc) {
-  state.myScope = sc;
-  renderMy();   // 전체기록·플레이기록·게임기록 세 탭이 같은 범위를 공유
-}
-
-// MY 탭 공통 범위: 'hub'(현재 허브) | 'all'(통합) | hub_id(특정 허브)
-// 통합/허브별 전환은 '개인 기록장'에서 연결이 2개 이상일 때만 제공
+// MY 탭 범위: 기록장(연결 2개+)은 항상 전 허브 통합('all'), 그 외는 현재 허브
 function myScope() {
   const links = state._myLinks || [];
-  if (!(isPersonalHub(state.hub) && links.length >= 2)) return 'hub';
-  let sc = state.myScope || 'all';
-  if (state.hub && sc === state.hub.hub_id) sc = 'hub';   // 기록장 자신 = 일반 모드
-  return sc;
+  return (isPersonalHub(state.hub) && links.length >= 2) ? 'all' : 'hub';
 }
 
 // 현재 MY 범위의 '내' 세션 소스: 기록장 통합이면 전 허브, 아니면 현재 허브
@@ -1303,19 +1293,6 @@ function hubGamesList() {
     if (g) g._first = i;
     return g;
   }).filter(Boolean);
-}
-
-function myScopeChipsHtml(scope) {
-  const links = state._myLinks || [];
-  if (!(isPersonalHub(state.hub) && links.length >= 2)) return '';
-  return `
-    <div class="chip-row" style="padding-bottom:8px;">
-      <span class="chip ${scope === 'all' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('all')">전체(통합)</span>
-      ${links.map(l => {
-        const on = (scope === 'hub' && state.hub && l.hub_id === state.hub.hub_id) || scope === l.hub_id;
-        return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${isPersonalHub(l) ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
-      }).join('')}
-    </div>`;
 }
 
 // MY 하단: 계정 연결 상태/버튼
@@ -1416,14 +1393,9 @@ async function renderMyOverview() {
   if (!state._myStatsBy[scope]) {
     el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
     try {
-      if (scope === 'all') {
-        state._myStatsBy[scope] = await api('getMyStatsAll');
-      } else if (scope === 'hub') {
-        state._myStatsBy[scope] = await api('getPlayerStats', { playerId: state.user.player_id });
-      } else {
-        const link = links.find(l => l.hub_id === scope);
-        state._myStatsBy[scope] = await api('getPlayerStats', { playerId: link.player_id });
-      }
+      state._myStatsBy[scope] = scope === 'all'
+        ? await api('getMyStatsAll')
+        : await api('getPlayerStats', { playerId: state.user.player_id });
     } catch (e) {
       el.innerHTML = `<div class="empty">통계를 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
       return;
@@ -1433,7 +1405,7 @@ async function renderMyOverview() {
   await ensureMyAllData();   // 통합 범위: 점수·상세·카테고리 차트용 전 허브 데이터
   try {
     const stats = state._myStats;
-    const scopeChips = myScopeChipsHtml(scope);
+    const scopeChips = '';
     // '플레이 게임' = 내 플레이 기록이 있는 게임 수(= MY-게임기록 목록 개수와 동일)
     const playedIds = new Set();
     state.plays.forEach(s => {
@@ -1625,7 +1597,7 @@ async function renderMyPlaysTab() {
   const el = document.getElementById('my-plays');
   state._editSid = null;   // 탭 진입 시 수정 모드 해제
   const scope = myScope();
-  const shell = `${myScopeChipsHtml(scope)}
+  const shell = `
     <div class="searchbox" style="margin-top:2px;">
       <span>🔍</span>
       <input id="my-play-search" placeholder="일자 · 게임명 · 참가자 검색 (쉼표로 여러 조건)" oninput="filterMyPlays()" />
@@ -1639,11 +1611,11 @@ async function renderMyPlaysTab() {
     return;
   }
   if (!state._myAllPlays) {
-    el.innerHTML = `${myScopeChipsHtml(scope)}<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+    el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
     try {
       state._myAllPlays = await api('getMyPlaysAll') || [];
     } catch (e) {
-      el.innerHTML = `${myScopeChipsHtml(scope)}<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
+      el.innerHTML = `<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
       return;
     }
   }
@@ -1739,11 +1711,11 @@ async function renderMyGames() {
     const games = state.games.filter(g => playedGameIds.has(g.game_id))
       .sort((a, b) => firstIdx[a.game_id] - firstIdx[b.game_id]);
     if (!games.length) {
-      el.innerHTML = `${myScopeChipsHtml('hub')}<div class="empty"><div class="big">🎮</div>아직 참가한 게임이 없어요.<br/>플레이 결과를 추가하면 여기에 표시됩니다.</div>`;
+      el.innerHTML = `<div class="empty"><div class="big">🎮</div>아직 참가한 게임이 없어요.<br/>플레이 결과를 추가하면 여기에 표시됩니다.</div>`;
       return;
     }
     state._myGamesList = games;
-    el.innerHTML = `${myScopeChipsHtml('hub')}
+    el.innerHTML = `
       <div class="hint" style="margin-bottom:10px;text-align:center;">내가 참가한 게임에 평점과 메모를 남겨보세요. <br>평점 평균이 '우리Hub평점'이 됩니다.</div>
       <div class="searchrow">
         <div class="searchbox"><span>🔍</span><input id="my-games-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGames()" /></div>
@@ -1760,7 +1732,7 @@ async function renderMyGames() {
 // ★=전체 이용자 평점(공용 도감 기준), 나 ★=내 평점(허브별 평균).
 // 평점·후기·메모 편집은 각 허브의 게임 기록에서.
 async function renderMyGamesAll(el, scope) {
-  const chips = myScopeChipsHtml(scope);
+  const chips = '';
   if (!state._myAllGames) {
     el.innerHTML = `${chips}<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
     try {
@@ -2864,7 +2836,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2140 기록장 관리자탭 정리·연결 허브 닉네임/비밀번호 관리';
+const APP_VERSION = 'v2148 기록장 범위 칩 제거(항상 통합 모아보기)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3283,7 +3255,6 @@ async function joinByInvite() {
     const switching = !state.hub || state.hub.hub_id !== h.hub_id;
     if (switching) { state._myStats = null; state._myRatings = null; state._myRatingsPromise = null; }
     saveHub({ hub_id: h.hub_id, name: h.name, invite: code.toUpperCase(), kind: h.kind || 'hub' });
-    state.myScope = null;
     closeStartPage();
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');

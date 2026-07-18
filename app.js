@@ -2627,7 +2627,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1758 허브 로그인 화면에 이메일 로그인 추가(연결 멤버 자동 로그인)';
+const APP_VERSION = 'v1805 기록장 있는 계정은 이메일 로그인 즉시 재입장';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2788,6 +2788,24 @@ async function emailAuthGo(isSignup) {
       renderAdminHubSection();
       return;
     }
+    if (emailFlow.purpose === 'personal') {
+      // 이미 이 계정의 기록장이 있으면 정보 입력 없이 바로 이동
+      try {
+        const hubs = await sbrpc('my_hubs');
+        const per = (hubs || []).find(h => h.kind === 'personal');
+        if (per) {
+          const u = await sbrpc('login_linked', { p_hub_id: per.hub_id });
+          saveHub({ hub_id: per.hub_id, name: per.name, kind: 'personal' });
+          applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
+                    u.pin, '기록장으로 들어왔어요!');
+          state._myLinks = null;
+          renderEmailStep('done', { existing: true });
+          closeStartPage();
+          await loadCore();
+          return;
+        }
+      } catch (err) { /* 확인 실패 시 아래 일반 흐름(정보 입력)으로 */ }
+    }
     renderEmailStep('setup');
   } catch (e) {
     toast(e.message === 'Invalid login credentials' ? '이메일 또는 비밀번호가 올바르지 않아요.' : e.message, true);
@@ -2808,7 +2826,14 @@ async function emailSetupGo() {
               kind: isCreate ? 'hub' : 'personal' });
     if (hub.existing) {
       // 개인 기록장은 계정당 1개 — 이미 있으면 그 기록장으로 재입장(연결 계정 자동 로그인)
-      const user = await api('loginLinked');
+      let user;
+      try { user = await api('loginLinked'); }
+      catch (err) {
+        // 기록장은 있는데 멤버 연결이 없는 경우: 입력한 닉네임·PIN으로 가입 후 연결
+        user = await api('signup', { name: nick, pin });
+        await api('linkPlayer', { playerId: user.player_id, pin });
+        user.pin = pin;
+      }
       applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: user.hub_id },
                 user.pin, '이미 만든 기록장으로 들어왔어요!');
       renderEmailStep('done', hub);

@@ -1120,6 +1120,9 @@ function renderLoginForm() {
           ? '닉네임과 숫자 4자리만 입력하면 바로 시작할 수 있어요.'
           : '처음이신가요? 위 <b>가입하기</b> 탭을 눌러주세요.'}
       </div>
+      <div style="text-align:center;margin-top:18px;">
+        <button class="logout-link" style="color:var(--main);" onclick="openStartPage(true)">🔁 다른 허브/기록장으로 이동</button>
+      </div>
     </div>`;
   el.querySelector('#auth-pin').addEventListener('keydown', e => {
     if (e.key === 'Enter') { isSignup ? doSignup() : doLogin(); }
@@ -1188,6 +1191,7 @@ function logout() {
   renderGames();
   renderMy();
   toast('로그아웃 되었습니다.');
+  openStartPage(true);   // 초대코드/허브 만들기/개인 기록장 선택 화면으로 (✕ = 현재 허브로 복귀)
 }
 
 function updateWhoami() {
@@ -2410,7 +2414,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1506 UI 개편: 허브 컨텍스트·시작 화면·이메일 허브 개설(2-6)';
+const APP_VERSION = 'v1514 허브 이동 동선: 로그아웃→시작화면·제목 ▾·로그인 화면 이동 링크';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

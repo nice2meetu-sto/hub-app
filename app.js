@@ -669,7 +669,7 @@ async function openReviews(gameId) {
     const reviews = await api(hubIntegrated() ? 'getReviewsMates' : 'getReviews', { gameId });
     const list = (reviews && reviews.length)
       ? reviews.map(r => `<div class="rv-row">
-          <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}${r.hub_name ? ' · ' + esc(r.hub_name) : ''}</span></div>
+          <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}</span></div>
           <div class="rv-text">${esc(r.review)}</div>
         </div>`).join('')
       : `<div class="empty"><div class="big">💬</div>아직 남긴 후기가 없어요.<br/>플레이한 게임이면<br/>MY-게임기록에서 후기를 남겨보세요.</div>`;
@@ -2837,7 +2837,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0022 계정 로그아웃 완전화·허브/아이디 정합성 가드';
+const APP_VERSION = 'v0037 후기 출처 표시 제거·iOS 자동 링크(파란 글씨) 방지';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

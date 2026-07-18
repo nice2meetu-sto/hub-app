@@ -516,3 +516,9 @@
   border-radius: 8px; padding: 3px 7px; letter-spacing: 1px; cursor: pointer;
   white-space: nowrap;
 }
+
+/* iOS 사파리가 날짜·번호를 자동 링크로 바꿔 파랗게 보이는 것 보정 */
+a[x-apple-data-detectors] {
+  color: inherit !important;
+  text-decoration: none !important;
+}

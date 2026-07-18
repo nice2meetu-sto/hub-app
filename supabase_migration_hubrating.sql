@@ -59,14 +59,22 @@ as $$
   where hg.hub_id = p_hub_id;
 $$;
 
--- 후기: 우리 허브 가입자의 후기만 (남긴 곳 허브명 포함)
+-- 후기: 우리 허브 가입자의 후기만.
+-- 닉네임은 '보는 허브'의 멤버 닉네임으로 표시(다른 허브에서 남겼어도
+-- 그 사람의 이 허브 닉네임으로 보임) + 남긴 곳 허브명 포함
 create or replace function public.get_reviews(p_game_id text, p_hub_id text default 'H001')
 returns json
 language sql stable security definer
 set search_path = public
 as $$
   select coalesce(json_agg(json_build_object(
-    'name', p.name, 'review', r.review, 'updated_at', r.updated_at,
+    'name', coalesce(
+      (select lp.name from public.players lp
+        where lp.hub_id = p_hub_id
+          and (lp.player_id = r.player_id
+               or (p.auth_uid is not null and lp.auth_uid = p.auth_uid))
+        order by lp.player_id limit 1), p.name),
+    'review', r.review, 'updated_at', r.updated_at,
     'hub_name', coalesce(h.name, r.hub_id)
   ) order by r.updated_at desc nulls last), '[]'::json)
   from public.ratings r

@@ -221,7 +221,7 @@ async function loadCore(manual) {
     state.players = players;
     if (Array.isArray(categories) && categories.length) CATEGORIES = categories;
     // 개인 통계/평점 캐시 무효화 → 다음 렌더 시 새로 로드
-    state._myStats = null; state._myStatsHub = null; state._myStatsAll = null;
+    state._myStats = null; state._myStatsHub = null; state._myStatsAll = null; state._myStatsBy = null;
     state._myRatings = null;
     state._myRatingsPromise = null;
     renderPlay();
@@ -1078,6 +1078,57 @@ function renderGameCards() {
 //  VIEW: MY
 // ============================================================
 
+
+// 이메일 계정에는 개인 기록장을 자동으로 하나 마련(이미 있으면 그대로)
+async function ensurePersonalHub(nick, pin) {
+  try {
+    const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
+    if (!hub.existing) {
+      const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
+      await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
+    }
+    state._myLinks = null;   // 드롭다운/칩 목록 갱신
+  } catch (e) { /* 자동 생성 실패는 치명적이지 않음 */ }
+}
+
+// ===== 좌측 상단: 내 허브 드롭다운 =====
+async function openHubMenu() {
+  try { await loadMyLinks(); } catch (e) {}
+  const links = state._myLinks || [];
+  if (!links.length) { openStartPage(true); return; }   // 이메일 연동 없으면 기존 시작 화면
+  const el = document.getElementById('hubmenu-body');
+  el.innerHTML = `
+    <h2 style="font-size:17px;font-weight:900;margin:2px 2px 12px;">내 허브</h2>
+    ${links.map(l => {
+      const cur = state.hub && state.hub.hub_id === l.hub_id;
+      return `<button class="hubmenu-item ${cur ? 'cur' : ''}" onclick="switchToHub('${l.hub_id}')">
+        <span>${l.kind === 'personal' ? '📔' : '🏠'} ${esc(l.hub_name)}</span>
+        ${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
+      </button>`;
+    }).join('')}
+    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); openStartPage(true);">🔑 초대코드로 다른 허브 입장</button>`;
+  document.getElementById('hubmenu-overlay').classList.add('show');
+}
+function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
+
+async function switchToHub(hid) {
+  const link = (state._myLinks || []).find(l => l.hub_id === hid);
+  if (!link) return;
+  if (state.hub && state.hub.hub_id === hid) { closeHubMenu(); return; }
+  showLoader('이동 중…');
+  try {
+    const u = await sbrpc('login_linked', { p_hub_id: hid });   // 연결 계정 자동 로그인
+    saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub' });
+    state.myScope = null;
+    applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
+              u.pin, link.hub_name + '(으)로 이동!');
+    closeHubMenu();
+    await loadCore();
+  } catch (e) {
+    toast(e.message, true);
+  } finally { hideLoader(); }
+}
+
 // ===== 이메일 연동 통합 기록 (2-5) =====
 // 내 계정에 연결된 허브 목록(이메일 세션 있을 때만). 없으면 [].
 async function loadMyLinks() {
@@ -1087,7 +1138,8 @@ async function loadMyLinks() {
     const { data } = await sb.auth.getSession();
     if (!data || !data.session) return;
     state._myLinks = await api('getMyLinks') || [];
-    if (state._myLinks.length >= 2 && state.myTab === 'overview') renderMyOverview();
+    if (state._myLinks.length >= 2 && state.myTab === 'overview'
+        && state.hub && state.hub.kind === 'personal') renderMyOverview();
   } catch (e) { /* 비로그인/미지원 → 통합 숨김 */ }
 }
 
@@ -1178,7 +1230,7 @@ function applyAuth(user, pin, welcome) {
   state.user = user;
   localStorage.setItem('bg_user', JSON.stringify(user));
   localStorage.setItem('bg_pin', pin);
-  state._myStats = null; state._myStatsHub = null; state._myStatsAll = null;   // 사용자별 캐시 초기화
+  state._myStats = null; state._myStatsHub = null; state._myStatsAll = null; state._myStatsBy = null;   // 사용자별 캐시 초기화
   state._myRatings = null;
   state._myRatingsPromise = null;
   updateWhoami();
@@ -1249,35 +1301,50 @@ function updateWhoami() {
 // ===== MY > 전체 기록 =====
 async function renderMyOverview() {
   const el = document.getElementById('my-overview');
-  const canAll = state._myLinks && state._myLinks.length >= 2;
-  const scope = (state.myScope === 'all' && canAll) ? 'all' : 'hub';
-  // 스코프별 캐시(허브/통합), state._myStats 는 헬퍼들이 읽는 '현재 스코프' 통계
-  const cacheKey = scope === 'all' ? '_myStatsAll' : '_myStatsHub';
-  if (!state[cacheKey]) {
+  // 통합/허브별 전환은 '개인 기록장'에서만 제공. 일반 허브 MY는 그 허브 데이터만.
+  const isPersonal = state.hub && state.hub.kind === 'personal';
+  const links = state._myLinks || [];
+  const canScope = isPersonal && links.length >= 2;
+  let scope = 'hub';
+  if (canScope) {
+    scope = state.myScope || 'all';
+    if (scope === state.hub.hub_id) scope = 'hub';   // 기록장 자신 = 일반 모드
+  }
+  state._myRestricted = scope !== 'hub';   // 다른 허브/통합 데이터 → 점수·상세 비활성
+  state._myStatsBy = state._myStatsBy || {};
+  if (!state._myStatsBy[scope]) {
     el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
     try {
-      state[cacheKey] = scope === 'all'
-        ? await api('getMyStatsAll')
-        : await api('getPlayerStats', { playerId: state.user.player_id });
+      if (scope === 'all') {
+        state._myStatsBy[scope] = await api('getMyStatsAll');
+      } else if (scope === 'hub') {
+        state._myStatsBy[scope] = await api('getPlayerStats', { playerId: state.user.player_id });
+      } else {
+        const link = links.find(l => l.hub_id === scope);
+        state._myStatsBy[scope] = await api('getPlayerStats', { playerId: link.player_id });
+      }
     } catch (e) {
       el.innerHTML = `<div class="empty">통계를 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
       return;
     }
   }
-  state._myStats = state[cacheKey];
+  state._myStats = state._myStatsBy[scope];
   try {
     const stats = state._myStats;
-    const scopeChips = canAll ? `
+    const scopeChips = canScope ? `
       <div class="chip-row" style="padding-bottom:8px;">
-        <span class="chip ${scope === 'hub' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('hub')">${esc(state.hub.name)}</span>
         <span class="chip ${scope === 'all' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('all')">전체(통합)</span>
+        ${links.map(l => {
+          const on = (scope === 'hub' && l.hub_id === state.hub.hub_id) || scope === l.hub_id;
+          return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${l.kind === 'personal' ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
+        }).join('')}
       </div>` : '';
     // '플레이 게임' = 내 플레이 기록이 있는 게임 수(= MY-게임기록 목록 개수와 동일)
     const playedIds = new Set();
     state.plays.forEach(s => {
       if (s.participants.some(p => p.player_id === state.user.player_id)) playedIds.add(s.game_id);
     });
-    const playedGamesCount = scope === 'all'
+    const playedGamesCount = scope !== 'hub'
       ? (stats.by_game || []).length
       : state.games.filter(g => playedIds.has(g.game_id)).length;
 
@@ -1329,7 +1396,7 @@ function toggleMyChart() {
 function myChartCardInner() {
   const stats = state._myStats; if (!stats) return '';
   const titleStyle = 'margin-top:0;margin-bottom: 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;';
-  const allMode = state.myScope === 'all' && state._myLinks && state._myLinks.length >= 2;
+  const allMode = !!state._myRestricted;
   if (!allMode && state.myChartMode === 'category') {
     return `
       <div class="section-title" style="${titleStyle}" onclick="toggleMyChart()">
@@ -1362,7 +1429,7 @@ function myChartCardInner() {
   }).join('');
   return `
     <div class="section-title" style="${titleStyle}" ${allMode ? '' : 'onclick="toggleMyChart()"'}>
-      <span>월별 플레이 결과${allMode ? ' (전체 허브)' : ''}</span>
+      <span>월별 플레이 결과${allMode ? ' (선택 범위)' : ''}</span>
       <small class="legend-chips">
         <small><i style="background:var(--main-soft);"></i>승률</small>
         <small><i style="background:var(--main);"></i>판수</small>
@@ -1440,10 +1507,10 @@ function renderMyGameStatList() {
   }
   // 동일 값(정렬 기준) = 공동 순위. 승률순이면 승률, 판수순이면 판수 기준
   const ranks = competitionRanks(rows, g => sort === 'plays' ? g.plays : g.win_rate);
-  const allMode = state.myScope === 'all' && state._myLinks && state._myLinks.length >= 2;
+  const allMode = !!state._myRestricted;
   listEl.innerHTML = rows.map((g, i) => {
     const sc = allMode ? { has: false } : myGameScores(g.game_id);
-    const scoreText = sc.has ? `평균 ${sc.avg}점 · 최고 ${sc.max}점` : (allMode ? '전체 허브 합산' : '점수 없음');
+    const scoreText = sc.has ? `평균 ${sc.avg}점 · 최고 ${sc.max}점` : (allMode ? '집계' : '점수 없음');
     const rightNum = sort === 'plays' ? `${g.plays}` : `${g.win_rate}%`;
     const rightLbl = sort === 'plays' ? '판수' : '승률';
     return `<div class="grow" ${allMode ? '' : `style="cursor:pointer;" onclick="showMyGameStat('${esc(g.game_id)}')"`}>
@@ -2540,7 +2607,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1535 개인 기록장 계정당 1개·도감 끌어오기 안내';
+const APP_VERSION = 'v1548 기록장 자동생성·통합은 기록장에서만·내 허브 드롭다운';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2560,8 +2627,9 @@ function updateHubTitle() {
 async function refreshHubName() {
   try {
     const h = await api('getHub');
-    if (h && h.name && state.hub && h.hub_id === state.hub.hub_id && h.name !== state.hub.name) {
-      saveHub(Object.assign({}, state.hub, { name: h.name }));
+    if (h && h.name && state.hub && h.hub_id === state.hub.hub_id
+        && (h.name !== state.hub.name || (h.kind || 'hub') !== (state.hub.kind || 'hub'))) {
+      saveHub(Object.assign({}, state.hub, { name: h.name, kind: h.kind || 'hub' }));
     }
   } catch (e) {}
 }
@@ -2590,7 +2658,7 @@ async function joinByInvite() {
       localStorage.removeItem('bg_pin');
       state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
     }
-    saveHub({ hub_id: h.hub_id, name: h.name, invite: code.toUpperCase() });
+    saveHub({ hub_id: h.hub_id, name: h.name, invite: code.toUpperCase(), kind: h.kind || 'hub' });
     updateWhoami();
     closeStartPage();
     toast(h.name + ' 허브에 들어왔어요!');
@@ -2670,6 +2738,7 @@ async function emailAuthGo(isSignup) {
       closeEmailAuth();
       toast('계정에 연결됐어요! 이제 여러 허브 기록을 모아볼 수 있어요.');
       state._myLinks = null;
+      ensurePersonalHub(state.user.name, pin);   // 개인 기록장 자동 마련
       renderMy();
       return;
     }
@@ -2694,7 +2763,8 @@ async function emailSetupGo() {
   showLoader('만드는 중…');
   try {
     const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal' });
-    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code });
+    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code,
+              kind: isCreate ? 'hub' : 'personal' });
     if (hub.existing) {
       // 개인 기록장은 계정당 1개 — 이미 있으면 그 기록장으로 재입장(연결 계정 자동 로그인)
       const user = await api('loginLinked');
@@ -2710,6 +2780,7 @@ async function emailSetupGo() {
     applyAuth(user, pin, hub.name + ' 시작!');
     renderEmailStep('done', hub);
     closeStartPage();
+    if (isCreate) ensurePersonalHub(nick, pin);   // 이메일 계정 = 개인 기록장 자동 마련
     await loadCore();
   } catch (e) {
     toast(e.message, true);

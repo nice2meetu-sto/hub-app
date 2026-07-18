@@ -87,3 +87,43 @@ as $$
      or exists (select 1 from public.hub_admins a
                 where a.hub_id = h.hub_id and a.auth_uid = public._auth_uid());
 $$;
+
+-- 허브 정보/연결 목록/초대코드 조회에 kind 포함(개인 기록장 구분 표시·동작용)
+create or replace function public.get_hub(p_hub_id text default 'H001')
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select json_build_object('hub_id', hub_id, 'name', name, 'kind', coalesce(kind,'hub'))
+  from public.hubs where hub_id = p_hub_id;
+$$;
+
+create or replace function public.get_my_links()
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  select coalesce(json_agg(json_build_object(
+    'hub_id', p.hub_id, 'hub_name', h.name, 'kind', coalesce(h.kind,'hub'),
+    'player_id', p.player_id, 'name', p.name,
+    'status', coalesce(p.status,'active')
+  ) order by (coalesce(h.kind,'hub') = 'personal') desc, p.hub_id), '[]'::json)
+  from public.players p
+  join public.hubs h on h.hub_id = p.hub_id
+  where p.auth_uid = auth.uid();
+$$;
+
+create or replace function public.hub_by_invite(p_code text)
+returns json
+language plpgsql stable security definer
+set search_path = public
+as $$
+declare h public.hubs;
+begin
+  if btrim(coalesce(p_code,'')) = '' then
+    raise exception '초대코드를 입력하세요.'; end if;
+  select * into h from public.hubs
+   where upper(invite_code) = upper(btrim(p_code));
+  if not found then raise exception '초대코드가 올바르지 않습니다.'; end if;
+  return json_build_object('hub_id', h.hub_id, 'name', h.name, 'kind', coalesce(h.kind,'hub'));
+end $$;

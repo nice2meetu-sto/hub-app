@@ -499,3 +499,13 @@
 }
 #email-overlay { z-index: 220; }   /* 시작 화면(200) 위에 표시 */
 #email-overlay .sheet h2 { font-size: 18px; margin: 4px 2px 12px; font-weight: 900; }
+
+/* 내 허브 드롭다운 */
+.hubmenu-item {
+  display: flex; justify-content: space-between; align-items: center; width: 100%;
+  padding: 13px 14px; margin-bottom: 8px; border-radius: 12px;
+  background: var(--card); border: 1px solid var(--border);
+  font-size: 15px; font-weight: 700; text-align: left;
+}
+.hubmenu-item.cur { border-color: var(--main); background: var(--main-light); }
+.hubmenu-item:active { background: #ececf6; }

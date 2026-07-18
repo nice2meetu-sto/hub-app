@@ -91,10 +91,6 @@ async function api(action, params = {}) {
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
     case 'adminUpdatePin':
       return sbrpc('admin_update_pin', { p_player_id: P.playerId, p_pin: P.pin, p_target_id: P.targetId, p_new_pin: P.newPin });
-    case 'adminAddCategory':
-      return sbrpc('admin_add_category', { p_player_id: P.playerId, p_pin: P.pin, p_name: P.name, p_sort: Number(P.sort) || 0 });
-    case 'adminUpdateCategory':
-      return sbrpc('admin_update_category', { p_player_id: P.playerId, p_pin: P.pin, p_old_name: P.oldName, p_new_name: P.newName, p_sort: Number(P.sort) || 0 });
     case 'adminDeleteGame':
       return sbrpc('admin_delete_game', { p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId });
     case 'getCategoriesFull': {
@@ -2439,10 +2435,7 @@ function renderAdminGames() {
   const el = document.getElementById('adm-games');
   if (!el.dataset.ready) {
     el.innerHTML = `
-      <div class="adm-searchrow">
-        <div class="searchbox"><span>🔍</span><input id="adm-game-search" placeholder="이름·분류·요약 검색" oninput="adminGameSearch()" /></div>
-        <button class="adm-pill" onclick="openCategoryManager()">🏷 카테고리</button>
-      </div>
+      <div class="searchbox"><span>🔍</span><input id="adm-game-search" placeholder="이름·분류·요약 검색" oninput="adminGameSearch()" /></div>
       <div id="adm-game-list"></div>`;
     el.dataset.ready = '1';
   }
@@ -2480,52 +2473,7 @@ function adminGameSearch() {
   }).join('');
 }
 
-// ----- 카테고리 관리 -----
-async function openCategoryManager() {
-  const body = document.getElementById('detail-body');
-  body.innerHTML = `<h2 style="font-size:17px;font-weight:900;margin:2px 2px 12px;">🏷 카테고리 관리</h2>
-    <div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
-  showDetailSheet();
-  try {
-    const cats = await api('getCategoriesFull');
-    const rows = cats.map(c => `
-      <div class="cat-row" data-old="${esc(c.name)}">
-        <input class="input cname" value="${esc(c.name)}" />
-        <input class="input csort" type="number" inputmode="numeric" value="${c.sort_order ?? 0}" title="정렬 순서" />
-        <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="saveCategoryRow(this)">저장</button>
-      </div>`).join('');
-    body.innerHTML = `<h2 style="font-size:17px;font-weight:900;margin:2px 2px 6px;">🏷 카테고리 관리</h2>
-      <div class="hint" style="margin-bottom:12px;">이름을 바꾸면 그 분류를 쓰는 게임들도 함께 변경됩니다.<br/>숫자는 정렬 순서예요.</div>
-      ${rows}
-      <div class="cat-row" style="margin-top:14px;" data-old="">
-        <input class="input cname" placeholder="새 분류 이름" />
-        <input class="input csort" type="number" inputmode="numeric" placeholder="순서" />
-        <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="saveCategoryRow(this)">추가</button>
-      </div>`;
-  } catch (e) {
-    body.innerHTML += `<div class="empty">불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
-  }
-}
-
-async function saveCategoryRow(btn) {
-  const row = btn.closest('.cat-row');
-  const oldName = row.getAttribute('data-old');
-  const newName = row.querySelector('.cname').value.trim();
-  const sort = row.querySelector('.csort').value;
-  if (!newName) { toast('분류 이름을 입력하세요.', true); return; }
-  const pin = await promptPin(); if (pin == null) return;
-  showLoader('저장 중…');
-  try {
-    if (oldName) await api('adminUpdateCategory', { playerId: state.user.player_id, pin, oldName, newName, sort });
-    else await api('adminAddCategory', { playerId: state.user.player_id, pin, name: newName, sort });
-    // 분류 목록/게임 데이터 갱신
-    CATEGORIES = await api('getCategories');
-    if (oldName && oldName !== newName) state.games = await api('getGames');
-    toast('저장되었습니다!');
-    openCategoryManager();   // 목록 새로고침
-    adminGameSearch();
-  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
-}
+// 분류 관리는 통합 관리자(운영자)가 전역으로 수행 — 허브 관리자 UI 제거
 
 // ----- 플레이 탭 (검색 후에만 표시) -----
 function renderAdminPlays() {
@@ -2676,7 +2624,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1615 카테고리 전역 공통 7종·기록장 kind 보수';
+const APP_VERSION = 'v1619 분류 관리 운영자 전용 전환';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

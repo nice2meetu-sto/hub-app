@@ -2757,8 +2757,23 @@ function adminPlayerSearch() {
   // 이메일 계정에 연결된 멤버는 PIN 대신 배지 표시(눌러야 백업PIN 공개)
   const linkedSet = new Set((state.players || []).filter(x => x.linked).map(x => x.player_id));
   state._admShowPin = state._admShowPin || {};
-  listEl.innerHTML = list.map(p => `
-    <div class="adm-prow" data-pid="${esc(p.player_id)}">
+  listEl.innerHTML = list.map(p => {
+    const isMe = state.user && p.player_id === state.user.player_id;
+    const left = (p.status || 'active') === 'left';
+    if (left) {
+      return `<div class="adm-prow" data-pid="${esc(p.player_id)}">
+        <div class="nm" style="opacity:.55;">${esc(p.name)} <span class="hint">🚪 탈퇴함</span>
+          <div class="jd">가입 ${esc(p.joined_at || '-')}</div>
+        </div>
+        <button class="btn ghost sm" style="flex:0 0 auto;padding:8px 12px;" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',false)">복귀</button>
+      </div>`;
+    }
+    const acts = [];
+    if (!isMe && linkedSet.has(p.player_id))
+      acts.push(`<button class="logout-link" style="color:var(--main);" onclick="adminTransferOwner('${esc(p.player_id)}','${esc(p.name)}')">👑 관리자 넘기기</button>`);
+    if (!isMe)
+      acts.push(`<button class="logout-link" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',true)">🚪 탈퇴 처리</button>`);
+    return `<div class="adm-prow" data-pid="${esc(p.player_id)}" style="${acts.length ? 'margin-bottom:2px;' : ''}">
       <div class="nm">${esc(p.name)}${p.role === 'admin' ? ' 👑' : ''}
         <div class="jd">가입 ${esc(p.joined_at || '-')}</div>
       </div>
@@ -2766,7 +2781,43 @@ function adminPlayerSearch() {
         ? `<button class="btn ghost sm" style="flex:0 0 auto;padding:8px 12px;color:var(--main);" onclick="admRevealPin('${esc(p.player_id)}')" title="누르면 백업PIN 표시">📧 이메일가입</button>`
         : `<input class="pin" inputmode="numeric" maxlength="4" value="${esc(p.pin)}" />
       <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSavePin(this)">저장</button>`}
-    </div>`).join('');
+    </div>
+    ${acts.length ? `<div style="display:flex;gap:16px;justify-content:flex-end;margin:0 4px 10px;">${acts.join('')}</div>` : ''}`;
+  }).join('');
+}
+
+// 관리자 넘기기: 대상은 이메일 연결 멤버, 현 소유자 계정 로그인 필요
+async function adminTransferOwner(targetId, name) {
+  if (!confirm(name + ' 님에게 허브 관리자를 넘길까요?\n\n나는 공동 관리자로 남아요.\n(허브 개설 계정으로 로그인돼 있어야 해요)')) return;
+  showLoader('넘기는 중…');
+  const r = await hubAuthCall(() => sbrpc('hub_transfer_owner_to_player',
+    { p_hub_id: hubId(), p_player_id: targetId }));
+  hideLoader();
+  if (r) {
+    const t = (state._admPlayers || []).find(x => x.player_id === targetId);
+    if (t) t.role = 'admin';
+    adminPlayerSearch();
+    toast(name + ' 님이 새 관리자가 됐어요 👑');
+  }
+}
+
+// 멤버 탈퇴/복귀 처리(소프트 탈퇴 — 기록·통계 보존)
+async function adminSetLeft(targetId, name, left) {
+  if (!confirm(left
+    ? name + ' 님을 탈퇴 처리할까요?\n\n기록과 통계는 보존되고,\n멤버 목록·참가자 자동완성·로그인에서만 제외돼요.'
+    : name + ' 님을 복귀 처리할까요?')) return;
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('처리 중…');
+  try {
+    await sbrpc('admin_set_left', { p_player_id: state.user.player_id, p_pin: pin,
+      p_target_id: targetId, p_left: left });
+    const t = (state._admPlayers || []).find(x => x.player_id === targetId);
+    if (t) t.status = left ? 'left' : 'active';
+    try { state.players = await api('getPlayers'); } catch (e) {}
+    adminPlayerSearch();
+    toast(left ? '탈퇴 처리했어요.' : '복귀 처리했어요.');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 // 기록장 관리자탭: 연결된 허브별 내 닉네임·비밀번호 셀프 관리
@@ -2840,7 +2891,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0106 자동완성 탭 선택 개선·게임명 띄어쓰기 무시 매칭';
+const APP_VERSION = 'v0140 관리자 넘기기·멤버 탈퇴/복귀 처리(관리자 전용)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

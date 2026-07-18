@@ -2628,7 +2628,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1833 시작 화면에 계정 로그아웃 추가';
+const APP_VERSION = 'v1844 기록장 목록 복구·개설 닉네임·가입 중복 안내';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2729,8 +2729,21 @@ async function doStartEmail() {
     const { data, error } = isSignup
       ? await sb.auth.signUp({ email, password: pw })
       : await sb.auth.signInWithPassword({ email, password: pw });
-    if (error) throw new Error(error.message === 'Invalid login credentials'
-      ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message);
+    if (error) {
+      if (/already registered|already exists/i.test(error.message)) {
+        seSetMode('login');
+        throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
+      }
+      throw new Error(error.message === 'Invalid login credentials'
+        ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message);
+    }
+    // 이미 가입·인증된 이메일로 다시 가입하면 supabase가 에러 대신
+    // identities가 빈 가짜 응답을 줌(이메일 존재 여부 감춤) → 여기서 구분
+    if (isSignup && data.user && Array.isArray(data.user.identities)
+        && data.user.identities.length === 0) {
+      seSetMode('login');
+      throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
+    }
     if (!data.session) { toast('확인 메일을 보냈어요. 메일 인증 후 로그인해주세요.'); return; }
     if (isSignup) await ensurePersonalNamed(nick);   // 가입 = 개인 기록장 자동 생성(입력한 닉네임)
     await loadStartHubs();
@@ -2739,13 +2752,17 @@ async function doStartEmail() {
   } finally { hideLoader(); }
 }
 
-// 개인 기록장 자동 생성(닉네임 지정, PIN은 자동 발급 — 이메일 로그인이 열쇠)
+// 개인 기록장 자동 생성(닉네임 지정, PIN은 자동 발급 — 이메일 로그인이 열쇠).
+// 기록장은 있는데 멤버 연결이 없는 예전 계정도 여기서 복구됨
 async function ensurePersonalNamed(nick) {
   try {
     const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
-    if (!hub.existing) {
+    const linked = (state._myLinks || []).some(l => l.hub_id === hub.hub_id);
+    if (!linked) {
+      const name = hub.existing
+        ? ((hub.name || '').replace(/의 기록장$/, '') || nick) : nick;
       const pin = String(Math.floor(1000 + Math.random() * 9000));
-      const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
+      const u = await sbrpc('signup', { p_name: name, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
       await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
     }
     state._myLinks = null;
@@ -2783,10 +2800,31 @@ async function loadStartHubs() {
   el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
   state._myLinks = null;
   try { await loadMyLinks(); } catch (e) {}
+  let owned = [];
+  try { owned = await api('myHubs') || []; } catch (e) {}
+  // 기록장이 하나도 없으면 자동 생성(기록장 도입 이전에 가입한 계정 보수)
+  if (![...(state._myLinks || []), ...owned.map(h => ({ ...h, hub_name: h.name }))].some(isPersonalHub)) {
+    let nick = ((state._myLinks || [])[0] || {}).name || '';
+    if (!nick) {
+      try {
+        const { data } = await sb.auth.getSession();
+        nick = ((data.session.user || {}).email || '').split('@')[0];
+      } catch (e) {}
+    }
+    if (nick) {
+      await ensurePersonalNamed(nick);
+      try { await loadMyLinks(); } catch (e) {}
+      try { owned = await api('myHubs') || []; } catch (e) {}
+    }
+  }
   const links = state._myLinks || [];
+  // 개설했지만 멤버 연결이 없는 허브도 목록에 포함(입장 시 자동 연결)
+  const seen = new Set(links.map(l => l.hub_id));
+  const items = [...links, ...owned.filter(h => !seen.has(h.hub_id))
+    .map(h => ({ hub_id: h.hub_id, hub_name: h.name, kind: h.kind }))];
   el.innerHTML = `
     <h3 style="margin:0 0 12px;">어디로 들어갈까요?</h3>
-    ${links.map(l => `
+    ${items.map(l => `
       <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
         <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span><span class="hint">›</span>
       </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
@@ -2810,6 +2848,24 @@ async function startSignOut() {
 }
 
 async function startPickHub(hid) {
+  // 개설자인데 멤버 연결이 없는 허브/기록장 → 자동 가입·연결 후 입장
+  if (!(state._myLinks || []).some(l => l.hub_id === hid)) {
+    showLoader('연결 중…');
+    try {
+      const hub = await sbrpc('get_hub', { p_hub_id: hid });
+      const inv = await sbrpc('hub_get_invite', { p_hub_id: hid });
+      const links = state._myLinks || [];
+      const personal = links.find(l => isPersonalHub(l));
+      let nick = isPersonalHub(hub) ? (hub.name || '').replace(/의 기록장$/, '') : '';
+      nick = nick || (personal && personal.name) || ((links[0] || {}).name) || '허브장';
+      const pin = String(Math.floor(1000 + Math.random() * 9000));
+      const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hid, p_invite: inv.invite_code });
+      await sbrpc('link_player', { p_hub_id: hid, p_player_id: u.player_id, p_pin: pin });
+      state._myLinks = null;
+      await loadMyLinks();
+    } catch (e) { hideLoader(); toast(e.message, true); return; }
+    hideLoader();
+  }
   await switchToHub(hid);
 }
 
@@ -2823,7 +2879,9 @@ async function startCreateHub() {
     saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code, kind: 'hub' });
     const links = state._myLinks || [];
     const personal = links.find(l => isPersonalHub(l));
-    const nick = personal ? personal.name : (document.getElementById('se-nick')?.value.trim() || '허브장');
+    const nick = document.getElementById('sc-nick').value.trim()
+      || (personal && personal.name)
+      || (document.getElementById('se-nick').value.trim() || '허브장');
     const pin = String(Math.floor(1000 + Math.random() * 9000));
     const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
     await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });

@@ -21,7 +21,7 @@
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1833</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1844</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -198,6 +198,8 @@
     <div class="start-view" id="sv-create" style="display:none;">
       <div class="field" style="text-align:left;"><label>허브 이름</label>
         <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
+      <div class="field" style="text-align:left;"><label>허브에서 쓸 닉네임</label>
+        <input class="input" id="sc-nick" placeholder="비우면 기록장 닉네임 사용" maxlength="20" /></div>
       <button class="btn" onclick="startCreateHub()">허브 만들기</button>
       <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>
     </div>

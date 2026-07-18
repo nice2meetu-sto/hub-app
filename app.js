@@ -2628,7 +2628,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1844 기록장 목록 복구·개설 닉네임·가입 중복 안내';
+const APP_VERSION = 'v1856 기록장 실패 원인 표시·합본 마이그레이션 supabase_fix_all.sql';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2734,6 +2734,9 @@ async function doStartEmail() {
         seSetMode('login');
         throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
       }
+      if (/rate limit|security purposes.*after \d+ seconds/i.test(error.message)) {
+        throw new Error('메일 발송 한도에 걸렸어요(기본 발송기는 시간당 2통). 잠시 후 다시 시도해주세요.');
+      }
       throw new Error(error.message === 'Invalid login credentials'
         ? '이메일 또는 비밀번호가 올바르지 않아요.' : error.message);
     }
@@ -2753,8 +2756,10 @@ async function doStartEmail() {
 }
 
 // 개인 기록장 자동 생성(닉네임 지정, PIN은 자동 발급 — 이메일 로그인이 열쇠).
-// 기록장은 있는데 멤버 연결이 없는 예전 계정도 여기서 복구됨
+// 기록장은 있는데 멤버 연결이 없는 예전 계정도 여기서 복구됨.
+// 실패 원인은 state._personalErr에 남겨 목록 화면에 표시(조용히 삼키지 않음)
 async function ensurePersonalNamed(nick) {
+  state._personalErr = null;
   try {
     const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
     const linked = (state._myLinks || []).some(l => l.hub_id === hub.hub_id);
@@ -2766,7 +2771,11 @@ async function ensurePersonalNamed(nick) {
       await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
     }
     state._myLinks = null;
-  } catch (e) { /* 이미 있음 등 — 목록에서 확인됨 */ }
+  } catch (e) {
+    state._personalErr = /function|schema cache|could not find/i.test(e.message || '')
+      ? '서버 DB에 최신 마이그레이션이 아직 적용되지 않았어요 — supabase_fix_all.sql을 실행해주세요'
+      : e.message;
+  }
 }
 
 async function forgotPw() {
@@ -2776,7 +2785,9 @@ async function forgotPw() {
   try {
     const { error } = await sb.auth.resetPasswordForEmail(email,
       { redirectTo: location.origin + location.pathname });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(/rate limit|security purposes.*after \d+ seconds/i.test(error.message)
+      ? '메일 발송 한도에 걸렸어요(기본 발송기는 시간당 2통). 잠시 후 다시 시도해주세요.'
+      : error.message);
     toast('비밀번호 재설정 메일을 보냈어요. 메일함을 확인해주세요!');
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
@@ -2828,6 +2839,8 @@ async function loadStartHubs() {
       <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
         <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span><span class="hint">›</span>
       </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
+    ${!items.some(isPersonalHub) && state._personalErr
+      ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
     <button class="btn ghost" style="margin-top:8px;" onclick="startShow('invite')">🔑 초대코드로 허브 입장</button>
     <div class="row2" style="margin-top:16px;justify-content:center;gap:18px;">

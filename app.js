@@ -398,7 +398,7 @@ function clubRatingMini(rating, count) {
     : `<span class="muted">★ 평가없음</span>`;
 }
 
-// 게임 기본 정보 블록(재사용): 썸네일 + 이름/분류 + 메타 + 우리Hub평점 + 요약
+// 게임 기본 정보 블록(재사용): 썸네일 + 이름/분류 + 메타 + 전체 평점 + 요약
 function gameInfoInnerHtml(g) {
   const meta = [];
   if (g.min_players || g.max_players) {
@@ -408,7 +408,7 @@ function gameInfoInnerHtml(g) {
   if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
 
-  const ratingLbl = hubIntegrated() ? '전체 평점' : '우리Hub평점';
+  const ratingLbl = '전체 평점';
   const club = g.club_rating != null
     ? `<span class="rate-club"><span class="star">★</span> ${g.club_rating.toFixed(1)}</span> <small class="muted">${ratingLbl} (평가 ${g.rating_count || 0})</small>`
     : `<span class="muted">${ratingLbl} 없음</span>`;
@@ -665,7 +665,7 @@ async function openReviews(gameId) {
   body.innerHTML = head + `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
   showDetailSheet();
   try {
-    const reviews = await api(hubIntegrated() ? 'getReviewsAll' : 'getReviews', { gameId });
+    const reviews = await api('getReviewsAll', { gameId });
     const list = (reviews && reviews.length)
       ? reviews.map(r => `<div class="rv-row">
           <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}${r.hub_name ? ' · ' + esc(r.hub_name) : ''}</span></div>
@@ -1716,7 +1716,7 @@ async function renderMyGames() {
     }
     state._myGamesList = games;
     el.innerHTML = `
-      <div class="hint" style="margin-bottom:10px;text-align:center;">내가 참가한 게임에 평점과 메모를 남겨보세요. <br>평점 평균이 '우리Hub평점'이 됩니다.</div>
+      <div class="hint" style="margin-bottom:10px;text-align:center;">내가 참가한 게임에 평점과 메모를 남겨보세요. <br>평점은 허브 상관없이 게임마다 하나로 이어져요.</div>
       <div class="searchrow">
         <div class="searchbox"><span>🔍</span><input id="my-games-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGames()" /></div>
         <button class="sortbtn ${state.myGamesSortRating ? 'on' : ''}" id="my-games-sort-btn" title="내 평점 정렬" onclick="cycleMyGamesSort()">${sortBtnLabel(state.myGamesSortRating)}</button>
@@ -2836,7 +2836,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2148 기록장 범위 칩 제거(항상 통합 모아보기)';
+const APP_VERSION = 'v2357 평점·후기 사람 중심 통합(허브 무관)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

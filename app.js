@@ -118,6 +118,8 @@ async function api(action, params = {}) {
     case 'linkPlayer':    return sbrpc('link_player', { p_hub_id: hubId(), p_player_id: P.playerId, p_pin: P.pin });
     case 'getMyLinks':    return sbrpc('get_my_links');
     case 'getMyStatsAll': return sbrpc('get_my_stats_all');
+    case 'getMyPlaysAll': return sbrpc('get_my_plays_all');
+    case 'getMyGamesAll': return sbrpc('get_my_games_all');
     case 'hubRename':     return sbrpc('hub_rename', { p_hub_id: hubId(), p_name: P.name });
     case 'hubRotateInvite': return sbrpc('hub_rotate_invite', { p_hub_id: hubId() });
     default: throw new Error('Unknown action: ' + action);
@@ -800,7 +802,9 @@ function renderSessionList(containerId, sessions, opts = {}) {
         ${thumb(s.game_image, 'session-thumb')}
         <div style="flex:1;min-width:0;">
           <div class="g-name">${esc(s.game_name)}</div>
-          <div class="g-meta">${esc(String(s.play_date).substring(0,10))}${dur} · ${s.participants.length}명${creator}</div>
+          <div class="g-meta">${esc(String(s.play_date).substring(0,10))}${dur} · ${s.participants.length}명${
+            s.hub_name && state.hub && s.hub_id !== state.hub.hub_id
+              ? ` · <span style="color:var(--main);">${esc(s.hub_name)}</span>` : ''}${creator}</div>
         </div>
         ${canEdit ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="startEditSession('${esc(s.session_id)}')">수정</button>` : ''}
       </div>
@@ -816,6 +820,12 @@ function playerNameById(pid) {
 
 // ===== 내 플레이 기록: 수정/삭제 (입력자 본인만, 관리자 페이지는 전체) =====
 function refreshMySessions() {
+  if (myScope() !== 'hub') {   // 통합/다른 허브 범위: 서버에서 다시 합산
+    state._myAllPlays = null;
+    state._myAllGames = null;
+    renderMyPlaysTab();
+    return;
+  }
   state._mySessions = state.plays.filter(s =>
     s.participants.some(p => p.player_id === state.user.player_id));
   filterMyPlays();
@@ -1135,14 +1145,38 @@ async function loadMyLinks() {
     const { data } = await sb.auth.getSession();
     if (!data || !data.session) return;
     state._myLinks = await api('getMyLinks') || [];
-    if (state._myLinks.length >= 2 && state.myTab === 'overview'
-        && isPersonalHub(state.hub)) renderMyOverview();
+    // 기록장에서 연결 목록이 늦게 도착하면 현재 MY 탭을 다시 그려 범위 칩 반영
+    if (state._myLinks.length >= 2 && state.user
+        && isPersonalHub(state.hub)) renderMy();
   } catch (e) { /* 비로그인/미지원 → 통합 숨김 */ }
 }
 
 function setMyScope(sc) {
   state.myScope = sc;
-  renderMyOverview();
+  renderMy();   // 전체기록·플레이기록·게임기록 세 탭이 같은 범위를 공유
+}
+
+// MY 탭 공통 범위: 'hub'(현재 허브) | 'all'(통합) | hub_id(특정 허브)
+// 통합/허브별 전환은 '개인 기록장'에서 연결이 2개 이상일 때만 제공
+function myScope() {
+  const links = state._myLinks || [];
+  if (!(isPersonalHub(state.hub) && links.length >= 2)) return 'hub';
+  let sc = state.myScope || 'all';
+  if (state.hub && sc === state.hub.hub_id) sc = 'hub';   // 기록장 자신 = 일반 모드
+  return sc;
+}
+
+function myScopeChipsHtml(scope) {
+  const links = state._myLinks || [];
+  if (!(isPersonalHub(state.hub) && links.length >= 2)) return '';
+  return `
+    <div class="chip-row" style="padding-bottom:8px;">
+      <span class="chip ${scope === 'all' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('all')">전체(통합)</span>
+      ${links.map(l => {
+        const on = (scope === 'hub' && state.hub && l.hub_id === state.hub.hub_id) || scope === l.hub_id;
+        return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${isPersonalHub(l) ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
+      }).join('')}
+    </div>`;
 }
 
 // MY 하단: 계정 연결 상태/버튼
@@ -1231,6 +1265,7 @@ function applyAuth(user, pin, welcome) {
   localStorage.setItem('bg_user', JSON.stringify(user));
   localStorage.setItem('bg_pin', pin);
   state._myStats = null; state._myStatsHub = null; state._myStatsAll = null; state._myStatsBy = null;   // 사용자별 캐시 초기화
+  state._myAllPlays = null; state._myAllGames = null;
   state._myRatings = null;
   state._myRatingsPromise = null;
   updateWhoami();
@@ -1318,15 +1353,8 @@ function updateWhoami() {
 // ===== MY > 전체 기록 =====
 async function renderMyOverview() {
   const el = document.getElementById('my-overview');
-  // 통합/허브별 전환은 '개인 기록장'에서만 제공. 일반 허브 MY는 그 허브 데이터만.
-  const isPersonal = isPersonalHub(state.hub);
   const links = state._myLinks || [];
-  const canScope = isPersonal && links.length >= 2;
-  let scope = 'hub';
-  if (canScope) {
-    scope = state.myScope || 'all';
-    if (scope === state.hub.hub_id) scope = 'hub';   // 기록장 자신 = 일반 모드
-  }
+  const scope = myScope();
   state._myRestricted = scope !== 'hub';   // 다른 허브/통합 데이터 → 점수·상세 비활성
   state._myStatsBy = state._myStatsBy || {};
   if (!state._myStatsBy[scope]) {
@@ -1348,14 +1376,7 @@ async function renderMyOverview() {
   state._myStats = state._myStatsBy[scope];
   try {
     const stats = state._myStats;
-    const scopeChips = canScope ? `
-      <div class="chip-row" style="padding-bottom:8px;">
-        <span class="chip ${scope === 'all' ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('all')">전체(통합)</span>
-        ${links.map(l => {
-          const on = (scope === 'hub' && l.hub_id === state.hub.hub_id) || scope === l.hub_id;
-          return `<span class="chip ${on ? 'on' : ''}" style="cursor:pointer;" onclick="setMyScope('${l.hub_id}')">${isPersonalHub(l) ? '📔 ' : ''}${esc(l.hub_name)}</span>`;
-        }).join('')}
-      </div>` : '';
+    const scopeChips = myScopeChipsHtml(scope);
     // '플레이 게임' = 내 플레이 기록이 있는 게임 수(= MY-게임기록 목록 개수와 동일)
     const playedIds = new Set();
     state.plays.forEach(s => {
@@ -1543,17 +1564,37 @@ function renderMyGameStatList() {
 }
 
 // ===== MY > 플레이 기록 (내 플레이 기록만) =====
-function renderMyPlaysTab() {
+// 기록장에서는 범위 칩(전체/허브별)에 따라 전 허브 세션을 통합 표시
+async function renderMyPlaysTab() {
   const el = document.getElementById('my-plays');
   state._editSid = null;   // 탭 진입 시 수정 모드 해제
-  state._mySessions = state.plays.filter(s =>
-    s.participants.some(p => p.player_id === state.user.player_id));
-  el.innerHTML = `
+  const scope = myScope();
+  const shell = `${myScopeChipsHtml(scope)}
     <div class="searchbox" style="margin-top:2px;">
       <span>🔍</span>
       <input id="my-play-search" placeholder="일자 · 게임명 · 참가자 검색 (쉼표로 여러 조건)" oninput="filterMyPlays()" />
     </div>
     <div id="my-sessions"></div>`;
+  if (scope === 'hub') {
+    state._mySessions = state.plays.filter(s =>
+      s.participants.some(p => p.player_id === state.user.player_id));
+    el.innerHTML = shell;
+    filterMyPlays();
+    return;
+  }
+  if (!state._myAllPlays) {
+    el.innerHTML = `${myScopeChipsHtml(scope)}<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+    try {
+      state._myAllPlays = await api('getMyPlaysAll') || [];
+    } catch (e) {
+      el.innerHTML = `${myScopeChipsHtml(scope)}<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
+      return;
+    }
+  }
+  state._mySessions = scope === 'all'
+    ? state._myAllPlays
+    : state._myAllPlays.filter(s => s.hub_id === scope);
+  el.innerHTML = shell;
   filterMyPlays();
 }
 
@@ -1586,6 +1627,7 @@ function filterMyPlays() {
     const hay = [
       String(s.play_date || ''),
       String(s.game_name || ''),
+      String(s.hub_name || ''),
       ...s.participants.map(p => String(p.name || ''))
     ].join(' ').toLowerCase();
     return terms.every(t => hay.includes(t));
@@ -1612,6 +1654,8 @@ function ensureMyRatings() {
 
 async function renderMyGames() {
   const el = document.getElementById('my-games');
+  const scope = myScope();
+  if (scope !== 'hub') { renderMyGamesAll(el, scope); return; }
   // 캐시가 없으면 로드(진입 시 미리 당겨뒀다면 즉시 완료)
   if (!state._myRatings) {
     el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
@@ -1638,11 +1682,11 @@ async function renderMyGames() {
     const games = state.games.filter(g => playedGameIds.has(g.game_id))
       .sort((a, b) => firstIdx[a.game_id] - firstIdx[b.game_id]);
     if (!games.length) {
-      el.innerHTML = `<div class="empty"><div class="big">🎮</div>아직 참가한 게임이 없어요.<br/>플레이 결과를 추가하면 여기에 표시됩니다.</div>`;
+      el.innerHTML = `${myScopeChipsHtml('hub')}<div class="empty"><div class="big">🎮</div>아직 참가한 게임이 없어요.<br/>플레이 결과를 추가하면 여기에 표시됩니다.</div>`;
       return;
     }
     state._myGamesList = games;
-    el.innerHTML = `
+    el.innerHTML = `${myScopeChipsHtml('hub')}
       <div class="hint" style="margin-bottom:10px;text-align:center;">내가 참가한 게임에 평점과 메모를 남겨보세요. <br>평점 평균이 '우리Hub평점'이 됩니다.</div>
       <div class="searchrow">
         <div class="searchbox"><span>🔍</span><input id="my-games-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGames()" /></div>
@@ -1653,6 +1697,76 @@ async function renderMyGames() {
   } catch (e) {
     el.innerHTML = `<div class="empty">불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
   }
+}
+
+// 게임 기록 통합(전체/특정 허브): 허브×게임 집계를 범위에 맞게 합산해 표시.
+// 평점·후기·메모 편집은 각 허브에서 — 여기서는 모아보기(읽기 전용)
+async function renderMyGamesAll(el, scope) {
+  const chips = myScopeChipsHtml(scope);
+  if (!state._myAllGames) {
+    el.innerHTML = `${chips}<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+    try {
+      state._myAllGames = await api('getMyGamesAll') || [];
+    } catch (e) {
+      el.innerHTML = `${chips}<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
+      return;
+    }
+  }
+  const rows = state._myAllGames.filter(r => scope === 'all' || r.hub_id === scope);
+  const by = {};
+  rows.forEach(r => {
+    if (!by[r.game_id]) by[r.game_id] = {
+      game_id: r.game_id, name_kr: r.name_kr, name_en: r.name_en,
+      category: r.category, image_url: r.image_url,
+      plays: 0, wins: 0, hubs: [], ratings: [], first: r.first_rn,
+    };
+    const o = by[r.game_id];
+    o.plays += r.plays; o.wins += r.wins;
+    if (r.hub_name && !o.hubs.includes(r.hub_name)) o.hubs.push(r.hub_name);
+    if (r.my_rating != null && r.my_rating !== '') o.ratings.push(Number(r.my_rating));
+    o.first = Math.min(o.first, r.first_rn);
+  });
+  const games = Object.values(by).sort((a, b) => a.first - b.first);   // 내 최근 플레이 순
+  if (!games.length) {
+    el.innerHTML = `${chips}<div class="empty"><div class="big">🎮</div>이 범위에는 아직 참가한 게임이 없어요.</div>`;
+    return;
+  }
+  state._myGamesAllList = games;
+  el.innerHTML = `${chips}
+    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요.<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
+    <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
+    <div id="my-gamesall-cards" style="margin-top:10px;"></div>`;
+  filterMyGamesAll();
+}
+
+function filterMyGamesAll() {
+  const all = state._myGamesAllList || [];
+  const input = document.getElementById('my-gamesall-search');
+  const term = (input ? input.value : '').trim().toLowerCase();
+  const list = !term ? all : all.filter(g =>
+    String(g.name_kr || '').toLowerCase().includes(term) ||
+    String(g.name_en || '').toLowerCase().includes(term) ||
+    String(g.category || '').toLowerCase().includes(term));
+  const cards = document.getElementById('my-gamesall-cards');
+  if (!cards) return;
+  cards.innerHTML = list.length ? list.map(g => {
+    const wr = g.plays ? Math.round(g.wins / g.plays * 1000) / 10 : 0;
+    const rating = g.ratings.length
+      ? Math.round(g.ratings.reduce((a, b) => a + b, 0) / g.ratings.length * 10) / 10 : null;
+    return `<div class="card" style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+      ${thumb(g.image_url, 'session-thumb')}
+      <div style="flex:1;min-width:0;">
+        <div class="g-name">${esc(g.name_kr || g.name_en || g.game_id)}</div>
+        <div class="g-meta">${g.plays}판 · ${g.wins}승 · 승률 ${wr}%${g.category ? ' · ' + esc(g.category) : ''}</div>
+        <div class="hint" style="margin-top:2px;">${g.hubs.map(esc).join(' · ')}</div>
+      </div>
+      <div style="flex:0 0 auto;text-align:right;">
+        ${rating != null
+          ? `<div style="font-weight:800;color:var(--main);white-space:nowrap;">★ ${rating}</div><div class="hint">내 평점</div>`
+          : `<div class="hint">평점 없음</div>`}
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty">검색 결과가 없어요.</div>`;
 }
 
 function cycleMyGamesSort() {
@@ -2628,7 +2742,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1904 가입 중복시 미발송 안내·인증링크 리다이렉트 명시';
+const APP_VERSION = 'v1930 기록장 플레이·게임 기록 통합(전 허브 모아보기)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

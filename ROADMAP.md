@@ -205,5 +205,7 @@ plays / ratings / 후기 : 지금처럼 전부 허브 소속 ('우리Hub평점' 
 - [ ] 비공개 테스트 테스터 12명 모집 (동호회 멤버)
 - [ ] 공동 admin 허용 범위 (owner만? admin도 멤버 PIN 재설정 가능?)
 - [x] 개인 기록장(1인 허브) → **첫 배포에 포함** (결정)
-- [ ] 개발 시작 시: `boardgamehub-dev` 저장소 생성 + 개발용 Supabase 프로젝트 생성
+- [x] 개발 시작: 개발 저장소(hub-app) + 개발용 Supabase 프로젝트 (완료)
+- [ ] 운영 전환 시 Supabase Auth 설정: **Confirm email ON** + Site URL을 운영 주소로
+  (개발 중엔 OFF + Site URL=개발 Pages 주소로 사용)
 - [ ] iOS(앱스토어)는 별도 검토 — PWA 홈화면 추가로도 당분간 충분

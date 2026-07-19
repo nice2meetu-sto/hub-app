@@ -2393,7 +2393,7 @@ function checkNewGameName() {
     el.textContent = `혹시 "${sim}"인가요? (없으면 그대로 추가하셔도 돼요)`;
   } else {
     el.className = 'mchk ok';
-    el.textContent = '✓ 등록 가능한 새 게임명이에요</br> · 📚 도감 검색을 눌러주세요';
+    el.textContent = '✓ 등록 가능한 새 게임명이에요<br> · 📚 도감 검색을 눌러주세요';
   }
   // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
   if (state.agPick && normGameName(state.agPick.name_kr) !== key) {

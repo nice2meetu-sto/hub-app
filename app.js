@@ -1233,7 +1233,7 @@ async function openHubMenu() {
       ${linkNav}
     </div>
     ${rows}
-    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">메인으로</button>`;
+    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
@@ -3460,7 +3460,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1932 앱바 아이콘 허브별 적용 · 내 허브 연결 안내 정리';
+const APP_VERSION = 'v1938 내 허브 창 중앙 팝업화 · 메인으로 🏠 아이콘';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

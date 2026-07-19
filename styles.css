@@ -558,3 +558,12 @@ a[x-apple-data-detectors] {
 }
 #mini-overlay.show { display: flex; }
 #mini-overlay textarea { width: 100%; min-height: 180px; margin-top: 10px; }
+
+/* 내 허브 창: 하단 시트 → 화면 중앙 팝업(개인설정 팝업과 같은 형태) */
+#hubmenu-overlay {
+  position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+#hubmenu-overlay.show { display: flex; }
+#hubmenu-body .hubmenu-item { background: #fafafc; }
+#hubmenu-body .hubmenu-item.cur { background: var(--main-light); }

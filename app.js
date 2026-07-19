@@ -2208,8 +2208,18 @@ function agHubCatWarn() {
 // ===== 📚 도감에서 가져오기 =====
 // 검색 풀: 입력어 전체 + 앞 두 글자(오타 대비) → 클라이언트에서
 // 띄어쓰기 무시 부분일치 우선, 자모 편집거리(오타) 유사까지 포함해 정렬
+// 게임 추가 탭에서 도감 검색
 async function agSearchCatalog() {
-  const raw = document.getElementById('ag-namekr').value.trim();
+  state._agCtx = 'game';
+  await runCatalogSearch(document.getElementById('ag-namekr').value.trim());
+}
+// 플레이 추가 탭에서 도감 검색(같은 팝업 공유)
+async function apSearchCatalog() {
+  state._agCtx = 'play';
+  await runCatalogSearch(document.getElementById('ap-game').value.trim());
+}
+
+async function runCatalogSearch(raw) {
   if (!raw) { toast('게임명을 먼저 입력하세요.', true); return; }
   // 쉼표로 여러 이름 → 하나라도 일치하는 게임을 모두 보여줌(OR)
   // 예: "스컬킹, skull" → 스컬킹(한글 일치) + 스컬퀸(영문 skull 일치)
@@ -2289,6 +2299,7 @@ function agRenderCatalogResults(list, term) {
 function agPickCatalog(gid) {
   const g = state._agResults && state._agResults[gid];
   if (!g) return;
+  if (state._agCtx === 'play') { apPickCatalog(g); return; }
   if (g.on_shelf) { toast('이미 우리 허브에 있는 게임이에요.', true); return; }
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v == null ? '' : v; };
   set('ag-namekr', g.name_kr); set('ag-nameen', g.name_en);
@@ -2311,8 +2322,20 @@ function agPickCatalog(gid) {
   checkNewGameName();
 }
 
-// 도감에 없음 → 직접 등록 모드(검색한 게임명은 입력칸에 그대로)
+// 도감에 없음 → 직접 등록
 function agRegisterNew() {
+  // 플레이 추가에서 온 경우: 게임 추가 탭으로 전환해 직접 등록하도록
+  if (state._agCtx === 'play') {
+    const name = ((document.getElementById('ap-game') || {}).value || '').split(',')[0].trim();
+    closeOverlay();                 // 검색 팝업 닫기
+    switchAddTab('game');           // 게임 추가 탭으로 전환
+    const inp = document.getElementById('ag-namekr');
+    if (inp) inp.value = name;      // 입력한 이름 이어받기
+    state._agCtx = 'game';
+    agShowDetail('manual');         // 바로 직접 등록 입력창 열기
+    checkNewGameName();
+    return;
+  }
   // 같은 이름(띄어쓰기 무시)이 이미 도감에 있으면 직접 등록 차단 → 가져오기 유도
   const key = normGameName(state._agTerm || '');
   const dup = key && Object.values(state._agResults || {}).find(g =>
@@ -2330,6 +2353,63 @@ function agRegisterNew() {
   state.agPick = null;
   agShowDetail('manual');
   closeOverlay();
+}
+
+// ===== 플레이 추가 → 도감 검색으로 고른 게임 처리 =====
+// 도감 게임 선택(플레이 맥락): 이미 우리 허브면 바로 사용, 아니면 분류만 정해 추가
+function apPickCatalog(g) {
+  if (g.on_shelf) {
+    apUseGame(g.name_kr || g.name_en);   // 이미 등록된 게임 → 바로 사용
+    return;
+  }
+  // 아직 우리 허브에 없음 → 분류 선택 후 추가
+  state._apCatGame = g;
+  const el = document.getElementById('detail-body');
+  el.innerHTML = `
+    <h2>게임 추가</h2>
+    <div class="hint" style="margin-bottom:12px;">"${esc(g.name_kr || g.name_en)}"을(를) 우리 허브에 추가할게요.<br/>분류만 골라주세요.</div>
+    <div class="field"><label>Hub 분류 *</label>
+      <select class="input" id="ap-cat-hub">
+        <option value="">선택해주세요</option>
+        ${CATEGORIES.map(c => `<option value="${c}" ${g.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+      </select></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn ghost sm" style="flex:1;" onclick="apSearchCatalog()">‹ 목록</button>
+      <button class="btn sm" style="flex:1;" onclick="apAddCatalogGame()">추가하고 계속</button>
+    </div>`;
+  showDetailSheet();
+}
+
+// 도감 게임을 우리 허브에 추가한 뒤 플레이 게임칸에 채우기
+async function apAddCatalogGame() {
+  const g = state._apCatGame;
+  if (!g) return;
+  const hubCat = document.getElementById('ap-cat-hub').value;
+  if (!hubCat) { toast('❗️Hub 분류를 선택해주세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('게임 추가 중…');
+  try {
+    await api('addGame', { payload: JSON.stringify({
+      player_id: state.user.player_id, pin,
+      name_kr: g.name_kr, name_en: g.name_en || '',
+      category: g.category || '', hub_category: hubCat,
+      min_players: g.min_players, max_players: g.max_players,
+      playtime_min: g.playtime_min, weight: g.weight,
+      image_url: g.image_url || '', summary_kr: g.summary_kr || ''
+    }) });
+    state.games = await api('getGames');
+    toast('게임을 추가했어요! 이어서 플레이 기록을 남겨보세요.');
+    apUseGame(g.name_kr || g.name_en);
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// 검색 팝업 닫고 플레이 폼의 게임칸에 이름 채움(참가자 등 입력 중인 내용은 보존)
+function apUseGame(name) {
+  closeOverlay();
+  const inp = document.getElementById('ap-game');
+  if (inp) inp.value = name;
+  updateGameBadge();
 }
 
 // ===== 사진 업로드(썸네일 압축) =====
@@ -2568,10 +2648,13 @@ function renderAddPlayForm() {
         <label style="margin:0;flex:0 0 auto;">게임 *</label>
         <div class="mchk no" id="gmchk" style="min-width:0;text-align:right;word-break:keep-all;">아직 등록되지 않은 게임은 추가해 주세요</div>
       </div>
-      <div class="ac-wrap">
-        <input class="input" id="ap-game" placeholder="게임명 입력" autocomplete="off"
-               oninput="acRender(this,'game'); updateGameBadge()" onblur="acHide(this)" />
-        <div class="ac-menu"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="ac-wrap" style="flex:1;min-width:0;">
+          <input class="input" id="ap-game" placeholder="게임명 입력" autocomplete="off"
+                 oninput="acRender(this,'game'); updateGameBadge()" onblur="acHide(this)" />
+          <div class="ac-menu"></div>
+        </div>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="apSearchCatalog()">📚 도감 검색</button>
       </div>
     </div>
     <div class="field ap-parts-field">
@@ -3481,7 +3564,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2304 도감 검색 쉼표 OR(여러 이름 중 하나라도 일치)';
+const APP_VERSION = 'v2318 플레이 추가 게임칸 도감 검색(있으면 분류만·없으면 게임추가 전환)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

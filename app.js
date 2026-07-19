@@ -2898,7 +2898,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0203 기록 시간 KST 통일(서버 시간대·오늘 날짜 로컬 기준)';
+const APP_VERSION = 'v0225 초대코드 입력 상시 노출·허브 확인 후 가입/로그인';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3120,7 +3120,7 @@ async function loadStartHubs() {
     ${!items.some(isPersonalHub) && state._personalErr
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
-    <button class="btn ghost" style="margin-top:8px;" onclick="startShow('invite')">🔑 초대코드로 허브 입장</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="startShow('home')">🔑 초대코드로 허브 입장</button>
     <div class="row2" style="margin-top:16px;justify-content:center;gap:12px;">
       <button class="logout-link" style="color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>
       <button class="logout-link" style="color:var(--text-sub);" onclick="startShowLinks()">🔗 계정연결확인</button>
@@ -3294,6 +3294,20 @@ function copyInvite(name, code) {
 function closeStartPage() { document.getElementById('start-page').classList.remove('show'); }
 
 // 초대코드로 허브 입장/전환
+// 초대코드 확인 → 허브명 보여주고 로그인/가입 화면으로
+async function startInviteNext() {
+  const code = extractInvite(document.getElementById('start-invite').value.trim());
+  if (!code) { toast('초대코드를 입력하세요.', true); return; }
+  showLoader('허브 찾는 중…');
+  try {
+    const hh = await api('hubByInvite', { code });
+    state._joinHub = { hub_id: hh.hub_id, name: hh.name, kind: hh.kind || 'hub', code: code.toUpperCase() };
+    document.getElementById('ji-hub').textContent = (hh.kind === 'personal' ? '📔 ' : '🏠 ') + hh.name + ' Hub';
+    jiSetMode(state._jiMode === 'login' ? 'login' : 'signup');
+    startShow('invite');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
 // 초대코드 입장: 처음이에요(가입) / 로그인 탭
 function jiSetMode(mode) {
   state._jiMode = mode;
@@ -3302,23 +3316,22 @@ function jiSetMode(mode) {
   document.getElementById('ji-go').textContent = mode === 'login' ? '로그인하고 입장' : '가입하고 입장';
 }
 
-// 초대코드 + 닉네임/비밀번호 한 번에 → 로그인(또는 가입)까지 끝내고 입장
+// 확인해 둔 허브로 로그인(또는 가입)까지 끝내고 입장
 async function joinByInvite() {
-  const code = extractInvite(document.getElementById('start-invite').value.trim());
+  const h = state._joinHub;
+  if (!h) { startShow('home'); return; }
   const name = document.getElementById('ji-name').value.trim();
   const pin = document.getElementById('ji-pin').value.trim();
   const isSignup = state._jiMode !== 'login';
-  if (!code) { toast('초대코드를 입력하세요.', true); return; }
   if (!name) { toast('닉네임을 입력하세요.', true); return; }
   if (isSignup && !/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력하세요.', true); return; }
   if (!pin) { toast('비밀번호를 입력하세요.', true); return; }
   showLoader(isSignup ? '가입하고 입장 중…' : '입장 중…');
   try {
-    const h = await api('hubByInvite', { code });
     // 인증까지 성공한 뒤에만 허브를 전환(중간 실패 시 기존 상태 유지)
     let user;
     if (isSignup) {
-      user = await sbrpc('signup', { p_name: name, p_pin: pin, p_hub_id: h.hub_id, p_invite: code.toUpperCase() });
+      user = await sbrpc('signup', { p_name: name, p_pin: pin, p_hub_id: h.hub_id, p_invite: h.code });
     } else {
       const d = await sbrpc('login', { p_name: name, p_pin: pin, p_hub_id: h.hub_id });
       if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
@@ -3326,7 +3339,7 @@ async function joinByInvite() {
     }
     const switching = !state.hub || state.hub.hub_id !== h.hub_id;
     if (switching) { state._myStats = null; state._myRatings = null; state._myRatingsPromise = null; }
-    saveHub({ hub_id: h.hub_id, name: h.name, invite: code.toUpperCase(), kind: h.kind || 'hub' });
+    saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub' });
     closeStartPage();
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');

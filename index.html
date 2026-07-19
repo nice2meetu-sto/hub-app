@@ -17,12 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=0203">
+<link rel="stylesheet" href="styles.css?v=0225">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0203</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0225</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -155,23 +155,25 @@
     <h2 style="margin:6px 0 2px;">보드게임 Hub</h2>
     <div class="hint" style="margin-bottom:26px;">동호회 보드게임 기록 관리</div>
 
-    <!-- 홈: 두 가지 시작 경로 -->
+    <!-- 홈: 초대코드 입력(상시) + 이메일 시작 -->
     <div class="start-view" id="sv-home">
-      <button class="btn" style="margin-bottom:10px;" onclick="startShow('invite')">🔑 초대코드로 시작</button>
-      <button class="btn ghost" onclick="startEmailEntry()">📧 이메일로 시작</button>
-    </div>
-
-    <!-- 초대코드 입장 -->
-    <div class="start-view" id="sv-invite" style="display:none;">
-      <div class="subtabs" style="margin-bottom:14px;">
-        <button id="ji-tab-signup" class="on" onclick="jiSetMode('signup')">처음이에요</button>
-        <button id="ji-tab-login" onclick="jiSetMode('login')">로그인</button>
-      </div>
       <div class="field" style="text-align:left;">
         <label>허브 초대코드</label>
         <input class="input" id="start-invite" placeholder="예: AB12CD"
-               oninput="inviteAutoExtract(this)" />
+               oninput="inviteAutoExtract(this)" onkeydown="if(event.key==='Enter')startInviteNext()" />
         <div class="hint" style="margin-top:6px;">받은 초대 문구를 통째로 붙여넣어도 코드만 쏙 들어가요</div>
+      </div>
+      <button class="btn" style="margin-bottom:10px;" onclick="startInviteNext()">🔑 초대코드로 시작</button>
+      <button class="btn ghost" onclick="startEmailEntry()">📧 이메일로 시작</button>
+    </div>
+
+    <!-- 초대코드 입장: 허브 확인 후 로그인/가입 -->
+    <div class="start-view" id="sv-invite" style="display:none;">
+      <div id="ji-hub" style="font-weight:900;font-size:19px;"></div>
+      <div class="hint" style="margin:2px 0 14px;">이 허브로 들어가요 · 아니면 ‹ 뒤로</div>
+      <div class="subtabs" style="margin-bottom:14px;">
+        <button id="ji-tab-signup" class="on" onclick="jiSetMode('signup')">처음이에요</button>
+        <button id="ji-tab-login" onclick="jiSetMode('login')">로그인</button>
       </div>
       <div class="field" style="text-align:left;"><label>닉네임</label>
         <input class="input" id="ji-name" placeholder="허브에서 쓸 이름" maxlength="20" autocomplete="off" /></div>
@@ -259,6 +261,6 @@
 
 <!-- Supabase JS 클라이언트 (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=0203"></script>
+<script src="app.js?v=0225"></script>
 </body>
 </html>

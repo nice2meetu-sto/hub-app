@@ -567,3 +567,17 @@ a[x-apple-data-detectors] {
 #hubmenu-overlay.show { display: flex; }
 #hubmenu-body .hubmenu-item { background: #fafafc; }
 #hubmenu-body .hubmenu-item.cur { background: var(--main-light); }
+
+/* 허브 아이콘 선택창 */
+#emoji-picker {
+  position: fixed; inset: 0; z-index: 260; background: rgba(20,20,30,.45);
+  display: none; align-items: center; justify-content: center; padding: 20px;
+}
+#emoji-picker.show { display: flex; }
+#emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 12px; }
+#emoji-grid .emoji-opt {
+  font-size: 24px; padding: 7px 0; border-radius: 10px; border: 1px solid transparent;
+  background: #fafafc; line-height: 1.3;
+}
+#emoji-grid .emoji-opt.on { border-color: var(--main); background: var(--main-light); }
+#emoji-grid .emoji-opt:active { background: var(--main-light); }

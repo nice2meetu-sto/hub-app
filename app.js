@@ -3174,8 +3174,9 @@ function renderAdminHubSection() {
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-top:0;">${personal ? '📔 기록장 설정' : '🏠 허브 설정'} <small class="muted" style="font-weight:500;">(개설 계정 전용)</small></div>
       <div style="display:flex;gap:8px;">
-        ${personal ? '' : `<input class="input" id="adm-hub-icon" value="${esc(hubIcon(state.hub))}" maxlength="2"
-          style="flex:0 0 47px;width:47px;height:47px;padding:0;text-align:center;font-size:20px;" title="허브 아이콘(이모지)" />`}
+        ${personal ? '' : `<input class="input" id="adm-hub-icon" value="${esc(hubIcon(state.hub))}" maxlength="2" readonly
+          onclick="openEmojiPicker('adm-hub-icon')"
+          style="flex:0 0 47px;width:47px;height:47px;padding:0;text-align:center;font-size:20px;cursor:pointer;" title="허브 아이콘 선택" />`}
         <input class="input" id="adm-hub-name" value="${esc(state.hub ? state.hub.name : '')}" maxlength="30" style="flex:1;min-width:0;" />
         <button class="btn sm" style="flex:0 0 auto;" onclick="adminHubRename()">저장</button>
       </div>
@@ -3460,7 +3461,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1938 내 허브 창 중앙 팝업화 · 메인으로 🏠 아이콘';
+const APP_VERSION = 'v1941 허브 아이콘 선택창(이모지 그리드) · 글자 입력 차단';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3552,6 +3553,31 @@ function isPersonalHub(h) {
 function hubIcon(h) {
   if (h && h.icon) return h.icon;
   return isPersonalHub(h) ? '📔' : '🎲';
+}
+
+// ===== 허브 아이콘 선택창 =====
+// 아이콘 입력칸은 직접 타이핑 불가(readonly) — 누르면 이 그리드에서 선택
+const EMOJI_CHOICES = [
+  '🎲','🎯','🃏','🀄','♟️','🧩','🎮','👑','🏆','🥇','🎉','🔥',
+  '⭐','🌟','💎','🍀','🌈','⚡','🚀','🛡️','⚔️','🗿','🎪','🎨',
+  '🐱','🐶','🐻','🦊','🐼','🐸','🦄','🐢','🦉','🐙','🦖','🐧',
+  '🍕','🍔','🍺','🍻','☕','🍩','🍪','🍎','🍇','🌮','🏠','📚'];
+
+function openEmojiPicker(targetId) {
+  state._emojiTarget = targetId;
+  const grid = document.getElementById('emoji-grid');
+  const cur = (document.getElementById(targetId) || {}).value || '';
+  grid.innerHTML = EMOJI_CHOICES.map(e =>
+    `<button type="button" class="emoji-opt ${e === cur ? 'on' : ''}" onclick="pickEmoji('${e}')">${e}</button>`).join('');
+  document.getElementById('emoji-picker').classList.add('show');
+}
+function pickEmoji(e) {
+  const inp = document.getElementById(state._emojiTarget || '');
+  if (inp) inp.value = e;
+  closeEmojiPicker();
+}
+function closeEmojiPicker() {
+  document.getElementById('emoji-picker').classList.remove('show');
 }
 
 // 초대 문구 붙여넣기 → 코드만 추출 ("... 초대코드: AB12CD" / 6자리 토큰)
@@ -4034,8 +4060,9 @@ function renderEmailStep(step, extra) {
       <h2>${isCreate ? '허브 정보 입력' : '기록장 정보 입력'}</h2>
       ${isCreate ? `<div style="display:flex;gap:8px;">
         <div class="field" style="flex:0 0 auto;"><label>허브 아이콘</label>
-          <input class="input" id="em-hubicon" value="🎲" maxlength="2"
-                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
+          <input class="input" id="em-hubicon" value="🎲" maxlength="2" readonly
+                 onclick="openEmojiPicker('em-hubicon')"
+                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;cursor:pointer;" /></div>
         <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
           <input class="input" id="em-hubname" placeholder="예: 슈필" maxlength="30" /></div>
       </div>` : ''}

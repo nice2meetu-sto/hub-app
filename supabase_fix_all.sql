@@ -2007,7 +2007,9 @@ begin
   if v_uid is null then raise exception '허브 개설에는 이메일 로그인이 필요합니다.'; end if;
   if v_name = '' then raise exception '허브 이름을 입력하세요.'; end if;
   if length(v_name) > 30 then raise exception '허브 이름은 30자 이하로 입력하세요.'; end if;
-  if char_length(v_icon) > 8 then raise exception '아이콘은 이모지 1개만 넣어주세요.'; end if;
+  if char_length(v_icon) > 8
+     or v_icon ~ '[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]' then
+    raise exception '아이콘은 이모지 1개만 넣어주세요.'; end if;
   -- 기록장은 자동 개설이라 📔 고정, 허브는 지정 없으면 기본 🎲
   v_icon := case when v_kind = 'personal' then '📔'
                  when v_icon = '' then '🎲' else v_icon end;
@@ -2049,7 +2051,9 @@ begin
   if exists (select 1 from public.hubs where hub_id = p_hub_id and kind = 'personal') then
     raise exception '기록장 아이콘은 바꿀 수 없어요.'; end if;
   if v_icon = '' then v_icon := '🎲'; end if;
-  if char_length(v_icon) > 8 then raise exception '아이콘은 이모지 1개만 넣어주세요.'; end if;
+  if char_length(v_icon) > 8
+     or v_icon ~ '[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]' then
+    raise exception '아이콘은 이모지 1개만 넣어주세요.'; end if;
   update public.hubs set icon = v_icon where hub_id = p_hub_id;
   return json_build_object('hub_id', p_hub_id, 'icon', v_icon);
 end $$;

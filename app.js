@@ -2019,7 +2019,7 @@ function renderAddGameForm() {
         </div>
         <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 도감 검색</button>
       </div>
-      <div class="hint" style="margin-top:4px;">📚 도감 검색으로 공용 도감에서 찾아 가져오거나, 없으면 직접 등록해요.</div>
+      <div class="hint" style="margin-top:4px;text-align:center;"> 검색으로 공용 도감에서 끌어 오거나, 없으면 직접 등록해요.</div>
     </div>
     <div id="ag-detail" style="display:none;">
       <div class="field">
@@ -2039,7 +2039,7 @@ function renderAddGameForm() {
           </select>
         </div>
       </div>
-      <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;">❗️카테고리를 선택해주세요</div>
+      <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;text-align:right;">❗️Hub 카테고리를 선택해주세요</div>
       <div class="row2">
         <div class="field"><label>최소 인원 *</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
         <div class="field"><label>최대 인원 *</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
@@ -2384,7 +2384,7 @@ function checkNewGameName() {
   const dup = state.games.find(g => normGameName(g.name_kr) === key);
   if (dup) {
     el.className = 'mchk dup';
-    el.textContent = '⚠ 이미 등록된 게임명이에요 — 추가할 수 없어요';
+    el.textContent = '⚠ 이미 Hub에 등록된 게임명이에요';
     return;
   }
   const sim = similarGameName(name);
@@ -2393,7 +2393,7 @@ function checkNewGameName() {
     el.textContent = `혹시 "${sim}"인가요? (없으면 그대로 추가하셔도 돼요)`;
   } else {
     el.className = 'mchk ok';
-    el.textContent = '✓ 등록 가능한 새 게임명이에요 · 📚 도감 검색을 눌러주세요';
+    el.textContent = '✓ 등록 가능한 새 게임명이에요</br> · 📚 도감 검색을 눌러주세요';
   }
   // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
   if (state.agPick && normGameName(state.agPick.name_kr) !== key) {

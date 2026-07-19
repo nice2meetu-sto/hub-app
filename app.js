@@ -1362,8 +1362,8 @@ function renderMyLinkRow() {
   if (me && me.linked) {
     el.innerHTML = `<span class="hint">✓ 이메일 계정 연결됨 · 여러 허브 기록을 모아볼 수 있어요</span>`;
   } else {
-    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 이메일 계정으로 가입시 여러 허브 기록을 연결할 수 있어요</button>
-      <div class="hint" style="margin-top:4px;">메인 [계정연결확인]에서 여러 허브의 내 기록을 통합해 보세요</div>`;
+    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 여러 허브에 가입하셨다면? 기록 연결하러 가기</button>
+      <div class="hint" style="margin-top:4px;">메인 [이메일로 시작]에서 여러 허브의 내 기록을 통합해 보세요</div>`;
   }
 }
 

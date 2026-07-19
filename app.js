@@ -3567,7 +3567,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0121 가입은 이메일·비번만, 기록장 닉네임·PIN은 인증 후 직접 설정';
+const APP_VERSION = 'v0130 인증 후 기록장 닉네임·PIN 설정을 먼저 완료해야 진입';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3708,11 +3708,11 @@ async function handleEmailConfirmed() {
   }
   try { history.replaceState(null, '', location.pathname); } catch (e) {}   // 해시 정리(새로고침 재실행 방지)
   if (session) {
-    loadStartHubs();   // '어디로 들어갈까요?' — 기록장 없으면 자동 생성
-    toast('이메일 인증이 완료됐어요! 🎉 들어갈 곳을 골라주세요.');
+    loadStartHubs();   // 개인 기록장이 없으면 loadStartHubs가 닉네임·PIN 설정 화면으로 안내
+    toast('이메일 인증이 완료됐어요! 🎉');
   } else {
     seSetMode('login'); startShow('email');
-    toast('이메일 인증 완료! 로그인하면 바로 시작할 수 있어요.');
+    toast('이메일 인증 완료! 로그인해주세요.');
   }
 }
 
@@ -3720,8 +3720,6 @@ function seSetMode(mode) {
   state._seMode = mode;
   document.getElementById('se-tab-login').classList.toggle('on', mode === 'login');
   document.getElementById('se-tab-signup').classList.toggle('on', mode === 'signup');
-  const hint = document.getElementById('se-signup-hint');
-  if (hint) hint.style.display = mode === 'signup' ? 'block' : 'none';
   document.getElementById('se-go').textContent = mode === 'signup' ? '가입하기' : '로그인';
 }
 
@@ -3755,7 +3753,7 @@ async function doStartEmail() {
       seSetMode('login');
       throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
     }
-    if (!data.session) { toast('확인 메일을 보냈어요! 메일 인증을 마치면 닉네임을 정하고 시작할 수 있어요.'); return; }
+    if (!data.session) { toast('확인 메일을 보냈어요! 메일함에서 인증을 완료해주세요. (스팸함도 확인)'); return; }
     // 이메일 확인이 꺼진 환경(즉시 세션): 닉네임 설정은 '어디로 들어갈까요?'의 기록장 만들기에서
     await loadStartHubs();
   } catch (e) {
@@ -3822,15 +3820,19 @@ async function loadStartHubs() {
   try { await loadMyLinks(); } catch (e) {}
   let owned = [];
   try { owned = await api('myHubs') || []; } catch (e) {}
-  // 개인 기록장이 없을 때: 기존 허브 닉네임이 있으면(기록장 도입 이전 계정) 조용히 복구.
-  // 닉네임 정보가 없는 신규 이메일 가입은 자동 생성하지 않고, 아래 목록의
-  // '내 기록장 시작하기' 카드에서 닉네임·PIN을 직접 정하게 유도한다.
+  // 개인 기록장이 없을 때:
+  // · 기존 허브 닉네임이 있으면(기록장 도입 이전 계정) 그 이름으로 조용히 복구
+  // · 닉네임 정보가 없는 신규 가입은 자동 생성하지 않고 닉네임·PIN 설정 화면으로
+  //   먼저 보낸다(설정을 마쳐야 '어디로 들어갈까요?'로 진입) — 임의 설정 방지
   if (![...(state._myLinks || []), ...owned.map(h => ({ ...h, hub_name: h.name }))].some(isPersonalHub)) {
     const legacyNick = ((state._myLinks || [])[0] || {}).name || '';
     if (legacyNick) {
       await ensurePersonalNamed(legacyNick);
       try { await loadMyLinks(); } catch (e) {}
       try { owned = await api('myHubs') || []; } catch (e) {}
+    } else {
+      renderPersonalSetup();   // 신규 가입: 기록장 설정을 먼저 완료해야 함
+      return;
     }
   }
   const links = state._myLinks || [];
@@ -3838,18 +3840,13 @@ async function loadStartHubs() {
   const seen = new Set(links.map(l => l.hub_id));
   const items = [...links, ...owned.filter(h => !seen.has(h.hub_id))
     .map(h => ({ hub_id: h.hub_id, hub_name: h.name, kind: h.kind }))];
-  const needsPersonal = !items.some(isPersonalHub);
   el.innerHTML = `
     <h3 style="margin:0 0 12px;">어디로 들어갈까요?</h3>
-    ${needsPersonal ? `
-      <button class="hubmenu-item" style="border:1px solid var(--main);margin-bottom:8px;" onclick="renderPersonalSetup()">
-        <span>📔 내 기록장 시작하기</span><span class="hint">닉네임·PIN 설정 ›</span>
-      </button>` : ''}
     ${items.map(l => `
       <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
         <span>${esc(hubIcon(l))} ${esc(l.hub_name)}</span><span class="hint">›</span>
-      </button>`).join('') || (needsPersonal ? '' : '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>')}
-    ${needsPersonal && state._personalErr
+      </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
+    ${!items.some(isPersonalHub) && state._personalErr
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
     <button class="btn ghost" style="margin-top:8px;" onclick="startShowLinks()">🔗 기존 허브 연결</button>
@@ -3872,8 +3869,8 @@ function renderPersonalSetup() {
       <input class="input" id="ps-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
              placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')createPersonalFromSetup()" />
       <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
-    <button class="btn" onclick="createPersonalFromSetup()">내 기록장 만들기</button>
-    <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
+    <button class="btn" onclick="createPersonalFromSetup()">내 기록장 만들고 시작하기</button>
+    <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="startSignOut()">🚪 계정 로그아웃</button>`;
   setTimeout(() => { const n = document.getElementById('ps-nick'); if (n) n.focus(); }, 50);
 }
 

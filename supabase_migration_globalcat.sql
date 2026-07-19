@@ -12,9 +12,19 @@
 --  보수: 마이그레이션 이전에 만든 개인 기록장의 kind 복구
 -- ============================================================
 
--- 0) 데이터 보수: '…의 기록장' 이름의 허브를 personal로
-update public.hubs set kind = 'personal'
- where coalesce(kind,'hub') = 'hub' and name like '%의 기록장';
+-- 0) 데이터 보수: '…의 기록장' 이름의 허브를 personal로 — 딱 한 번만.
+--    (이름은 자유롭게 바꿀 수 있으므로, 재실행 때마다 이름으로 다시 판정하면
+--     "○○의 기록장"이라고 이름 지은 일반 허브가 기록장으로 바뀌어 버림)
+do $$
+declare v_done boolean := false;
+begin
+  create table if not exists public._migration_flags(name text primary key);
+  select exists (select 1 from public._migration_flags where name = 'personal-namefix') into v_done;
+  if v_done then return; end if;
+  update public.hubs set kind = 'personal'
+   where coalesce(kind,'hub') = 'hub' and name like '%의 기록장';
+  insert into public._migration_flags(name) values ('personal-namefix');
+end $$;
 
 -- 1) games.category 백필: 선반에 저장돼 있던 분류를 도감으로 승격
 update public.games g

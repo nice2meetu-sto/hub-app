@@ -3567,7 +3567,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2336 게임명 검증 영어 일관화(대소문자 무시·영문 중복/오타)';
+const APP_VERSION = 'v0110 이메일 인증 완료 후 어디로 들어갈까요? 화면으로 이동';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3690,6 +3690,30 @@ function startEmailEntry() {
     if (data && data.session) loadStartHubs();
     else { seSetMode('login'); startShow('email'); }
   }).catch(() => { seSetMode('login'); startShow('email'); });
+}
+
+// 이메일 인증 링크로 돌아왔을 때: 세션이 잡히면 '어디로 들어갈까요?'로,
+// 아니면 '인증 완료! 로그인' 안내 화면으로
+async function handleEmailConfirmed() {
+  openStartPage(false);
+  startShow('hubs');   // 인증 확인 중 화면(초대코드 홈이 잠깐 뜨는 것 방지)
+  const sv = document.getElementById('sv-hubs');
+  if (sv) sv.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div>` +
+    `<div class="hint" style="margin-top:10px;">이메일 인증 확인 중…</div></div>`;
+  // supabase-js가 URL 토큰을 세션으로 바꾸는 중일 수 있어 잠깐 기다림
+  let session = null;
+  for (let i = 0; i < 8 && !session; i++) {
+    try { const { data } = await sb.auth.getSession(); session = data && data.session; } catch (e) {}
+    if (!session) await new Promise(r => setTimeout(r, 300));
+  }
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}   // 해시 정리(새로고침 재실행 방지)
+  if (session) {
+    loadStartHubs();   // '어디로 들어갈까요?' — 기록장 없으면 자동 생성
+    toast('이메일 인증이 완료됐어요! 🎉 들어갈 곳을 골라주세요.');
+  } else {
+    seSetMode('login'); startShow('email');
+    toast('이메일 인증 완료! 로그인하면 바로 시작할 수 있어요.');
+  }
 }
 
 function seSetMode(mode) {
@@ -4323,10 +4347,17 @@ function init() {
     toast('Supabase 설정을 확인하세요 (index.html 상단)', true);
     return;
   }
-  if (/type=recovery/.test(location.hash)) {          // 비밀번호 재설정 링크로 진입
+  const urlHash = location.hash || '';
+  if (/type=recovery/.test(urlHash)) {                // 비밀번호 재설정 링크로 진입
     openStartPage(!!(state.hub && state.user));
     startShow('recovery');
     if (state.hub && state.user) loadCore();
+    return;
+  }
+  // 이메일 인증(가입 확인/매직링크) 링크로 복귀 → '어디로 들어갈까요?'로 안내
+  if (/type=signup/.test(urlHash) ||
+      (/access_token=/.test(urlHash) && !/type=recovery/.test(urlHash))) {
+    handleEmailConfirmed();
     return;
   }
   // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터

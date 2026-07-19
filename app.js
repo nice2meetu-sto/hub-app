@@ -1211,7 +1211,7 @@ async function openHubMenu() {
   el.innerHTML = `
     <h2 style="font-size:17px;font-weight:900;margin:2px 2px 12px;">내 허브</h2>
     ${rows}
-    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
+    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
@@ -1362,8 +1362,8 @@ function renderMyLinkRow() {
   if (me && me.linked) {
     el.innerHTML = `<span class="hint">✓ 이메일 계정 연결됨 · 여러 허브 기록을 모아볼 수 있어요</span>`;
   } else {
-    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 메인의 [계정연결확인]에서 이메일 계정에 연결할 수 있어요</button>
-      <div class="hint" style="margin-top:4px;">연결하면 여러 허브의 내 기록을 통합해 볼 수 있어요</div>`;
+    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 이메일 계정으로 가입시 여러 허브 기록을 연결할 수 있어요</button>
+      <div class="hint" style="margin-top:4px;">메인 [계정연결확인]에서 여러 허브의 내 기록을 통합해 보세요</div>`;
   }
 }
 
@@ -2384,16 +2384,16 @@ function checkNewGameName() {
   const dup = state.games.find(g => normGameName(g.name_kr) === key);
   if (dup) {
     el.className = 'mchk dup';
-    el.textContent = '⚠ 이미 Hub에 등록된 게임명이에요';
+    el.textContent = '⚠ 이미 Hub에 등록된 게임이에요';
     return;
   }
   const sim = similarGameName(name);
   if (sim) {
     el.className = 'mchk no';
-    el.textContent = `혹시 "${sim}"인가요? (없으면 그대로 추가하셔도 돼요)`;
+    el.textContent = `혹시 "${sim}"인가요?(아니면 도감 검색)`;
   } else {
     el.className = 'mchk ok';
-    el.textContent = '✓ 등록 가능한 새 게임명이에요<br> · 📚 도감 검색을 눌러주세요';
+    el.textContent = '✓ 등록 가능 · 📚도감 검색을 눌러주세요';
   }
   // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
   if (state.agPick && normGameName(state.agPick.name_kr) !== key) {

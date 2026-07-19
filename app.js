@@ -2554,7 +2554,8 @@ function decomposeHangul(str) {
       out += CHO[Math.floor(s / 588)] + JUNG[Math.floor((s % 588) / 28)] + JONG[s % 28];
     } else out += ch;
   }
-  return out.replace(/\s/g, '');
+  // 공백 제거 + 소문자화 — 영어 오타 유사 검사도 대소문자 구분 없이(한글 자모는 영향 없음)
+  return out.replace(/\s/g, '').toLowerCase();
 }
 function editDistance(a, b) {
   const m = a.length, n = b.length;
@@ -2597,7 +2598,9 @@ function checkNewGameName() {
   if (!name) { el.style.display = 'none'; return; }
   el.style.display = 'block';
   const key = normGameName(name);
-  const dup = state.games.find(g => normGameName(g.name_kr) === key);
+  // 한글명·영문명 어느 쪽과 같아도(띄어쓰기·대소문자 무시) 중복으로 잡음
+  const dup = state.games.find(g =>
+    normGameName(g.name_kr) === key || normGameName(g.name_en) === key);
   if (dup) {
     el.className = 'mchk dup';
     el.textContent = '⚠ 이미 Hub에 등록된 게임이에요';
@@ -3564,7 +3567,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2318 플레이 추가 게임칸 도감 검색(있으면 분류만·없으면 게임추가 전환)';
+const APP_VERSION = 'v2336 게임명 검증 영어 일관화(대소문자 무시·영문 중복/오타)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

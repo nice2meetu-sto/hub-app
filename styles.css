@@ -536,3 +536,9 @@ a[x-apple-data-detectors] {
   color: inherit !important;
   text-decoration: none !important;
 }
+
+/* 홈 화면에 설치한 웹앱(standalone)에서는 글씨가 커 보여서
+   전체를 딱 1pt 비율(14/15 ≈ 0.933)만큼 축소 — 브라우저에서는 그대로 */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  body { zoom: 0.933; }
+}

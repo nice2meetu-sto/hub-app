@@ -277,6 +277,14 @@
   .adm-prow .jd { font-size: 11px; color: var(--text-sub); }
   .adm-prow input.pin { width: 64px; padding: 8px; border: 1px solid var(--border); border-radius: 8px;
     background: #fafafc; text-align: center; font-weight: 700; }
+  /* 가입자 카드 왼쪽 스와이프 → 탈퇴 버튼 노출 */
+  .swipe-wrap { position: relative; overflow: hidden; border-radius: 12px; margin-bottom: 8px; }
+  .swipe-wrap .adm-prow { margin-bottom: 0; position: relative; z-index: 1;
+    transition: transform .18s ease; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+  .swipe-wrap.open .adm-prow { transform: translateX(-78px); }
+  .swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 78px; border: 0;
+    background: var(--danger); color: #fff; font-weight: 800; font-size: 12px; line-height: 1.5;
+    border-radius: 0 12px 12px 0; }
   .cat-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   .cat-row input.cname { flex: 1; min-width: 0; }
   .cat-row input.csort { width: 58px; text-align: center; }

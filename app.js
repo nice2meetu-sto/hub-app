@@ -109,6 +109,8 @@ async function api(action, params = {}) {
       return sbrpc('delete_play', { p_player_id: P.playerId, p_pin: P.pin, p_session_id: P.sessionId });
     case 'updateGame':
       return sbrpc('update_game', { p_player_id: P.playerId, p_pin: P.pin, p_payload: JSON.parse(P.payload) });
+    case 'addSuggestion':
+      return sbrpc('add_suggestion', { p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId, p_content: P.content });
     // ===== 멀티허브 / 이메일 계정 =====
     case 'hubByInvite':   return sbrpc('hub_by_invite', { p_code: P.code });
     case 'getHub':        return sbrpc('get_hub', { p_hub_id: hubId() });
@@ -2458,6 +2460,43 @@ function openEditGame(gameId) {
   const g = gameById(gameId);
   if (!g) return;
   const el = document.getElementById('detail-body');
+  // 여러 허브가 함께 쓰는 게임: 공용 정보는 수정 불가(읽기 전용) —
+  // 분류만 바로 수정, 나머지는 건의 게시판에 수정 요청으로 남김
+  if (g.shared) {
+    const ro = (label, val) => `
+      <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px;">
+        <div style="flex:0 0 84px;color:var(--text-sub);">${label}</div>
+        <div style="flex:1;min-width:0;font-weight:600;">${esc(val === null || val === undefined || val === '' ? '-' : String(val))}</div>
+      </div>`;
+    el.innerHTML = `
+      <h2>게임 정보 수정</h2>
+      <div class="hint" style="margin-bottom:12px;">🔒 여러 허브가 함께 쓰는 게임이라 공용 정보는 여기서 바꿀 수 없어요.<br/>분류만 바로 수정할 수 있고, 나머지는 아래 <b>수정 요청</b>으로 남겨주세요.</div>
+      <div class="card" style="padding:4px 14px 6px;margin-bottom:14px;">
+        ${ro('한글명', g.name_kr)}
+        ${ro('영문명', g.name_en)}
+        ${ro('인원', (g.min_players ?? '-') + ' ~ ' + (g.max_players ?? '-') + '명')}
+        ${ro('플레이타임', g.playtime_min ? g.playtime_min + '분' : '-')}
+        ${ro('난이도', g.weight ?? '-')}
+        ${ro('게임 요약', g.summary_kr)}
+      </div>
+      <div class="field"><label>분류 (모든 허브 공통 — 바로 수정 가능)</label>
+        <div style="display:flex;gap:8px;">
+          <select class="input" id="eg-category" style="flex:1;min-width:0;">
+            ${CATEGORIES.map(c => `<option value="${c}" ${g.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+          <button class="btn sm" style="flex:0 0 auto;" onclick="submitEditCategory('${g.game_id}')">분류 저장</button>
+        </div>
+      </div>
+      <div class="field"><label>수정 요청 (건의 게시판에 남아요)</label>
+        <textarea class="input" id="eg-suggest" placeholder="예: 플레이타임을 45분으로 바꿔주세요"></textarea>
+      </div>
+      <div class="sheet-save" style="display:flex;gap:8px;">
+        <button class="btn danger" style="flex:1;" onclick="deleteGameAdmin('${g.game_id}')">🗑 삭제</button>
+        <button class="btn" style="flex:1;" onclick="submitSuggestion('${g.game_id}')">✏️ 수정 요청</button>
+      </div>`;
+    showDetailSheet();
+    return;
+  }
   el.innerHTML = `
     <h2>게임 정보 수정</h2>
     <div class="field"><label>한글명</label><input class="input" id="eg-namekr" value="${esc(g.name_kr)}" /></div>
@@ -2512,6 +2551,38 @@ async function deleteGameAdmin(gameId) {
     closeOverlay();
     renderGames();
     if (document.getElementById('admin-page').classList.contains('show')) adminGameSearch();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// 공유 게임: 분류만 저장 (서버 규칙상 분류는 항상 수정 가능)
+async function submitEditCategory(gameId) {
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('저장 중…');
+  try {
+    await api('updateGame', {
+      playerId: state.user.player_id, pin,
+      payload: JSON.stringify({ game_id: gameId, category: document.getElementById('eg-category').value })
+    });
+    state.games = await api('getGames');
+    toast('분류를 수정했어요!');
+    closeOverlay();
+    renderGames();
+    if (document.getElementById('admin-page').classList.contains('show')) adminGameSearch();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// 공유 게임: 공용 정보 수정 요청을 건의 게시판에 남김
+async function submitSuggestion(gameId) {
+  const content = (document.getElementById('eg-suggest') || {}).value || '';
+  if (!content.trim()) { toast('수정 내용을 입력하세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('요청 남기는 중…');
+  try {
+    await api('addSuggestion', { playerId: state.user.player_id, pin, gameId, content: content.trim() });
+    toast('수정 요청을 남겼어요! 확인 후 반영됩니다.');
+    closeOverlay();
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
@@ -2681,12 +2752,24 @@ function renderAdminHubSection() {
       </div>
       ${personal ? '' : `
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-        <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;">초대코드 ●●●●●●</div>
-        <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminShowInvite()">보기</button>
+        <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;">초대코드 ${state.hub && state.hub.invite ? esc(state.hub.invite) : '……'}</div>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminCopyInvite()">복사</button>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminRotateInvite()">재발급</button>
       </div>`}
     </div>`;
+  // 저장된 코드가 없으면(오래된 세션 등) 조용히 불러와 채움
+  if (!personal && !(state.hub && state.hub.invite)) adminFillInvite();
+}
+
+async function adminFillInvite() {
+  try {
+    const r = await api('hubGetInvite');
+    if (r && r.invite_code) {
+      const v = document.getElementById('adm-invite-view');
+      if (v) v.textContent = '초대코드 ' + r.invite_code;
+      saveHub(Object.assign({}, state.hub, { invite: r.invite_code }));
+    }
+  } catch (e) {}   // 개설 계정 로그인이 아니면 그대로 …… 표시
 }
 
 // 허브 설정 호출 공통: 관리자 Auth 필요 에러면 이메일 로그인 유도
@@ -2710,18 +2793,17 @@ async function adminHubRename() {
   if (r) { saveHub(Object.assign({}, state.hub, { name: r.name })); toast('허브 이름을 바꿨어요.'); }
 }
 
-async function adminShowInvite() {
-  const r = await hubAuthCall(() => api('hubGetInvite'));
-  if (r) document.getElementById('adm-invite-view').textContent = '초대코드 ' + r.invite_code;
-}
-
 // 초대 문구 복사(허브 개설 완료 화면과 같은 멘트)
 async function adminCopyInvite() {
-  const r = await hubAuthCall(() => api('hubGetInvite'));
-  if (r) {
-    document.getElementById('adm-invite-view').textContent = '초대코드 ' + r.invite_code;
-    copyInvite(state.hub ? state.hub.name : '', r.invite_code);
+  let code = state.hub && state.hub.invite;
+  if (!code) {
+    const r = await hubAuthCall(() => api('hubGetInvite'));
+    if (!r) return;
+    code = r.invite_code;
+    document.getElementById('adm-invite-view').textContent = '초대코드 ' + code;
+    saveHub(Object.assign({}, state.hub, { invite: code }));
   }
+  copyInvite(state.hub ? state.hub.name : '', code);
 }
 
 async function adminRotateInvite() {
@@ -2779,9 +2861,10 @@ function adminPlayerSearch() {
     const acts = [];
     if (!isMe && linkedSet.has(p.player_id))
       acts.push(`<button class="logout-link" style="color:var(--main);" onclick="adminTransferOwner('${esc(p.player_id)}','${esc(p.name)}')">👑 관리자 넘기기</button>`);
-    if (!isMe)
-      acts.push(`<button class="logout-link" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',true)">🚪 탈퇴 처리</button>`);
-    return `<div class="adm-prow" data-pid="${esc(p.player_id)}" style="${acts.length ? 'margin-bottom:2px;' : ''}">
+    // 탈퇴 처리는 카드를 왼쪽으로 밀면 나오는 버튼으로 (실수 방지)
+    const row = `<div class="adm-prow" data-pid="${esc(p.player_id)}"
+      ${isMe ? '' : `onpointerdown="admSwipeDown(event,this)" onpointermove="admSwipeMove(event,this)"
+      onpointerup="admSwipeUp(event,this)" onpointercancel="admSwipeUp(event,this)"`}>
       <div class="nm">${esc(p.name)}${p.role === 'admin' ? ' 👑' : ''}
         <div class="jd">가입 ${esc(p.joined_at || '-')}</div>
       </div>
@@ -2789,9 +2872,40 @@ function adminPlayerSearch() {
         ? `<button class="btn ghost sm" style="flex:0 0 auto;padding:8px 12px;color:var(--main);" onclick="admRevealPin('${esc(p.player_id)}')" title="누르면 백업PIN 표시">📧 이메일가입</button>`
         : `<input class="pin" inputmode="numeric" maxlength="4" value="${esc(p.pin)}" />
       <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSavePin(this)">저장</button>`}
+    </div>`;
+    return `<div class="swipe-wrap" style="${acts.length ? 'margin-bottom:2px;' : ''}">
+      ${isMe ? '' : `<button class="swipe-del" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',true)">🚪<br/>탈퇴</button>`}
+      ${row}
     </div>
     ${acts.length ? `<div style="display:flex;gap:16px;justify-content:flex-end;margin:0 4px 10px;">${acts.join('')}</div>` : ''}`;
   }).join('');
+}
+
+// ----- 가입자 카드 왼쪽 스와이프 → 탈퇴 버튼 노출 -----
+const admSwipe = { el: null, x0: 0, y0: 0 };
+function admSwipeDown(e, el) {
+  admSwipe.el = el; admSwipe.x0 = e.clientX; admSwipe.y0 = e.clientY;
+  el.style.transition = 'none';
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+}
+function admSwipeMove(e, el) {
+  if (admSwipe.el !== el) return;
+  const dx = e.clientX - admSwipe.x0;
+  if (Math.abs(e.clientY - admSwipe.y0) > 30 && Math.abs(dx) < 20) return;   // 세로 스크롤 우선
+  const base = el.parentElement.classList.contains('open') ? -78 : 0;
+  el.style.transform = 'translateX(' + Math.max(-78, Math.min(0, base + dx)) + 'px)';
+}
+function admSwipeUp(e, el) {
+  if (admSwipe.el !== el) return;
+  admSwipe.el = null;
+  el.style.transition = '';
+  el.style.transform = '';
+  const dx = e.clientX - admSwipe.x0;
+  const wrap = el.parentElement;
+  const wasOpen = wrap.classList.contains('open');
+  const open = wasOpen ? (dx < -20) : (dx < -40);   // 왼쪽으로 충분히 밀면 열고, 오른쪽/탭이면 닫기
+  document.querySelectorAll('.swipe-wrap.open').forEach(w => { if (w !== wrap) w.classList.remove('open'); });
+  wrap.classList.toggle('open', open);
 }
 
 // 관리자 넘기기: 대상은 이메일 연결 멤버, 현 소유자 계정 로그인 필요
@@ -2899,7 +3013,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0318 메인 자동 점프 제거·입장 게임탭 통일·iOS 파란 글씨 재수정';
+const APP_VERSION = 'v1410 닉네임·PIN 자동입력 · 가입자 스와이프 탈퇴 · 초대코드 공개 · 공유게임 수정요청(건의 게시판)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3322,6 +3436,12 @@ async function startInviteNext() {
     state._joinHub = { hub_id: hh.hub_id, name: hh.name, kind: hh.kind || 'hub', code: code.toUpperCase() };
     document.getElementById('ji-hub').textContent = hh.name + ' Hub';
     jiSetMode(state._jiMode === 'signup' ? 'signup' : 'login');   // 기본은 로그인
+    // 최근에 이 허브로 입장한 기록이 있으면 닉네임·비밀번호도 자동 입력
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem('bg_last_invite') || 'null'); } catch (e) {}
+    const same = last && last.code === state._joinHub.code;
+    document.getElementById('ji-name').value = (same && last.nick) ? last.nick : '';
+    document.getElementById('ji-pin').value = (same && last.pin) ? last.pin : '';
     startShow('invite');
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
@@ -3358,7 +3478,8 @@ async function joinByInvite() {
     const switching = !state.hub || state.hub.hub_id !== h.hub_id;
     if (switching) { state._myStats = null; state._myRatings = null; state._myRatingsPromise = null; }
     saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub' });
-    localStorage.setItem('bg_last_invite', JSON.stringify({ code: h.code, name: h.name }));
+    localStorage.setItem('bg_last_invite',
+      JSON.stringify({ code: h.code, name: h.name, nick: user.name, pin }));
     closeStartPage();
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');
@@ -3574,12 +3695,13 @@ function init() {
     return;
   }
   if (/type=recovery/.test(location.hash)) {          // 비밀번호 재설정 링크로 진입
-    openStartPage(!!state.hub);
+    openStartPage(!!(state.hub && state.user));
     startShow('recovery');
-    if (state.hub) loadCore();
+    if (state.hub && state.user) loadCore();
     return;
   }
-  if (!state.hub) { openStartPage(false); return; }   // 허브 없으면 시작 화면부터
+  // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터
+  if (!state.hub || !state.user) { openStartPage(false); return; }
   loadCore();
   refreshHubName();
 }

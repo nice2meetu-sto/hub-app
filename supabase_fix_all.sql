@@ -1,7 +1,7 @@
 -- ============================================================
 --  ★ 한 번에 실행하는 합본 마이그레이션 ★
 --  아직 적용되지 않았을 수 있는 마이그레이션을 순서대로 담았습니다.
---  (personal → globalcat → catlock → cattrigger → myall → personrating → hubrating → searchnorm → adminops → kst → trim)
+--  (personal → globalcat → catlock → cattrigger → myall → personrating → hubrating → searchnorm → adminops → kst → trim → suggest)
 --  이미 적용된 부분이 있어도 여러 번 실행해도 안전합니다.
 --  Supabase 대시보드 → SQL Editor → 전체 붙여넣기 → Run
 -- ============================================================
@@ -135,7 +135,6 @@ begin
   if not found then raise exception '초대코드가 올바르지 않습니다.'; end if;
   return json_build_object('hub_id', h.hub_id, 'name', h.name, 'kind', coalesce(h.kind,'hub'));
 end $$;
-
 -- ============================================================
 --  마이그레이션: 카테고리 전역(공통) 관리 전환 + 데이터 보수
 --  supabase_migration_personal.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -373,7 +372,6 @@ begin
 
   return json_build_object('hub_id', v_id, 'name', v_name, 'invite_code', v_code, 'existing', false);
 end $$;
-
 -- ============================================================
 --  마이그레이션: 분류 관리를 운영자 전용으로 전환
 --  supabase_migration_globalcat.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -391,7 +389,6 @@ end $$;
 
 drop function if exists public.admin_add_category(text, text, text, int);
 drop function if exists public.admin_update_category(text, text, text, text, int);
-
 -- ============================================================
 --  마이그레이션: 분류 이름 변경 자동 전파 트리거
 --  supabase_migration_catlock.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -417,7 +414,6 @@ drop trigger if exists cat_rename_propagate on public.categories;
 create trigger cat_rename_propagate
   after update of name on public.categories
   for each row execute function public._cat_rename_propagate();
-
 -- ============================================================
 --  마이그레이션: MY 플레이 기록·게임 기록 통합(전 허브)
 --  supabase_fix_all.sql(또는 personal 마이그레이션) 실행 후에 Run.
@@ -657,7 +653,6 @@ grant execute on function public.get_my_plays_all() to authenticated;
 grant execute on function public.get_my_games_all() to authenticated;
 grant execute on function public.get_reviews_all(text) to anon;
 grant execute on function public.get_reviews_all(text) to authenticated;
-
 -- ============================================================
 --  마이그레이션: 평점·후기·메모를 '사람×게임' 기준으로 통합
 --  supabase_migration_myall.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -899,7 +894,6 @@ as $$
   left join public.games g on g.game_id = a.game_id
   left join public.hubs h on h.hub_id = a.hub_id;
 $$;
-
 -- ============================================================
 --  마이그레이션: 평점·후기 표시 범위 정리
 --  supabase_migration_personrating.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -1128,7 +1122,6 @@ as $$
   left join public.games g on g.game_id = a.game_id
   left join public.hubs h on h.hub_id = a.hub_id;
 $$;
-
 -- ============================================================
 --  마이그레이션: 도감 검색 띄어쓰기 무시
 --  supabase_migration_hubrating.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -1153,7 +1146,6 @@ as $$
         like '%' || regexp_replace(lower(btrim(coalesce(p_term,''))), '\s+', '', 'g') || '%'
     and btrim(coalesce(p_term,'')) <> '';
 $$;
-
 -- ============================================================
 --  마이그레이션: 관리자 넘기기(2-3) + 허브 탈퇴 처리(2-5)
 --  supabase_migration_searchnorm.sql 실행 후에 Run. 여러 번 실행해도 안전.
@@ -1231,7 +1223,6 @@ begin
   from public.players
   where hub_id = v_auth.hub_id);
 end $$;
-
 -- ============================================================
 --  마이그레이션: 기록 시간 한국 시간(KST) 통일
 --  언제 실행해도 안전. 여러 번 실행해도 안전.
@@ -1255,7 +1246,6 @@ set timezone = 'Asia/Seoul';   -- 현재 세션에도 즉시 적용
 -- update public.ratings  set updated_at = to_char(updated_at::timestamp + interval '9 hours', 'YYYY-MM-DD HH24:MI:SS') where length(updated_at) > 10;
 -- update public.playlogs set created_at = to_char(created_at::timestamp + interval '9 hours', 'YYYY-MM-DD HH24:MI:SS') where length(created_at) > 10;
 -- update public.games    set created_at = to_char(created_at::timestamp + interval '9 hours', 'YYYY-MM-DD HH24:MI:SS') where length(created_at) > 10;
-
 -- ============================================================
 --  마이그레이션: playlogs 공백·줄바꿈 자동 정리(트리거)
 --  언제 실행해도 안전. 여러 번 실행해도 안전.
@@ -1295,3 +1285,94 @@ drop trigger if exists trim_playlog on public.playlogs;
 create trigger trim_playlog
   before insert or update on public.playlogs
   for each row execute function public._trim_playlog();
+-- ============================================================
+--  마이그레이션: 건의 게시판(게임 정보 수정 요청) + 게임 공유 여부 표시
+--  supabase_migration_hubrating.sql 실행 후에 Run. 여러 번 실행해도 안전.
+--
+--  · suggestions 테이블: 공용 도감 게임(여러 허브 공유)은 관리자가 직접
+--    수정할 수 없으므로, 수정 요청을 남기는 건의 게시판.
+--    게임 id · 요청자 id · 수정 내용 · 처리완료(status) 칼럼 포함
+--  · add_suggestion RPC: 관리자가 [수정 요청]으로 남김
+--  · get_games에 'shared'(여러 허브 공유 여부) 필드 추가 —
+--    앱이 수정 화면에서 공용 정보를 잠글지 판단하는 근거
+-- ============================================================
+
+-- 1) 건의 게시판 테이블
+create table if not exists public.suggestions (
+  id          bigint generated always as identity primary key,
+  game_id     text not null,             -- 대상 게임
+  player_id   text not null,             -- 요청자(멤버 id)
+  hub_id      text,                      -- 요청자가 속한 허브
+  content     text not null,             -- 수정 내용(요청 본문)
+  status      text not null default 'open',   -- 'open' | 'done' (처리완료 표시)
+  created_at  text,
+  resolved_at text                       -- 처리완료로 바꾼 시각(운영자가 기록)
+);
+
+alter table public.suggestions enable row level security;
+-- 쓰기는 RPC(security definer)로만 — 직접 접근 정책은 만들지 않음
+
+-- 2) 수정 요청 남기기 (관리자 PIN 확인 후)
+create or replace function public.add_suggestion(
+  p_player_id text, p_pin text, p_game_id text, p_content text)
+returns json
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare v_auth public.players; v_content text := btrim(coalesce(p_content, ''));
+begin
+  v_auth := public._verify(p_player_id, p_pin);
+  if coalesce(v_auth.role,'') <> 'admin' then raise exception '관리자만 요청할 수 있습니다.'; end if;
+  if v_content = '' then raise exception '수정 내용을 입력하세요.'; end if;
+  if not exists (select 1 from public.games where game_id = p_game_id) then
+    raise exception '게임을 찾을 수 없습니다.'; end if;
+  insert into public.suggestions(game_id, player_id, hub_id, content, status, created_at)
+  values (p_game_id, p_player_id, v_auth.hub_id, v_content, 'open',
+          to_char(now(), 'YYYY-MM-DD HH24:MI:SS'));
+  return json_build_object('ok', true);
+end $$;
+
+grant execute on function public.add_suggestion(text, text, text, text) to anon;
+grant execute on function public.add_suggestion(text, text, text, text) to authenticated;
+
+-- 3) get_games: shared(여러 허브가 함께 쓰는 게임) 여부 추가
+--    (hubrating 버전 + shared 필드 — 나머지는 동일)
+create or replace function public.get_games(p_hub_id text default 'H001')
+returns json
+language sql stable security definer
+set search_path = public
+as $$
+  with rt as (
+    select game_id,
+           round(avg(rating) filter (where rating is not null)::numeric, 1) as club_rating,
+           count(*) filter (where rating is not null) as rating_count,
+           count(*) filter (where review is not null and btrim(review) <> '') as review_count
+    from public.ratings
+    where player_id in (select player_id from public._hub_person_ids(p_hub_id))
+    group by game_id
+  ),
+  pc as (
+    select game_id, count(distinct session_id) as play_count
+    from public.playlogs where hub_id = p_hub_id group by game_id
+  ),
+  sh as (
+    select game_id, count(distinct hub_id) as hub_cnt
+    from public.hub_games group by game_id
+  )
+  select coalesce(json_agg(json_build_object(
+    'game_id', g.game_id, 'name_kr', g.name_kr, 'name_en', g.name_en,
+    'category', coalesce(g.category, ''), 'min_players', g.min_players, 'max_players', g.max_players,
+    'playtime_min', g.playtime_min, 'weight', g.weight,
+    'summary_kr', g.summary_kr, 'image_url', g.image_url, 'source', g.source,
+    'club_rating', rt.club_rating, 'rating_count', coalesce(rt.rating_count, 0),
+    'review_count', coalesce(rt.review_count, 0),
+    'play_count', coalesce(pc.play_count, 0),
+    'shared', coalesce(sh.hub_cnt, 1) > 1
+  ) order by g.game_id), '[]'::json)
+  from public.hub_games hg
+  join public.games g on g.game_id = hg.game_id
+  left join rt on rt.game_id = g.game_id
+  left join pc on pc.game_id = g.game_id
+  left join sh on sh.game_id = g.game_id
+  where hg.hub_id = p_hub_id;
+$$;

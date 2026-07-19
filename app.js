@@ -168,7 +168,15 @@ function replaceTopOverlay(hideFn) {  // 시트→상세 등 같은 depth로 화
   else openOverlay(hideFn);
 }
 window.addEventListener('popstate', () => {
-  if (_overlays.length) { const h = _overlays.pop(); if (h) { try { h(); } catch (e) {} } }
+  if (!_overlays.length) return;
+  const h = _overlays.pop();
+  if (!h) return;
+  // 시작 화면이 이미 닫힌 뒤 남은 화면 이동 기록은 건너뛰고 이어서 뒤로
+  if (h._sv && !document.getElementById('start-page').classList.contains('show')) {
+    if (_overlays.length) { try { history.back(); } catch (e) {} }
+    return;
+  }
+  try { h(); } catch (e) {}
 });
 // detail-overlay(공용 시트)는 내용만 바뀌며 여러 번 열리므로, 처음 열 때만 히스토리 push
 function showDetailSheet() {
@@ -3328,7 +3336,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1659 기록장 판별 kind 단독 · 이름 기반 보수 제거';
+const APP_VERSION = 'v1825 이메일 로그인 화면 정리(기존 허브 연결 버튼) · 시작 화면 뒤로가기 지원';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3369,14 +3377,24 @@ function openStartPage(closable) {
   const jp = document.getElementById('ji-pin'); if (jp) jp.value = '';
   if (document.getElementById('ji-tab-login')) jiSetMode('login');
   el.classList.add('show');
+  state._startView = null;   // 새로 여는 것 — 직전 세션의 화면 기록과 무관
   startShow('home');
   // 메인은 항상 홈부터 — 이메일 계정의 허브 목록은 [이메일로 시작]을 눌렀을 때만.
   // (멤버로 로그인해 쓰다가 메인으로 나왔는데 기기에 남은 이메일 세션 화면이
   //  자동으로 떠서 '계정이 다르다'고 느껴지던 문제 방지)
 }
 
-// 시작 페이지 내부 화면 전환
-function startShow(view) {
+// 시작 페이지 내부 화면 전환 — 이동할 때 히스토리에 쌓아
+// 브라우저/폰의 뒤로가기로 이전 화면에 돌아갈 수 있게 함
+function startShow(view, isBack) {
+  const page = document.getElementById('start-page');
+  const cur = state._startView;
+  if (!isBack && page.classList.contains('show') && cur && cur !== view) {
+    const fn = () => startShow(cur, true);
+    fn._sv = true;   // 시작 화면 내 이동 표시(시트 닫기 항목과 구분)
+    openOverlay(fn);
+  }
+  state._startView = view;
   document.querySelectorAll('#start-page .start-view').forEach(v => v.style.display = 'none');
   const el = document.getElementById('sv-' + view);
   if (el) el.style.display = 'block';
@@ -3565,10 +3583,9 @@ async function loadStartHubs() {
     ${!items.some(isPersonalHub) && state._personalErr
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
-    <button class="btn ghost" style="margin-top:8px;" onclick="startShow('home')">🔑 초대코드로 허브 입장</button>
+    <button class="btn ghost" style="margin-top:8px;" onclick="startShowLinks()">🔗 기존 허브 연결</button>
     <div class="row2" style="margin-top:16px;justify-content:center;gap:12px;">
       <button class="logout-link" style="color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>
-      <button class="logout-link" style="color:var(--text-sub);" onclick="startShowLinks()">🔗 계정연결확인</button>
       <button class="logout-link" style="color:var(--text-sub);" onclick="startSignOut()">🚪 계정 로그아웃</button>
     </div>`;
 }

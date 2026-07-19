@@ -1938,7 +1938,7 @@ async function renderMyGamesAll(el, scope) {
   }
   state._myGamesAllList = games;
   el.innerHTML = `${chips}
-    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=나와 게임한 사람들 평점)<br>평점과 후기는 게임마다 하나 — 여기서 남기면 모든 허브에 이어져요.</div>
+    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록이에요. (★=나와 게임한 사람들 평점)<br>평점과 후기는 게임마다 하나 - 수정시 모든 허브에 이어져요.</div>
     <div class="searchrow">
       <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
       <button class="sortbtn ${state.myGamesSortRating ? 'on' : ''}" id="my-gamesall-sort-btn" title="내 평점 정렬" onclick="cycleMyGamesAllSort()">${sortBtnLabel(state.myGamesSortRating)}</button>

@@ -1175,15 +1175,19 @@ async function ensurePersonalHub(nick, pin) {
 }
 
 // ===== 좌측 상단: 내 허브 드롭다운 =====
-// 허브 전환 메뉴의 한 줄: 이름 + 초대코드(탭=초대 문구 복사) + 이동 표시
+// 허브 전환 메뉴의 한 줄: 이름 + 초대코드(허브명 바로 오른쪽, 탭=초대 문구 복사) + 이동 표시
+// 개인 기록장은 공유(초대)코드를 표시하지 않음
 function hubMenuRowHtml(hid, name, kind, invite, cur, clickable) {
-  const inv = invite
+  const inv = (invite && kind !== 'personal')
     ? `<span class="invite-mini" onclick="event.stopPropagation(); copyInvite('${esc(name)}','${esc(invite)}')" title="초대 문구 복사">🔑 ${esc(invite)}</span>`
     : '';
   return `<button class="hubmenu-item ${cur ? 'cur' : ''}" ${clickable ? `onclick="switchToHub('${hid}')"` : 'onclick="closeHubMenu()"'}>
-    <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${kind === 'personal' ? '📔' : '🏠'} ${esc(name)}</span>
-    <span style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
-      ${inv}${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
+    <span style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${kind === 'personal' ? '📔' : '🏠'} ${esc(name)}</span>
+      ${inv}
+    </span>
+    <span style="flex:0 0 auto;">
+      ${cur ? '<span class="hint">현재 ✓</span>' : '<span class="hint">›</span>'}
     </span>
   </button>`;
 }
@@ -3324,7 +3328,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1637 작성자 이름 버튼 스타일·탭 안내 토스트';
+const APP_VERSION = 'v1648 허브 목록 초대코드 허브명 옆으로 · 기록장 코드 숨김';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

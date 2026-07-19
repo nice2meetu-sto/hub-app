@@ -1378,7 +1378,13 @@ function applyAuth(user, pin, welcome) {
 }
 
 // MY에서 계정연결확인으로 바로 이동(세션 없으면 이메일 로그인부터)
+// 지금 쓰던 허브·닉네임·PIN을 기억해 추가 연결 폼에 미리 채워줌
 async function goLinksPage() {
+  state._linkPrefill = (state.hub && state.user) ? {
+    code: state.hub.invite || '',
+    name: state.user.name || '',
+    pin: localStorage.getItem('bg_pin') || ''
+  } : null;
   openStartPage(true);
   let session = null;
   try { const { data } = await sb.auth.getSession(); session = data && data.session; } catch (e) {}
@@ -3274,7 +3280,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1549 기록장 관리자 페이지 일반 허브와 동일(게임·플레이·카테고리 + 기록장 탭)';
+const APP_VERSION = 'v1604 연결하기→추가연결 자동 채움 · 초대코드 허브명 확인 · 연결확인 헤더 정리';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3326,15 +3332,19 @@ function startShow(view) {
   document.querySelectorAll('#start-page .start-view').forEach(v => v.style.display = 'none');
   const el = document.getElementById('sv-' + view);
   if (el) el.style.display = 'block';
-  // 허브 확인 화면에서는 앱 타이틀·설명 대신 허브명이 그 자리를 차지
-  const hideHead = view === 'invite';
+  // 허브 확인 화면: 앱 타이틀·설명 대신 허브명이 그 자리를 차지
+  // 계정연결확인 화면: 로고·타이틀·설명 모두 숨김(자체 제목만)
+  const hideHead = view === 'invite' || view === 'links';
   const t = document.getElementById('start-title');
   const s = document.getElementById('start-sub');
   if (t) t.style.display = hideHead ? 'none' : '';
   if (s) s.style.display = hideHead ? 'none' : '';
   const logo = document.getElementById('start-logo');
-  if (logo) logo.textContent = hideHead
-    ? (state._joinHub && state._joinHub.kind === 'personal' ? '📔' : '🏠') : '🎲';
+  if (logo) {
+    logo.style.display = view === 'links' ? 'none' : '';
+    logo.textContent = view === 'invite'
+      ? (state._joinHub && state._joinHub.kind === 'personal' ? '📔' : '🏠') : '🎲';
+  }
 }
 
 // 개인 기록장 여부: kind 우선, 없으면 이름 패턴 폴백(마이그레이션 이전 데이터 호환)
@@ -3539,8 +3549,9 @@ async function startShowLinks() {
       </div>`).join('') || '<div class="hint" style="margin-bottom:10px;">연결된 허브가 없어요</div>'}
     <button class="btn ghost" style="margin-top:10px;" onclick="toggleAddLink()">➕ 추가 연결</button>
     <div id="sl-form" style="display:none;text-align:left;margin-top:12px;">
-      <div class="field"><label>허브 초대코드</label>
-        <input class="input" id="sl-code" placeholder="예: AB12CD" oninput="inviteAutoExtract(this)" /></div>
+      <div class="field"><label style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">허브 초대코드
+          <span id="sl-code-name" class="hint" style="margin:0;font-weight:500;"></span></label>
+        <input class="input" id="sl-code" placeholder="예: AB12CD" oninput="inviteAutoExtract(this); slCodeLookup()" /></div>
       <div class="field"><label>닉네임</label>
         <input class="input" id="sl-name" placeholder="그 허브에서 쓰는 이름" maxlength="20" autocomplete="off" /></div>
       <div class="field"><label>비밀번호 (숫자 4자리)</label>
@@ -3549,6 +3560,39 @@ async function startShowLinks() {
       <button class="btn" onclick="addLinkFromStart()">연결하기</button>
     </div>
     <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
+  // MY [연결하기]로 들어온 경우: 추가 연결 폼을 바로 열고 그때의 정보로 채움
+  const pf = state._linkPrefill;
+  state._linkPrefill = null;
+  if (pf) {
+    const f = document.getElementById('sl-form');
+    if (f) f.style.display = 'block';
+    document.getElementById('sl-code').value = pf.code || '';
+    document.getElementById('sl-name').value = pf.name || '';
+    document.getElementById('sl-pin').value = pf.pin || '';
+    slCodeLookup();
+  }
+}
+
+// 추가 연결 폼: 입력된 초대코드의 허브 이름을 라벨 오른쪽에 표시
+function slCodeLookup() {
+  const inp = document.getElementById('sl-code');
+  const tag = document.getElementById('sl-code-name');
+  if (!inp || !tag) return;
+  const code = extractInvite(inp.value.trim());
+  clearTimeout(state._slCodeTimer);
+  if (!code || code.length !== 6) { tag.textContent = ''; return; }
+  state._slCodeTimer = setTimeout(async () => {
+    try {
+      const h = await api('hubByInvite', { code });
+      const cur = document.getElementById('sl-code');
+      if (!cur || extractInvite(cur.value.trim()) !== code) return;   // 입력이 바뀜
+      tag.textContent = (isPersonalHub(h) ? '📔 ' : '🏠 ') + h.name;
+      tag.style.color = '';
+    } catch (e) {
+      tag.textContent = '코드를 찾을 수 없어요';
+      tag.style.color = 'var(--danger)';
+    }
+  }, 350);
 }
 
 function toggleAddLink() {

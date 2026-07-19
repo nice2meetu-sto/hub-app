@@ -17,12 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=0110">
+<link rel="stylesheet" href="styles.css?v=0121">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0110</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0121</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -212,11 +212,7 @@
         <input class="input" id="se-email" type="email" placeholder="you@example.com" autocomplete="email" /></div>
       <div class="field" style="text-align:left;"><label>비밀번호 (6자 이상)</label>
         <input class="input" id="se-pw" type="password" placeholder="••••••" /></div>
-      <div class="field" id="se-nick-row" style="text-align:left;display:none;"><label>닉네임 (개인 기록장에 사용)</label>
-        <input class="input" id="se-nick" placeholder="예: 게임" maxlength="20" /></div>
-      <div class="field" id="se-pin-row" style="text-align:left;display:none;"><label>백업PIN (숫자 4자리)</label>
-        <input class="input" id="se-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" />
-        <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
+      <div class="hint" id="se-signup-hint" style="text-align:left;margin:-4px 0 12px;display:none;">가입 후 이메일 인증을 마치면 내 기록장 닉네임을 정할 수 있어요.</div>
       <button class="btn" id="se-go" onclick="doStartEmail()">로그인</button>
       <div style="margin-top:12px;">
         <button class="logout-link" style="color:var(--main);" onclick="forgotPw()">비밀번호를 잊었어요</button>
@@ -282,6 +278,6 @@
 
 <!-- Supabase JS 클라이언트 (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=0110"></script>
+<script src="app.js?v=0121"></script>
 </body>
 </html>

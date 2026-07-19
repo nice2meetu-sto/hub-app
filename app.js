@@ -3567,7 +3567,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0110 이메일 인증 완료 후 어디로 들어갈까요? 화면으로 이동';
+const APP_VERSION = 'v0121 가입은 이메일·비번만, 기록장 닉네임·PIN은 인증 후 직접 설정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3720,20 +3720,17 @@ function seSetMode(mode) {
   state._seMode = mode;
   document.getElementById('se-tab-login').classList.toggle('on', mode === 'login');
   document.getElementById('se-tab-signup').classList.toggle('on', mode === 'signup');
-  document.getElementById('se-nick-row').style.display = mode === 'signup' ? 'block' : 'none';
-  document.getElementById('se-pin-row').style.display = mode === 'signup' ? 'block' : 'none';
-  document.getElementById('se-go').textContent = mode === 'signup' ? '가입하고 시작하기' : '로그인';
+  const hint = document.getElementById('se-signup-hint');
+  if (hint) hint.style.display = mode === 'signup' ? 'block' : 'none';
+  document.getElementById('se-go').textContent = mode === 'signup' ? '가입하기' : '로그인';
 }
 
 async function doStartEmail() {
   const email = document.getElementById('se-email').value.trim();
   const pw = document.getElementById('se-pw').value;
   const isSignup = state._seMode === 'signup';
-  const nick = document.getElementById('se-nick').value.trim();
-  const bpin = document.getElementById('se-pin').value.trim();
   if (!email || !pw) { toast('이메일과 비밀번호를 입력하세요.', true); return; }
-  if (isSignup && !nick) { toast('닉네임을 입력하세요.', true); return; }
-  if (isSignup && !/^\d{4}$/.test(bpin)) { toast('백업PIN은 숫자 4자리로 입력하세요.', true); return; }
+  if (isSignup && pw.length < 6) { toast('비밀번호는 6자 이상으로 입력하세요.', true); return; }
   showLoader(isSignup ? '가입 중…' : '로그인 중…');
   try {
     const { data, error } = isSignup
@@ -3758,8 +3755,8 @@ async function doStartEmail() {
       seSetMode('login');
       throw new Error('이미 가입된 이메일이에요. 비밀번호로 로그인해주세요.');
     }
-    if (!data.session) { toast('확인 메일을 보냈어요. 메일 인증 후 로그인해주세요.'); return; }
-    if (isSignup) await ensurePersonalNamed(nick, bpin);   // 가입 = 개인 기록장 자동 생성(닉네임+백업PIN)
+    if (!data.session) { toast('확인 메일을 보냈어요! 메일 인증을 마치면 닉네임을 정하고 시작할 수 있어요.'); return; }
+    // 이메일 확인이 꺼진 환경(즉시 세션): 닉네임 설정은 '어디로 들어갈까요?'의 기록장 만들기에서
     await loadStartHubs();
   } catch (e) {
     toast(e.message, true);
@@ -3825,17 +3822,13 @@ async function loadStartHubs() {
   try { await loadMyLinks(); } catch (e) {}
   let owned = [];
   try { owned = await api('myHubs') || []; } catch (e) {}
-  // 기록장이 하나도 없으면 자동 생성(기록장 도입 이전에 가입한 계정 보수)
+  // 개인 기록장이 없을 때: 기존 허브 닉네임이 있으면(기록장 도입 이전 계정) 조용히 복구.
+  // 닉네임 정보가 없는 신규 이메일 가입은 자동 생성하지 않고, 아래 목록의
+  // '내 기록장 시작하기' 카드에서 닉네임·PIN을 직접 정하게 유도한다.
   if (![...(state._myLinks || []), ...owned.map(h => ({ ...h, hub_name: h.name }))].some(isPersonalHub)) {
-    let nick = ((state._myLinks || [])[0] || {}).name || '';
-    if (!nick) {
-      try {
-        const { data } = await sb.auth.getSession();
-        nick = ((data.session.user || {}).email || '').split('@')[0];
-      } catch (e) {}
-    }
-    if (nick) {
-      await ensurePersonalNamed(nick);
+    const legacyNick = ((state._myLinks || [])[0] || {}).name || '';
+    if (legacyNick) {
+      await ensurePersonalNamed(legacyNick);
       try { await loadMyLinks(); } catch (e) {}
       try { owned = await api('myHubs') || []; } catch (e) {}
     }
@@ -3845,13 +3838,18 @@ async function loadStartHubs() {
   const seen = new Set(links.map(l => l.hub_id));
   const items = [...links, ...owned.filter(h => !seen.has(h.hub_id))
     .map(h => ({ hub_id: h.hub_id, hub_name: h.name, kind: h.kind }))];
+  const needsPersonal = !items.some(isPersonalHub);
   el.innerHTML = `
     <h3 style="margin:0 0 12px;">어디로 들어갈까요?</h3>
+    ${needsPersonal ? `
+      <button class="hubmenu-item" style="border:1px solid var(--main);margin-bottom:8px;" onclick="renderPersonalSetup()">
+        <span>📔 내 기록장 시작하기</span><span class="hint">닉네임·PIN 설정 ›</span>
+      </button>` : ''}
     ${items.map(l => `
       <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
         <span>${esc(hubIcon(l))} ${esc(l.hub_name)}</span><span class="hint">›</span>
-      </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
-    ${!items.some(isPersonalHub) && state._personalErr
+      </button>`).join('') || (needsPersonal ? '' : '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>')}
+    ${needsPersonal && state._personalErr
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
     <button class="btn ghost" style="margin-top:10px;" onclick="startShow('create')">🏠 새 허브 개설</button>
     <button class="btn ghost" style="margin-top:8px;" onclick="startShowLinks()">🔗 기존 허브 연결</button>
@@ -3859,6 +3857,38 @@ async function loadStartHubs() {
       <button class="logout-link" style="color:var(--text-sub);" onclick="startShow('home')">‹ 처음으로</button>
       <button class="logout-link" style="color:var(--text-sub);" onclick="startSignOut()">🚪 계정 로그아웃</button>
     </div>`;
+}
+
+// 신규 이메일 가입자가 내 기록장을 처음 만들 때: 닉네임·백업PIN 설정 화면
+function renderPersonalSetup() {
+  startShow('hubs');
+  const el = document.getElementById('sv-hubs');
+  el.innerHTML = `
+    <h3 style="margin:0 0 6px;">📔 내 기록장 만들기</h3>
+    <div class="hint" style="margin-bottom:16px;">혼자 즐긴 게임을 기록하는 나만의 공간이에요.<br>닉네임과 백업PIN을 정해주세요.</div>
+    <div class="field" style="text-align:left;"><label>닉네임</label>
+      <input class="input" id="ps-nick" placeholder="예: 게임" maxlength="20" autocomplete="off" /></div>
+    <div class="field" style="text-align:left;"><label>백업PIN (숫자 4자리)</label>
+      <input class="input" id="ps-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+             placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')createPersonalFromSetup()" />
+      <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
+    <button class="btn" onclick="createPersonalFromSetup()">내 기록장 만들기</button>
+    <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
+  setTimeout(() => { const n = document.getElementById('ps-nick'); if (n) n.focus(); }, 50);
+}
+
+async function createPersonalFromSetup() {
+  const nick = document.getElementById('ps-nick').value.trim();
+  const pin = document.getElementById('ps-pin').value.trim();
+  if (!nick) { toast('닉네임을 입력하세요.', true); return; }
+  if (!/^\d{4}$/.test(pin)) { toast('백업PIN은 숫자 4자리로 입력하세요.', true); return; }
+  showLoader('기록장 만드는 중…');
+  try {
+    await ensurePersonalNamed(nick, pin);
+    if (state._personalErr) throw new Error(state._personalErr);
+    toast('내 기록장이 준비됐어요! 📔');
+    await loadStartHubs();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 // 계정 연결 확인: 연결된 허브·닉네임 목록 + [연결해제]
@@ -4041,7 +4071,7 @@ async function startCreateHub() {
     const personal = links.find(l => isPersonalHub(l));
     const nick = document.getElementById('sc-nick').value.trim()
       || (personal && personal.name)
-      || (document.getElementById('se-nick').value.trim() || '허브장');
+      || '허브장';
     const scPin = document.getElementById('sc-pin').value.trim();
     const pin = /^\d{4}$/.test(scPin) ? scPin : String(Math.floor(1000 + Math.random() * 9000));
     const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });

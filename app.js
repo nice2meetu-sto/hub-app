@@ -2137,7 +2137,7 @@ function renderAddGameForm() {
         </div>
         <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 도감 검색</button>
       </div>
-      <div class="hint" style="margin-top:4px;text-align:center;"> 검색으로 공용 도감에서 끌어 오거나, 없으면 직접 등록해요.</div>
+      <div class="hint" style="margin-top:4px;text-align:center;">쉼표로 여러 이름 검색(예: 스컬킹, skull) · 없으면 직접 등록해요.</div>
     </div>
     <div id="ag-detail" style="display:none;">
       <div class="field">
@@ -2209,28 +2209,37 @@ function agHubCatWarn() {
 // 검색 풀: 입력어 전체 + 앞 두 글자(오타 대비) → 클라이언트에서
 // 띄어쓰기 무시 부분일치 우선, 자모 편집거리(오타) 유사까지 포함해 정렬
 async function agSearchCatalog() {
-  const term = document.getElementById('ag-namekr').value.trim();
-  if (!term) { toast('게임명을 먼저 입력하세요.', true); return; }
+  const raw = document.getElementById('ag-namekr').value.trim();
+  if (!raw) { toast('게임명을 먼저 입력하세요.', true); return; }
+  // 쉼표로 여러 이름 → 하나라도 일치하는 게임을 모두 보여줌(OR)
+  // 예: "스컬킹, skull" → 스컬킹(한글 일치) + 스컬퀸(영문 skull 일치)
+  const terms = raw.split(',').map(t => t.trim()).filter(Boolean);
+  if (!terms.length) { toast('게임명을 먼저 입력하세요.', true); return; }
   showLoader('도감 검색 중…');
   try {
-    const norm = normGameName(term);
     const seen = new Set(); const pool = [];
     const add = list => (list || []).forEach(g => {
       if (!seen.has(g.game_id)) { seen.add(g.game_id); pool.push(g); }
     });
-    add(await api('searchCatalog', { term }));
-    if (norm.length >= 2) {
-      try { add(await api('searchCatalog', { term: norm.slice(0, 2) })); } catch (e) {}
+    for (const t of terms) {
+      const nt = normGameName(t);
+      add(await api('searchCatalog', { term: t }));
+      if (nt.length >= 2) { try { add(await api('searchCatalog', { term: nt.slice(0, 2) })); } catch (e) {} }
     }
-    const qj = decomposeHangul(term);
-    const scored = pool.map(g => {
+    // 한 검색어에 대한 점수(부분일치 0 / 자모 오타 유사 1+거리 / 불일치 99)
+    const scoreFor = (g, term) => {
+      const norm = normGameName(term);
       const n = normGameName(g.name_kr) + '|' + normGameName(g.name_en || '');
-      if (n.includes(norm)) return { g, s: 0 };                      // 부분일치(띄어쓰기 무시)
+      if (norm && n.includes(norm)) return 0;
+      const qj = decomposeHangul(term);
       const d = Math.min(editDistance(qj, decomposeHangul(g.name_kr || '')),
                          g.name_en ? editDistance(qj, decomposeHangul(g.name_en)) : 99);
-      return { g, s: d <= (qj.length <= 4 ? 1 : 2) ? 1 + d : 99 };   // 자모 오타 유사
-    }).filter(x => x.s < 99).sort((a, b) => a.s - b.s).slice(0, 10);
-    agRenderCatalogResults(scored.map(x => x.g), term);
+      return d <= (qj.length <= 4 ? 1 : 2) ? 1 + d : 99;
+    };
+    // 게임 점수 = 여러 검색어 중 가장 잘 맞는 것(하나라도 맞으면 포함)
+    const scored = pool.map(g => ({ g, s: Math.min(...terms.map(t => scoreFor(g, t))) }))
+      .filter(x => x.s < 99).sort((a, b) => a.s - b.s).slice(0, 12);
+    agRenderCatalogResults(scored.map(x => x.g), raw);
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
@@ -2311,6 +2320,12 @@ function agRegisterNew() {
   if (dup) {
     toast(`이미 도감에 등록된 게임이에요 — 목록에서 "${dup.name_kr}"를 눌러 가져와주세요.`, true);
     return;
+  }
+  // 쉼표로 여러 이름 검색하다 직접 등록으로 가면 첫 이름을 게임명으로(콤마 저장 방지)
+  const nameInp = document.getElementById('ag-namekr');
+  if (nameInp && nameInp.value.includes(',')) {
+    nameInp.value = nameInp.value.split(',')[0].trim();
+    checkNewGameName();
   }
   state.agPick = null;
   agShowDetail('manual');
@@ -3466,7 +3481,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2258 BGG 연동 제거(자체 도감 검색만) · 게임명 라벨 유지';
+const APP_VERSION = 'v2304 도감 검색 쉼표 OR(여러 이름 중 하나라도 일치)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

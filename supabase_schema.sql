@@ -111,18 +111,21 @@ begin
 end $$;
 
 -- 다음 ID: prefix + zero-pad(최대 숫자접미사 + 1). 예) P001, G001, S0001
+-- 자릿수를 넘어가면 잘라내지 않고 자연 확장(P999 → P1000) — lpad 잘림 충돌 방지
 create or replace function public._next_id(p_prefix text, p_pad int, p_table text, p_col text)
 returns text
 language plpgsql stable security definer
 set search_path = public
 as $$
-declare v_max int;
+declare v_max int; v_txt text;
 begin
   execute format(
     'select coalesce(max((substring(%I from %L))::int), 0) from public.%I',
     p_col, '^' || p_prefix || '([0-9]+)$', p_table
   ) into v_max;
-  return p_prefix || lpad((v_max + 1)::text, p_pad, '0');
+  v_txt := (v_max + 1)::text;
+  if length(v_txt) < p_pad then v_txt := lpad(v_txt, p_pad, '0'); end if;
+  return p_prefix || v_txt;
 end $$;
 
 -- ============================================================

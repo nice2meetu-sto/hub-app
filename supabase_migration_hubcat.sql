@@ -344,7 +344,10 @@ begin
       record_id, session_id, hub_id, play_date, game_id, duration_min,
       player_id, player_name, score, is_win, created_by, created_at)
     values(
-      'R' || lpad(v_maxrec::text, 5, '0'), v_sid, v_auth.hub_id, v_date, v_gid, v_dur,
+      -- 기록번호: 5자리를 넘어가면 잘라내지 않고 자릿수 확장(R99999 → R100000)
+      'R' || case when length(v_maxrec::text) >= 5 then v_maxrec::text
+                  else lpad(v_maxrec::text, 5, '0') end,
+      v_sid, v_auth.hub_id, v_date, v_gid, v_dur,
       nullif(v_part->>'player_id',''),
       coalesce(v_part->>'player_name',''),
       nullif(v_part->>'score','')::numeric,

@@ -17,12 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=0248">
+<link rel="stylesheet" href="styles.css?v=0302">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0248</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0302</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -151,7 +151,7 @@
 <div id="start-page">
   <button id="start-close" onclick="closeStartPage()">✕</button>
   <div class="start-wrap">
-    <div class="start-logo">🎲</div>
+    <div class="start-logo" id="start-logo">🎲</div>
     <h2 id="start-title" style="margin:6px 0 2px;">보드게임 Hub</h2>
     <div id="start-sub" class="hint" style="margin-bottom:26px;">동호회 보드게임 기록 관리</div>
 
@@ -173,8 +173,8 @@
       <h2 id="ji-hub" style="margin:6px 0 2px;"></h2>
       <div class="hint" style="margin:0 0 20px;">이 허브로 들어가요 · 아니면 ‹ 뒤로</div>
       <div class="subtabs" style="margin-bottom:14px;">
-        <button id="ji-tab-signup" class="on" onclick="jiSetMode('signup')">처음이에요</button>
-        <button id="ji-tab-login" onclick="jiSetMode('login')">로그인</button>
+        <button id="ji-tab-login" class="on" onclick="jiSetMode('login')">로그인</button>
+        <button id="ji-tab-signup" onclick="jiSetMode('signup')">처음이에요</button>
       </div>
       <div class="field" style="text-align:left;"><label>닉네임</label>
         <input class="input" id="ji-name" placeholder="허브에서 쓸 이름" maxlength="20" autocomplete="off" /></div>
@@ -262,6 +262,6 @@
 
 <!-- Supabase JS 클라이언트 (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=0248"></script>
+<script src="app.js?v=0302"></script>
 </body>
 </html>

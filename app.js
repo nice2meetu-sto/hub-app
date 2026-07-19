@@ -2898,7 +2898,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0248 허브 확인 화면 타이틀 정리·최근 입장 허브 코드 기억';
+const APP_VERSION = 'v0302 허브 확인 화면 집 로고·로그인 탭 기본';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2937,7 +2937,7 @@ function openStartPage(closable) {
   if (tag) tag.textContent = (last && last.name) ? '최근 입장 허브 · ' + last.name : '';
   const jn = document.getElementById('ji-name'); if (jn) jn.value = '';
   const jp = document.getElementById('ji-pin'); if (jp) jp.value = '';
-  if (document.getElementById('ji-tab-signup')) jiSetMode('signup');
+  if (document.getElementById('ji-tab-login')) jiSetMode('login');
   el.classList.add('show');
   startShow('home');
   // 이메일 세션이 이미 있으면 바로 내 허브 목록으로
@@ -2959,6 +2959,9 @@ function startShow(view) {
   const s = document.getElementById('start-sub');
   if (t) t.style.display = hideHead ? 'none' : '';
   if (s) s.style.display = hideHead ? 'none' : '';
+  const logo = document.getElementById('start-logo');
+  if (logo) logo.textContent = hideHead
+    ? (state._joinHub && state._joinHub.kind === 'personal' ? '📔' : '🏠') : '🎲';
 }
 
 // 개인 기록장 여부: kind 우선, 없으면 이름 패턴 폴백(마이그레이션 이전 데이터 호환)
@@ -3312,8 +3315,8 @@ async function startInviteNext() {
   try {
     const hh = await api('hubByInvite', { code });
     state._joinHub = { hub_id: hh.hub_id, name: hh.name, kind: hh.kind || 'hub', code: code.toUpperCase() };
-    document.getElementById('ji-hub').textContent = (hh.kind === 'personal' ? '📔 ' : '🏠 ') + hh.name + ' Hub';
-    jiSetMode(state._jiMode === 'login' ? 'login' : 'signup');
+    document.getElementById('ji-hub').textContent = hh.name + ' Hub';
+    jiSetMode(state._jiMode === 'signup' ? 'signup' : 'login');   // 기본은 로그인
     startShow('invite');
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }

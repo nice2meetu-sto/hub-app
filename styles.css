@@ -37,7 +37,9 @@
   }
   button { font-family: inherit; cursor: pointer; border: none; background: none; }
   input, select, textarea { font-family: inherit; font-size: 15px; }
-  a { color: var(--main); }
+  /* 앱은 <a> 링크를 직접 쓰지 않음 — iOS(아이패드 홈 화면 앱)가 날짜·숫자를
+     링크로 감싸 파랗게 만드는 것을 무력화 (본문 글자색 그대로) */
+  a, a:link, a:visited { color: inherit !important; text-decoration: none !important; }
 
   /* ===== Header ===== */
   .appbar {

@@ -1202,6 +1202,7 @@ async function switchToHub(hid) {
     closeHubMenu();
     closeStartPage();
     await loadCore();
+    switchView('games');   // 입장 첫 화면은 게임 탭으로 통일
   } catch (e) {
     toast(e.message, true);
   } finally { hideLoader(); }
@@ -2898,7 +2899,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0302 허브 확인 화면 집 로고·로그인 탭 기본';
+const APP_VERSION = 'v0318 메인 자동 점프 제거·입장 게임탭 통일·iOS 파란 글씨 재수정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2940,12 +2941,9 @@ function openStartPage(closable) {
   if (document.getElementById('ji-tab-login')) jiSetMode('login');
   el.classList.add('show');
   startShow('home');
-  // 이메일 세션이 이미 있으면 바로 내 허브 목록으로
-  sb.auth.getSession().then(({ data }) => {
-    if (data && data.session
-        && el.classList.contains('show')
-        && document.getElementById('sv-home').style.display !== 'none') loadStartHubs();
-  }).catch(() => {});
+  // 메인은 항상 홈부터 — 이메일 계정의 허브 목록은 [이메일로 시작]을 눌렀을 때만.
+  // (멤버로 로그인해 쓰다가 메인으로 나왔는데 기기에 남은 이메일 세션 화면이
+  //  자동으로 떠서 '계정이 다르다'고 느껴지던 문제 방지)
 }
 
 // 시작 페이지 내부 화면 전환
@@ -3225,6 +3223,13 @@ async function unlinkFromStart(pid, hubName) {
 async function startSignOut() {
   showLoader('로그아웃 중…');
   try { await sb.auth.signOut(); } catch (e) {}
+  // 네트워크 오류 등으로 세션이 남았으면 로컬 저장 토큰을 직접 제거(확실한 로그아웃)
+  try {
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) {
+      Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+    }
+  } catch (e) {}
   hideLoader();
   state.user = null;
   state.hub = null;
@@ -3295,7 +3300,7 @@ async function startCreateHub() {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
-function startEnterHub() { closeStartPage(); switchView('play'); }
+function startEnterHub() { closeStartPage(); switchView('games'); }
 
 function copyInvite(name, code) {
   const text = '같이 ' + name + ' Hub에서 보드게임 기록해요! 초대코드: ' + code;

@@ -2898,7 +2898,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0225 초대코드 입력 상시 노출·허브 확인 후 가입/로그인';
+const APP_VERSION = 'v0248 허브 확인 화면 타이틀 정리·최근 입장 허브 코드 기억';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -2930,7 +2930,11 @@ function openStartPage(closable) {
   const el = document.getElementById('start-page');
   document.getElementById('start-close').style.display = closable ? '' : 'none';
   const inv = document.getElementById('start-invite');
-  if (inv) inv.value = '';
+  let last = null;
+  try { last = JSON.parse(localStorage.getItem('bg_last_invite') || 'null'); } catch (e) {}
+  if (inv) inv.value = (last && last.code) ? last.code : '';
+  const tag = document.getElementById('last-hub-tag');
+  if (tag) tag.textContent = (last && last.name) ? '최근 입장 허브 · ' + last.name : '';
   const jn = document.getElementById('ji-name'); if (jn) jn.value = '';
   const jp = document.getElementById('ji-pin'); if (jp) jp.value = '';
   if (document.getElementById('ji-tab-signup')) jiSetMode('signup');
@@ -2949,6 +2953,12 @@ function startShow(view) {
   document.querySelectorAll('#start-page .start-view').forEach(v => v.style.display = 'none');
   const el = document.getElementById('sv-' + view);
   if (el) el.style.display = 'block';
+  // 허브 확인 화면에서는 앱 타이틀·설명 대신 허브명이 그 자리를 차지
+  const hideHead = view === 'invite';
+  const t = document.getElementById('start-title');
+  const s = document.getElementById('start-sub');
+  if (t) t.style.display = hideHead ? 'none' : '';
+  if (s) s.style.display = hideHead ? 'none' : '';
 }
 
 // 개인 기록장 여부: kind 우선, 없으면 이름 패턴 폴백(마이그레이션 이전 데이터 호환)
@@ -3340,6 +3350,7 @@ async function joinByInvite() {
     const switching = !state.hub || state.hub.hub_id !== h.hub_id;
     if (switching) { state._myStats = null; state._myRatings = null; state._myRatingsPromise = null; }
     saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub' });
+    localStorage.setItem('bg_last_invite', JSON.stringify({ code: h.code, name: h.name }));
     closeStartPage();
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');

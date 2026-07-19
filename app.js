@@ -2791,12 +2791,15 @@ function openAdminPage() {
   page.classList.add('show');
   page.scrollTop = 0;
   openOverlay(() => page.classList.remove('show'));
-  // 기록장: 게임·플레이 관리가 필요 없어 가입자(내 정보) 화면만 표시
+  // 기록장도 일반 허브와 같은 관리자 페이지(게임·플레이·카테고리) —
+  // 단, 가입자 탭 대신 [기록장] 탭(기록장 설정 + 연결된 허브 관리)
   const personal = isPersonalHub(state.hub);
-  page.querySelector('.subtabs').style.display = personal ? 'none' : '';
+  page.querySelector('.subtabs').style.display = '';
   const catBtn = document.getElementById('adm-cat-btn');
-  if (catBtn) catBtn.style.display = personal ? 'none' : '';
-  switchAdminTab(personal ? 'players' : 'games');
+  if (catBtn) catBtn.style.display = '';
+  const pTab = document.getElementById('admtab-players');
+  if (pTab) pTab.textContent = personal ? '📔 기록장' : '가입자';
+  switchAdminTab('games');
 }
 function closeAdminPage() { closeOverlay(); }
 
@@ -3073,20 +3076,24 @@ async function adminRotateInvite() {
 
 async function renderAdminPlayers() {
   const el = document.getElementById('adm-players');
+  // 기록장 탭: 멤버 목록 없이 기록장 설정 + 연결된 허브 관리만 (PIN 확인 불필요)
+  if (isPersonalHub(state.hub)) {
+    el.innerHTML = `<div id="adm-hub-section"></div><div id="adm-mylinks"></div>`;
+    renderAdminHubSection();
+    renderAdminMyLinks();
+    return;
+  }
   el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
   const pin = await promptPin();
   if (pin == null) { el.innerHTML = `<div class="empty">PIN 확인이 필요합니다.</div>`; return; }
   try {
     state._admPlayers = await api('adminGetPlayers', { playerId: state.user.player_id, pin });
-    const personal = isPersonalHub(state.hub);
     el.innerHTML = `
       <div id="adm-hub-section"></div>
-      ${personal ? '' : `<div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-player-search" placeholder="닉네임 검색 (쉼표로 여러 조건)" oninput="adminPlayerSearch()" /></div>`}
-      <div id="adm-player-list" ${personal ? 'style="display:none;"' : ''}></div>
-      ${personal ? '<div id="adm-mylinks"></div>' : ''}`;
+      <div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-player-search" placeholder="닉네임 검색 (쉼표로 여러 조건)" oninput="adminPlayerSearch()" /></div>
+      <div id="adm-player-list"></div>`;
     renderAdminHubSection();
     adminPlayerSearch();
-    if (personal) renderAdminMyLinks();
   } catch (e) {
     el.innerHTML = `<div class="empty">불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
   }
@@ -3267,7 +3274,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1536 게임 추가 단계형 입력 · 카테고리 버튼/스와이프 삭제 · 관리자 배치 조정';
+const APP_VERSION = 'v1549 기록장 관리자 페이지 일반 허브와 동일(게임·플레이·카테고리 + 기록장 탭)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

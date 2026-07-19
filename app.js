@@ -68,10 +68,12 @@ async function api(action, params = {}) {
       return (data || []).filter(p => p.status !== 'left');
     }
     case 'getCategories': {
-      const { data, error } = await sb.from('categories').select('name')
-        .order('sort_order').order('name');
-      if (error || !data || !data.length) return DEFAULT_CATEGORIES_FALLBACK;
-      return data.map(r => r.name);
+      // 허브별 분류 목록(RPC). 마이그레이션 전 서버면 실패 → 기본 8종 유지
+      try {
+        const list = await sbrpc('get_categories', { p_hub_id: hubId() });
+        if (Array.isArray(list) && list.length) return list.map(r => r.name);
+      } catch (e) {}
+      return DEFAULT_CATEGORIES_FALLBACK;
     }
     case 'saveRating':
       return sbrpc('save_rating', {
@@ -95,12 +97,14 @@ async function api(action, params = {}) {
       return sbrpc('admin_update_pin', { p_player_id: P.playerId, p_pin: P.pin, p_target_id: P.targetId, p_new_pin: P.newPin });
     case 'adminDeleteGame':
       return sbrpc('admin_delete_game', { p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId });
-    case 'getCategoriesFull': {
-      const { data, error } = await sb.from('categories').select('name,sort_order')
-        .order('sort_order').order('name');
-      if (error) throw new Error(acErr(error));
-      return data || [];
-    }
+    case 'getCategoriesFull':
+      return sbrpc('get_categories', { p_hub_id: hubId() });
+    case 'adminAddCategory':
+      return sbrpc('admin_add_category', { p_player_id: P.playerId, p_pin: P.pin, p_name: P.name, p_sort: P.sort ?? null });
+    case 'adminUpdateCategory':
+      return sbrpc('admin_update_category', { p_player_id: P.playerId, p_pin: P.pin, p_old_name: P.oldName, p_new_name: P.newName, p_sort: P.sort ?? null });
+    case 'adminDeleteCategory':
+      return sbrpc('admin_delete_category', { p_player_id: P.playerId, p_pin: P.pin, p_name: P.name, p_move_to: P.moveTo || null });
     case 'addPlay':   return sbWriteWithPayload('add_play', P.payload);
     case 'addGame':   return sbWriteWithPayload('add_game', P.payload);
     case 'updatePlay':
@@ -1943,28 +1947,44 @@ function switchAddTab(tab) {
 // ----- 게임 추가 -----
 // 기본 분류(폴백). 앱 시작 시 Supabase categories 테이블에서 읽어와 덮어씀
 let CATEGORIES = ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+// 도감(공용) 기본 분류 — 도감 분류 선택지는 서비스 공통 8종 고정
+const CATALOG_CATEGORIES = DEFAULT_CATEGORIES_FALLBACK;
+
 function renderAddGameForm() {
   const el = document.getElementById('add-game-form');
+  state.agPick = null;   // 도감에서 가져온 게임(있으면 그 정보로 선반에만 연결)
   el.innerHTML = `
     <div class="field">
       <label>한글 게임명 *</label>
-      <div class="ac-wrap">
-        <input class="input" id="ag-namekr" placeholder="예: 스컬킹" autocomplete="off"
-               oninput="checkNewGameName(); acRender(this,'game')" onblur="acHide(this)" />
-        <div class="ac-menu"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="ac-wrap" style="flex:1;min-width:0;">
+          <input class="input" id="ag-namekr" placeholder="예: 스컬킹" autocomplete="off"
+                 oninput="checkNewGameName(); acRender(this,'game')" onblur="acHide(this)" />
+          <div class="ac-menu"></div>
+        </div>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 검색</button>
       </div>
       <div class="mchk" id="ag-namecheck" style="margin-top:4px;display:none;"></div>
+      <div class="hint" style="margin-top:4px;">📚 검색을 누르면 공용 도감에서 찾아 정보를 그대로 가져올 수 있어요.</div>
     </div>
     <div class="field">
       <label>영문 게임명 (선택)</label>
       <input class="input" id="ag-nameen" placeholder="예: Skull King" />
     </div>
-    <div class="field">
-      <label>보드게임 분류 *</label>
-      <select class="input" id="ag-category">
-        ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
-      </select>
+    <div class="row2">
+      <div class="field"><label>도감 분류 *</label>
+        <select class="input" id="ag-category">
+          ${CATALOG_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Hub 분류 *</label>
+        <select class="input" id="ag-cat-hub" onchange="agHubCatWarn()">
+          <option value="">선택해주세요</option>
+          ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
     </div>
+    <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;">❗️카테고리를 선택해주세요</div>
     <div class="row2">
       <div class="field"><label>최소 인원</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
       <div class="field"><label>최대 인원</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
@@ -1973,16 +1993,124 @@ function renderAddGameForm() {
       <div class="field"><label>플레이타임(분)</label><input class="input" id="ag-time" type="number" inputmode="numeric" /></div>
       <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
     </div>
-    <div class="field"><label>이미지 URL (선택)</label><input class="input" id="ag-image" placeholder="https://..." /></div>
+    <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label><input class="input" id="ag-image" placeholder="https://..." /></div>
     <div class="field"><label>게임 요약</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
     <div class="field">
-      <label>게임 사진 (선택 — 찍거나 앨범에서 선택)</label>
+      <label>게임 사진 (URL과 둘 중 하나 필수 — 찍거나 앨범에서 선택)</label>
       <input class="input" id="ag-photo" type="file" accept="image/*" onchange="onPhotoPick(this,'ag')" />
       <div id="ag-photo-preview"></div>
       <div class="hint">사진을 올리면 작게 압축해서 저장합니다. 올리면 url 대신 사용합니다</div>
     </div>
-    <button class="btn sheet-save" onclick="submitAddGame()">게임 추가</button>`;
+    <button class="btn sheet-save" id="ag-submit" onclick="submitAddGame()">도감 추가</button>`;
   photoState.ag = '';
+}
+
+function agHubCatWarn() {
+  const sel = document.getElementById('ag-cat-hub');
+  const warn = document.getElementById('ag-hubcat-warn');
+  if (sel && warn) warn.style.display = sel.value ? 'none' : '';
+}
+
+// ===== 📚 도감에서 가져오기 =====
+// 검색 풀: 입력어 전체 + 앞 두 글자(오타 대비) → 클라이언트에서
+// 띄어쓰기 무시 부분일치 우선, 자모 편집거리(오타) 유사까지 포함해 정렬
+async function agSearchCatalog() {
+  const term = document.getElementById('ag-namekr').value.trim();
+  if (!term) { toast('한글 게임명을 먼저 입력하세요.', true); return; }
+  showLoader('도감 검색 중…');
+  try {
+    const norm = normGameName(term);
+    const seen = new Set(); const pool = [];
+    const add = list => (list || []).forEach(g => {
+      if (!seen.has(g.game_id)) { seen.add(g.game_id); pool.push(g); }
+    });
+    add(await api('searchCatalog', { term }));
+    if (norm.length >= 2) {
+      try { add(await api('searchCatalog', { term: norm.slice(0, 2) })); } catch (e) {}
+    }
+    const qj = decomposeHangul(term);
+    const scored = pool.map(g => {
+      const n = normGameName(g.name_kr) + '|' + normGameName(g.name_en || '');
+      if (n.includes(norm)) return { g, s: 0 };                      // 부분일치(띄어쓰기 무시)
+      const d = Math.min(editDistance(qj, decomposeHangul(g.name_kr || '')),
+                         g.name_en ? editDistance(qj, decomposeHangul(g.name_en)) : 99);
+      return { g, s: d <= (qj.length <= 4 ? 1 : 2) ? 1 + d : 99 };   // 자모 오타 유사
+    }).filter(x => x.s < 99).sort((a, b) => a.s - b.s).slice(0, 10);
+    agRenderCatalogResults(scored.map(x => x.g), term);
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+function agRenderCatalogResults(list, term) {
+  state._agResults = {};
+  list.forEach(g => { state._agResults[g.game_id] = g; });
+  const el = document.getElementById('detail-body');
+  const cardHtml = g => {
+    const meta = [];
+    if (g.min_players || g.max_players) {
+      const mn = g.min_players || '?', mx = g.max_players || '?';
+      meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
+    }
+    if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+    if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
+    return `<div class="adm-gcard" onclick="agPickCatalog('${g.game_id}')">
+      <div class="gcard-top">
+        ${thumb(g.image_url, 'gcard-img')}
+        <div class="gcard-body">
+          <div class="gcard-name">${esc(g.name_kr || g.name_en)}
+            ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}
+            ${g.on_shelf ? `<span class="badge" style="margin-left:4px;">✓ 우리 허브</span>` : ''}</div>
+          ${g.name_en && g.name_kr ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
+          <div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
+          <div class="adm-summary">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없습니다.</span>'}</div>
+        </div>
+      </div>
+    </div>`;
+  };
+  el.innerHTML = list.length
+    ? `<h2>📚 도감 검색 결과</h2>
+       <div class="hint" style="margin-bottom:10px;">"${esc(term)}" — 게임을 누르면 정보를 그대로 가져와요.</div>
+       ${list.map(cardHtml).join('')}
+       <div class="hint" style="margin:12px 0 6px;">찾는 게임이 없나요? 직접 등록해주세요.</div>
+       <button class="btn ghost sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`
+    : `<h2>📚 도감 검색</h2>
+       <div class="empty" style="padding:26px 0;">도감에 없는 게임이에요.<br/>직접 등록해주세요!</div>
+       <button class="btn sheet-save" onclick="agRegisterNew()">등록하기</button>`;
+  showDetailSheet();
+}
+
+// 도감 게임 선택 → 모든 정보를 도감 그대로 채움
+function agPickCatalog(gid) {
+  const g = state._agResults && state._agResults[gid];
+  if (!g) return;
+  if (g.on_shelf) { toast('이미 우리 허브에 있는 게임이에요.', true); return; }
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v == null ? '' : v; };
+  set('ag-namekr', g.name_kr); set('ag-nameen', g.name_en);
+  const catSel = document.getElementById('ag-category');
+  if (g.category && ![...catSel.options].some(o => o.value === g.category)) {
+    catSel.insertAdjacentHTML('beforeend', `<option value="${esc(g.category)}">${esc(g.category)}</option>`);
+  }
+  if (g.category) catSel.value = g.category;
+  set('ag-min', g.min_players); set('ag-max', g.max_players);
+  set('ag-time', g.playtime_min); set('ag-weight', g.weight);
+  set('ag-image', g.image_url); set('ag-summary', g.summary_kr);
+  // Hub 분류: 같은 이름이 우리 허브에 있으면 그대로, 없으면 재설정 유도
+  const hubSel = document.getElementById('ag-cat-hub');
+  if (g.category && CATEGORIES.includes(g.category)) hubSel.value = g.category;
+  else hubSel.value = '';
+  agHubCatWarn();
+  state.agPick = g;
+  const btn = document.getElementById('ag-submit');
+  if (btn) btn.textContent = '게임 추가';
+  closeOverlay();          // 검색 팝업 닫기(추가 시트로 복귀)
+  checkNewGameName();
+}
+
+// 도감에 없음 → 직접 등록 모드(검색한 게임명은 입력칸에 그대로)
+function agRegisterNew() {
+  state.agPick = null;
+  const btn = document.getElementById('ag-submit');
+  if (btn) btn.textContent = '도감 추가';
+  closeOverlay();
 }
 
 // ===== 사진 업로드(썸네일 압축) =====
@@ -2047,11 +2175,19 @@ function clearPhoto(prefix) {
 async function submitAddGame() {
   const nameKr = document.getElementById('ag-namekr').value.trim();
   const category = document.getElementById('ag-category').value;
+  const hubCat = document.getElementById('ag-cat-hub').value;
   if (!nameKr) { toast('한글 게임명을 입력하세요.', true); return; }
+  if (!hubCat) { agHubCatWarn(); toast('❗️Hub 분류를 선택해주세요.', true); return; }
   // 중복 게임명 등록 차단(공백·대소문자 무시, 닉네임 중복 방지와 동일)
   const nk = normGameName(nameKr);
   if (state.games.some(g => normGameName(g.name_kr) === nk)) {
     toast('이미 등록된 게임명입니다.', true); return;
+  }
+  const imageUrl = photoState.ag || document.getElementById('ag-image').value.trim();
+  // 도감에서 가져온 게임이면 서버가 도감 정보 그대로 연결 — 이미지 검사 불필요
+  const picked = state.agPick && normGameName(state.agPick.name_kr) === nk;
+  if (!picked && !imageUrl) {
+    toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
   }
   const pin = await promptPin();
   if (pin == null) return;
@@ -2060,21 +2196,22 @@ async function submitAddGame() {
     player_id: state.user.player_id, pin,
     name_kr: nameKr,
     name_en: document.getElementById('ag-nameen').value.trim(),
-    category,
+    category,                 // 도감(공용) 분류
+    hub_category: hubCat,     // 우리 허브 분류
     min_players: document.getElementById('ag-min').value,
     max_players: document.getElementById('ag-max').value,
     playtime_min: document.getElementById('ag-time').value,
     weight: document.getElementById('ag-weight').value,
-    image_url: photoState.ag || document.getElementById('ag-image').value.trim(),
+    image_url: imageUrl,
     summary_kr: document.getElementById('ag-summary').value
   };
 
   showLoader('저장 중…');
   try {
     // payload는 api()의 URLSearchParams가 인코딩하므로 여기서 추가 인코딩하지 않음
-    await api('addGame', { payload: JSON.stringify(payload) });
+    const r = await api('addGame', { payload: JSON.stringify(payload) });
     state.games = await api('getGames');
-    toast('게임이 추가되었습니다!');
+    toast(r && r.source === 'catalog' ? '도감에서 가져와 추가했어요!' : '도감과 우리 허브에 추가했어요!');
     closeAddSheet();
     switchView('games');
     renderGames();
@@ -2158,19 +2295,12 @@ function checkNewGameName() {
     el.className = 'mchk ok';
     el.textContent = '✓ 등록 가능한 새 게임명이에요';
   }
-  // 공용 도감(다른 허브 등록분) 검사 — 있으면 정보를 끌어온다고 안내
-  clearTimeout(state._catalogTimer);
-  state._catalogTimer = setTimeout(async () => {
-    try {
-      const list = await api('searchCatalog', { term: name });
-      if (document.getElementById('ag-namekr')?.value.trim() !== name) return;  // 입력이 바뀜
-      const hit = (list || []).find(g => normGameName(g.name_kr) === key && !g.on_shelf);
-      if (hit) {
-        el.className = 'mchk ok';
-        el.textContent = `📚 "${hit.name_kr}" — 다른 허브에 등록된 게임이에요. 추가하면 정보를 그대로 가져와요`;
-      }
-    } catch (e) {}
-  }, 350);
+  // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
+  if (state.agPick && normGameName(state.agPick.name_kr) !== key) {
+    state.agPick = null;
+    const btn = document.getElementById('ag-submit');
+    if (btn) btn.textContent = '도감 추가';
+  }
 }
 
 // 정확히 일치하는 게임/플레이어만 허용(데이터 오류 방지)
@@ -2229,16 +2359,6 @@ function acNames(kind) {
   return (state.players || []).map(p => p.name).filter(Boolean);
 }
 
-// 공용 도감 검색 결과 캐시(정규화 이름 → 게임). 플레이 추가·게임 추가에서 공용.
-async function fetchCatalog(term) {
-  try {
-    const list = await api('searchCatalog', { term });
-    state._catalogHits = state._catalogHits || {};
-    (list || []).forEach(g => { if (g.name_kr) state._catalogHits[normGameName(g.name_kr)] = g; });
-    return list || [];
-  } catch (e) { return []; }
-}
-
 function acRender(inp, kind) {
   const wrap = inp.closest('.ac-wrap');
   const menu = wrap && wrap.querySelector('.ac-menu');
@@ -2253,35 +2373,13 @@ function acRender(inp, kind) {
     seen.add(low); return true;
   }).sort((a, b) => a.localeCompare(b)).slice(0, 8);
   // 후보가 없거나, 이미 정확히 일치하는 하나뿐이면 표시하지 않음
-  const emptySync = !matches.length || (matches.length === 1 && norm(matches[0]) === term);
-  if (emptySync) {
+  // (게임 자동완성은 허브에 등록된 게임만 — 도감 검색은 게임 추가의 📚 검색으로)
+  if (!matches.length || (matches.length === 1 && norm(matches[0]) === term)) {
     menu.classList.remove('show'); menu.innerHTML = '';
-    if (kind !== 'game') return;   // 게임은 도감 검색을 이어감
-  } else {
-    menu.innerHTML = matches.map(n => `<div class="ac-item" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
-    menu.classList.add('show');
+    return;
   }
-
-  // 게임 검색: 우리 선반에 없어도 공용 도감에서 찾아 함께 제시(📚)
-  if (kind === 'game') {
-    clearTimeout(state._acCatTimer);
-    state._acCatTimer = setTimeout(async () => {
-      const now = normGameName(inp.value);
-      const list = await fetchCatalog(inp.value.trim());
-      if (normGameName(inp.value) !== now) return;   // 입력이 바뀜
-      const extra = (list || []).filter(g =>
-        !g.on_shelf && g.name_kr &&
-        normGameName(g.name_kr).includes(now) &&
-        !seen.has(normGameName(g.name_kr))
-      ).slice(0, 5);
-      if (!extra.length) { updateGameBadge(); return; }
-      const shelfItems = emptySync ? '' : matches.map(n => `<div class="ac-item" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
-      menu.innerHTML = shelfItems
-        + extra.map(g => `<div class="ac-item" data-name="${esc(g.name_kr)}" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">📚 ${esc(g.name_kr)}</div>`).join('');
-      menu.classList.add('show');
-      updateGameBadge();
-    }, 300);
-  }
+  menu.innerHTML = matches.map(n => `<div class="ac-item" onpointerdown="acPick(event, this)" onmousedown="acPick(event, this)">${esc(n)}</div>`).join('');
+  menu.classList.add('show');
 }
 function acPick(e, item) {
   e.preventDefault();   // 클릭 시 input이 blur되지 않도록 → 포커스 유지
@@ -2299,7 +2397,7 @@ function acHide(inp) {
   if (menu) setTimeout(() => menu.classList.remove('show'), 120);
 }
 
-// 게임명 일치 배지: 정확히 일치하는 게임이면 초록, 아니면 회색 안내
+// 게임명 일치 배지: 허브에 등록된 게임이면 초록, 아니면 추가 안내(+유사 게임 힌트)
 function updateGameBadge() {
   const el = document.getElementById('gmchk');
   const inp = document.getElementById('ap-game');
@@ -2310,13 +2408,9 @@ function updateGameBadge() {
     el.className = 'mchk ok';
     return;
   }
-  const cat = v && state._catalogHits && state._catalogHits[normGameName(v)];
-  if (cat) {
-    el.textContent = '📚 도감의 게임이에요 · 저장하면 우리 허브에 자동 등록';
-    el.className = 'mchk ok';
-    return;
-  }
-  el.textContent = '일치하는 게임이 없어요';
+  const sim = v ? similarGameName(v) : null;
+  el.textContent = sim ? `혹시 "${sim}"인가요? 등록된 게임이 없어요`
+                       : '등록된 게임이 없어요, 추가해주세요';
   el.className = 'mchk no';
 }
 
@@ -2393,13 +2487,9 @@ function toggleGuest(i, checked) { addPlayState.participants[i].is_guest = check
 
 async function submitAddPlay() {
   const nameV = document.getElementById('ap-game').value.trim();
-  let game = gameByExactName(nameV);
-  if (!game && nameV && state._catalogHits) {
-    // 우리 선반엔 없지만 공용 도감에 있는 게임 → 그대로 기록(서버가 선반에 자동 등재)
-    const c = state._catalogHits[normGameName(nameV)];
-    if (c) game = { game_id: c.game_id, name_kr: c.name_kr };
-  }
-  if (!game) { toast('게임을 목록에 있는 이름으로 정확히 입력/선택하세요.', true); return; }
+  // 허브에 등록된 게임만 기록 가능(도감 자동 등재 없음 — 분류 설정 문제 방지)
+  const game = gameByExactName(nameV);
+  if (!game) { toast('허브에 등록된 게임만 기록할 수 있어요. 게임 목록에 없으면 [게임 추가]로 먼저 등록해주세요.', true); return; }
   const playDate = document.getElementById('ap-date').value;
   const duration = document.getElementById('ap-duration').value;
 
@@ -2456,6 +2546,13 @@ async function submitAddPlay() {
 // ============================================================
 //  Admin: 게임 정보 수정
 // ============================================================
+// 분류 select 옵션: 목록에 없는 현재값도 보이게 포함
+function catOptions(list, current) {
+  const all = list.slice();
+  if (current && !all.includes(current)) all.push(current);
+  return all.map(c => `<option value="${esc(c)}" ${current === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
+}
+
 function openEditGame(gameId) {
   const g = gameById(gameId);
   if (!g) return;
@@ -2470,19 +2567,20 @@ function openEditGame(gameId) {
       </div>`;
     el.innerHTML = `
       <h2>게임 정보 수정</h2>
-      <div class="hint" style="margin-bottom:12px;">🔒 여러 허브가 함께 쓰는 게임이라 공용 정보는 여기서 바꿀 수 없어요.<br/>분류만 바로 수정할 수 있고, 나머지는 아래 <b>수정 요청</b>으로 남겨주세요.</div>
+      <div class="hint" style="margin-bottom:12px;">🔒 여러 허브가 함께 쓰는 게임이라 공용 정보는 여기서 바꿀 수 없어요.<br/>Hub 분류만 바로 수정할 수 있고, 나머지는 아래 <b>수정 요청</b>으로 남겨주세요.</div>
       <div class="card" style="padding:4px 14px 6px;margin-bottom:14px;">
         ${ro('한글명', g.name_kr)}
         ${ro('영문명', g.name_en)}
+        ${ro('도감 분류', g.catalog_category)}
         ${ro('인원', (g.min_players ?? '-') + ' ~ ' + (g.max_players ?? '-') + '명')}
         ${ro('플레이타임', g.playtime_min ? g.playtime_min + '분' : '-')}
         ${ro('난이도', g.weight ?? '-')}
         ${ro('게임 요약', g.summary_kr)}
       </div>
-      <div class="field"><label>분류 (모든 허브 공통 — 바로 수정 가능)</label>
+      <div class="field"><label>Hub 분류 (우리 허브 전용 — 바로 수정 가능)</label>
         <div style="display:flex;gap:8px;">
-          <select class="input" id="eg-category" style="flex:1;min-width:0;">
-            ${CATEGORIES.map(c => `<option value="${c}" ${g.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+          <select class="input" id="eg-cat-hub" style="flex:1;min-width:0;">
+            ${catOptions(CATEGORIES, g.category)}
           </select>
           <button class="btn sm" style="flex:0 0 auto;" onclick="submitEditCategory('${g.game_id}')">분류 저장</button>
         </div>
@@ -2501,10 +2599,17 @@ function openEditGame(gameId) {
     <h2>게임 정보 수정</h2>
     <div class="field"><label>한글명</label><input class="input" id="eg-namekr" value="${esc(g.name_kr)}" /></div>
     <div class="field"><label>영문명</label><input class="input" id="eg-nameen" value="${esc(g.name_en)}" /></div>
-    <div class="field"><label>분류</label>
-      <select class="input" id="eg-category">
-        ${CATEGORIES.map(c => `<option value="${c}" ${g.category === c ? 'selected' : ''}>${c}</option>`).join('')}
-      </select>
+    <div class="row2">
+      <div class="field"><label>도감 분류</label>
+        <select class="input" id="eg-category">
+          ${catOptions(CATALOG_CATEGORIES, g.catalog_category ?? g.category)}
+        </select>
+      </div>
+      <div class="field"><label>Hub 분류</label>
+        <select class="input" id="eg-cat-hub">
+          ${catOptions(CATEGORIES, g.category)}
+        </select>
+      </div>
     </div>
     <div class="row2">
       <div class="field"><label>최소 인원</label><input class="input" id="eg-min" type="number" value="${g.min_players ?? ''}" /></div>
@@ -2554,7 +2659,7 @@ async function deleteGameAdmin(gameId) {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
-// 공유 게임: 분류만 저장 (서버 규칙상 분류는 항상 수정 가능)
+// 공유 게임: Hub 분류만 저장 (허브 전용 정보라 항상 수정 가능)
 async function submitEditCategory(gameId) {
   const pin = await promptPin();
   if (pin == null) return;
@@ -2562,7 +2667,7 @@ async function submitEditCategory(gameId) {
   try {
     await api('updateGame', {
       playerId: state.user.player_id, pin,
-      payload: JSON.stringify({ game_id: gameId, category: document.getElementById('eg-category').value })
+      payload: JSON.stringify({ game_id: gameId, hub_category: document.getElementById('eg-cat-hub').value })
     });
     state.games = await api('getGames');
     toast('분류를 수정했어요!');
@@ -2593,7 +2698,8 @@ async function submitEditGame(gameId) {
     game_id: gameId,
     name_kr: document.getElementById('eg-namekr').value,
     name_en: document.getElementById('eg-nameen').value,
-    category: document.getElementById('eg-category').value,
+    category: document.getElementById('eg-category').value,        // 도감(공용) 분류
+    hub_category: document.getElementById('eg-cat-hub').value,     // 우리 허브 분류
     min_players: document.getElementById('eg-min').value,
     max_players: document.getElementById('eg-max').value,
     playtime_min: document.getElementById('eg-time').value,
@@ -2659,11 +2765,103 @@ function renderAdminGames() {
   const el = document.getElementById('adm-games');
   if (!el.dataset.ready) {
     el.innerHTML = `
+      <div id="adm-cats"></div>
       <div class="searchbox"><span>🔍</span><input id="adm-game-search" placeholder="이름·분류·요약 검색" oninput="adminGameSearch()" /></div>
       <div id="adm-game-list"></div>`;
     el.dataset.ready = '1';
   }
+  renderAdminCats();
   adminGameSearch();
+}
+
+// ----- 분류 관리 (우리 허브 전용 커스텀) -----
+async function renderAdminCats() {
+  const el = document.getElementById('adm-cats');
+  if (!el) return;
+  let cats = [];
+  try { cats = await api('getCategoriesFull'); } catch (e) {}
+  state._admCats = cats || [];
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0;">🗂 분류 관리 <small class="muted" style="font-weight:500;">(우리 허브 전용)</small></div>
+      <div class="hint" style="margin-bottom:8px;">이름을 바꾸면 그 분류의 게임도 함께 바뀌어요. 숫자는 표시 순서.</div>
+      ${state._admCats.map(c => `
+        <div class="cat-row" data-name="${esc(c.name)}">
+          <input class="input cname" value="${esc(c.name)}" maxlength="20" />
+          <input class="input csort" type="number" inputmode="numeric" value="${c.sort_order ?? 0}" />
+          <button class="btn sm" style="flex:0 0 auto;padding:8px 10px;" onclick="admSaveCat(this)">저장</button>
+          <button class="btn ghost sm" style="flex:0 0 auto;padding:8px 10px;color:var(--danger);" onclick="admDelCat(this)">삭제</button>
+        </div>`).join('')}
+      <div class="cat-row" style="margin-top:${state._admCats.length ? '4px' : '0'};">
+        <input class="input cname" id="adm-newcat-name" placeholder="새 분류 이름" maxlength="20" />
+        <input class="input csort" id="adm-newcat-sort" type="number" inputmode="numeric" placeholder="순서" />
+        <button class="btn sm" style="flex:0 0 auto;padding:8px 10px;" onclick="admAddCat()">+ 추가</button>
+      </div>
+    </div>`;
+}
+
+// 분류 변경 후 공통 갱신: 분류 목록·게임 목록 다시 로드
+async function admCatRefresh(msg) {
+  try {
+    CATEGORIES = await api('getCategories');
+    state.games = await api('getGames');
+  } catch (e) {}
+  renderAdminCats();
+  adminGameSearch();
+  renderGames();
+  if (msg) toast(msg);
+}
+
+async function admAddCat() {
+  const name = document.getElementById('adm-newcat-name').value.trim();
+  const sort = document.getElementById('adm-newcat-sort').value;
+  if (!name) { toast('분류 이름을 입력하세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('추가 중…');
+  try {
+    await api('adminAddCategory', { playerId: state.user.player_id, pin, name,
+      sort: sort === '' ? null : Number(sort) });
+    await admCatRefresh('분류를 추가했어요.');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+async function admSaveCat(btn) {
+  const row = btn.closest('.cat-row');
+  const oldName = row.getAttribute('data-name');
+  const newName = row.querySelector('.cname').value.trim();
+  const sort = row.querySelector('.csort').value;
+  if (!newName) { toast('분류 이름을 입력하세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('저장 중…');
+  try {
+    await api('adminUpdateCategory', { playerId: state.user.player_id, pin,
+      oldName, newName, sort: sort === '' ? null : Number(sort) });
+    await admCatRefresh('분류를 수정했어요.');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+async function admDelCat(btn) {
+  const name = btn.closest('.cat-row').getAttribute('data-name');
+  const used = state.games.filter(g => g.category === name).length;
+  let moveTo = null;
+  if (used > 0) {
+    const others = (state._admCats || []).map(c => c.name).filter(n => n !== name);
+    if (!others.length) { toast('마지막 분류는 게임을 옮길 곳이 없어 삭제할 수 없어요.', true); return; }
+    moveTo = window.prompt(
+      `"${name}" 분류의 게임 ${used}개를 옮길 분류를 입력하세요.\n(${others.join(', ')})`);
+    if (moveTo == null) return;
+    moveTo = moveTo.trim();
+    if (!others.includes(moveTo)) { toast('목록에 있는 분류 이름을 그대로 입력해주세요.', true); return; }
+  } else if (!confirm(`"${name}" 분류를 삭제할까요?`)) return;
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('삭제 중…');
+  try {
+    await api('adminDeleteCategory', { playerId: state.user.player_id, pin, name, moveTo });
+    await admCatRefresh(used > 0 ? `삭제하고 게임 ${used}개를 "${moveTo}"(으)로 옮겼어요.` : '분류를 삭제했어요.');
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 function adminGameSearch() {
@@ -2696,8 +2894,6 @@ function adminGameSearch() {
     </div>`;
   }).join('');
 }
-
-// 분류 관리는 통합 관리자(운영자)가 전역으로 수행 — 허브 관리자 UI 제거
 
 // ----- 플레이 탭 (검색 후에만 표시) -----
 function renderAdminPlays() {
@@ -3013,7 +3209,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1410 닉네임·PIN 자동입력 · 가입자 스와이프 탈퇴 · 초대코드 공개 · 공유게임 수정요청(건의 게시판)';
+const APP_VERSION = 'v1500 허브별 분류 커스텀 복원 · 도감/Hub 분류 이원화 · 도감 검색 가져오기 · 플레이는 허브 게임만';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

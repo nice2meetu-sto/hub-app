@@ -26,8 +26,17 @@ update public.games g
    and exists (select 1 from public.hub_games hg
                 where hg.game_id = g.game_id and coalesce(hg.category,'') <> '');
 
--- 2) categories 전역화: (hub_id, name) → name 단일 키 + 기본 7종으로 재구성
-do $$ begin
+-- 2) categories 전역화: (hub_id, name) → name 단일 키 + 기본 8종으로 재구성
+--    ※ 이후 hubcat 마이그레이션이 다시 허브별로 되돌림 — 이미 hubcat이
+--      적용된 DB에서 재실행할 때는 이 블록을 건너뜀(커스텀 분류 보호)
+do $$
+declare v_hubcat boolean := false;
+begin
+  if to_regclass('public._migration_flags') is not null then
+    select exists (select 1 from public._migration_flags where name = 'hubcat') into v_hubcat;
+  end if;
+  if v_hubcat then return; end if;
+
   if exists (select 1 from information_schema.columns
              where table_schema='public' and table_name='categories' and column_name='hub_id') then
     alter table public.categories drop constraint if exists categories_pkey;
@@ -35,12 +44,12 @@ do $$ begin
     alter table public.categories drop column hub_id;
     alter table public.categories add primary key (name);
   end if;
-end $$;
 
-insert into public.categories(name, sort_order) values
-  ('전략',1),('마피아',2),('파티게임',3),('트릭테이킹',4),
-  ('1대1 게임',5),('카드게임',6),('경매게임',7),('협력게임',8)
-on conflict (name) do nothing;
+  insert into public.categories(name, sort_order) values
+    ('전략',1),('마피아',2),('파티게임',3),('트릭테이킹',4),
+    ('1대1 게임',5),('카드게임',6),('경매게임',7),('협력게임',8)
+  on conflict (name) do nothing;
+end $$;
 
 -- 3) get_games: 분류를 도감(games.category)에서
 create or replace function public.get_games(p_hub_id text default 'H001')
@@ -168,6 +177,9 @@ begin
 end $$;
 
 -- 6) 분류 관리 RPC: 전역 목록 대상
+-- (재실행 대비: 이후 hubcat이 기본값 있는 시그니처로 다시 만들므로 먼저 제거)
+drop function if exists public.admin_add_category(text, text, text, int);
+drop function if exists public.admin_update_category(text, text, text, text, int);
 create or replace function public.admin_add_category(
   p_player_id text, p_pin text, p_name text, p_sort int)
 returns json

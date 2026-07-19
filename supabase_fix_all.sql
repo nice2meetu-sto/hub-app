@@ -1672,9 +1672,14 @@ begin
     return json_build_object('game_id', v_existing, 'name_kr', v_name, 'source', 'catalog');
   end if;
 
-  -- 새 게임(도감 신규 등록): 통합 관리자가 사진으로 확인할 수 있게 이미지 필수
+  -- 새 게임(도감 신규 등록): 통합 관리자가 사진으로 확인할 수 있게 이미지 필수,
+  -- 인원수·플레이타임도 필수(도감 데이터 품질 유지)
   if coalesce(p_payload->>'image_url','') = '' then
     raise exception '이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.'; end if;
+  if nullif(p_payload->>'min_players','') is null
+     or nullif(p_payload->>'max_players','') is null
+     or nullif(p_payload->>'playtime_min','') is null then
+    raise exception '인원수와 플레이타임을 입력해주세요.'; end if;
 
   v_id := public._next_id('G', 3, 'games', 'game_id');
   insert into public.games(

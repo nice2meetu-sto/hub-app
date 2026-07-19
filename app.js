@@ -1953,56 +1953,81 @@ const CATALOG_CATEGORIES = DEFAULT_CATEGORIES_FALLBACK;
 function renderAddGameForm() {
   const el = document.getElementById('add-game-form');
   state.agPick = null;   // 도감에서 가져온 게임(있으면 그 정보로 선반에만 연결)
+  state.agMode = null;   // null(이름·검색만) | 'catalog'(도감 가져옴) | 'manual'(직접 등록)
   el.innerHTML = `
     <div class="field">
-      <label>한글 게임명 *</label>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <label style="margin:0;flex:0 0 auto;">한글 게임명 *</label>
+        <div class="mchk" id="ag-namecheck" style="display:none;min-width:0;text-align:right;word-break:keep-all;"></div>
+      </div>
       <div style="display:flex;gap:8px;">
         <div class="ac-wrap" style="flex:1;min-width:0;">
           <input class="input" id="ag-namekr" placeholder="예: 스컬킹" autocomplete="off"
                  oninput="checkNewGameName(); acRender(this,'game')" onblur="acHide(this)" />
           <div class="ac-menu"></div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 검색</button>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 도감 검색</button>
       </div>
-      <div class="mchk" id="ag-namecheck" style="margin-top:4px;display:none;"></div>
-      <div class="hint" style="margin-top:4px;">📚 검색을 누르면 공용 도감에서 찾아 정보를 그대로 가져올 수 있어요.</div>
+      <div class="hint" style="margin-top:4px;">📚 도감 검색으로 공용 도감에서 찾아 가져오거나, 없으면 직접 등록해요.</div>
     </div>
-    <div class="field">
-      <label>영문 게임명 (선택)</label>
-      <input class="input" id="ag-nameen" placeholder="예: Skull King" />
-    </div>
-    <div class="row2">
-      <div class="field"><label>도감 분류 *</label>
-        <select class="input" id="ag-category">
-          ${CATALOG_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
-        </select>
+    <div id="ag-detail" style="display:none;">
+      <div class="field">
+        <label>영문 게임명 (선택)</label>
+        <input class="input" id="ag-nameen" placeholder="예: Skull King" />
       </div>
-      <div class="field"><label>Hub 분류 *</label>
-        <select class="input" id="ag-cat-hub" onchange="agHubCatWarn()">
-          <option value="">선택해주세요</option>
-          ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
-        </select>
+      <div class="row2">
+        <div class="field"><label>도감 분류 *</label>
+          <select class="input" id="ag-category">
+            ${CATALOG_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Hub 분류 *</label>
+          <select class="input" id="ag-cat-hub" onchange="agHubCatWarn()">
+            <option value="">선택해주세요</option>
+            ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+        </div>
       </div>
-    </div>
-    <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;">❗️카테고리를 선택해주세요</div>
-    <div class="row2">
-      <div class="field"><label>최소 인원</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
-      <div class="field"><label>최대 인원</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
-    </div>
-    <div class="row2">
-      <div class="field"><label>플레이타임(분)</label><input class="input" id="ag-time" type="number" inputmode="numeric" /></div>
-      <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
-    </div>
-    <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label><input class="input" id="ag-image" placeholder="https://..." /></div>
-    <div class="field"><label>게임 요약</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
-    <div class="field">
-      <label>게임 사진 (URL과 둘 중 하나 필수 — 찍거나 앨범에서 선택)</label>
-      <input class="input" id="ag-photo" type="file" accept="image/*" onchange="onPhotoPick(this,'ag')" />
-      <div id="ag-photo-preview"></div>
-      <div class="hint">사진을 올리면 작게 압축해서 저장합니다. 올리면 url 대신 사용합니다</div>
-    </div>
-    <button class="btn sheet-save" id="ag-submit" onclick="submitAddGame()">도감 추가</button>`;
+      <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;">❗️카테고리를 선택해주세요</div>
+      <div class="row2">
+        <div class="field"><label>최소 인원 *</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
+        <div class="field"><label>최대 인원 *</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>플레이타임(분) *</label><input class="input" id="ag-time" type="number" inputmode="numeric" /></div>
+        <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
+      </div>
+      <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label><input class="input" id="ag-image" placeholder="https://..." /></div>
+      <div class="field"><label>게임 요약</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
+      <div class="field" id="ag-photo-field">
+        <label>게임 사진 (URL과 둘 중 하나 필수 — 찍거나 앨범에서 선택)</label>
+        <input class="input" id="ag-photo" type="file" accept="image/*" onchange="onPhotoPick(this,'ag')" />
+        <div id="ag-photo-preview"></div>
+        <div class="hint">사진을 올리면 작게 압축해서 저장합니다. 올리면 url 대신 사용합니다</div>
+      </div>
+      <button class="btn sheet-save" id="ag-submit" onclick="submitAddGame()">도감 추가</button>
+    </div>`;
   photoState.ag = '';
+}
+
+// 정보 입력창 공개: 도감 선택('catalog') 또는 직접 등록('manual') 후에만
+function agShowDetail(mode) {
+  state.agMode = mode;
+  const box = document.getElementById('ag-detail');
+  if (box) box.style.display = 'block';
+  const catalog = mode === 'catalog';
+  // 도감에서 가져온 경우: Hub 분류만 고르면 됨 — 나머지는 도감 정보 그대로(잠금)
+  ['ag-nameen', 'ag-category', 'ag-min', 'ag-max', 'ag-time', 'ag-weight',
+   'ag-image', 'ag-summary', 'ag-photo'].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) e.disabled = catalog;
+  });
+  const nameInp = document.getElementById('ag-namekr');
+  if (nameInp) nameInp.readOnly = catalog;
+  const photoField = document.getElementById('ag-photo-field');
+  if (photoField) photoField.style.display = catalog ? 'none' : '';
+  const btn = document.getElementById('ag-submit');
+  if (btn) btn.textContent = catalog ? '게임 추가' : '도감 추가';
 }
 
 function agHubCatWarn() {
@@ -2041,6 +2066,7 @@ async function agSearchCatalog() {
 }
 
 function agRenderCatalogResults(list, term) {
+  state._agTerm = term;
   state._agResults = {};
   list.forEach(g => { state._agResults[g.game_id] = g; });
   const el = document.getElementById('detail-body');
@@ -2099,17 +2125,23 @@ function agPickCatalog(gid) {
   else hubSel.value = '';
   agHubCatWarn();
   state.agPick = g;
-  const btn = document.getElementById('ag-submit');
-  if (btn) btn.textContent = '게임 추가';
+  agShowDetail('catalog');
   closeOverlay();          // 검색 팝업 닫기(추가 시트로 복귀)
   checkNewGameName();
 }
 
 // 도감에 없음 → 직접 등록 모드(검색한 게임명은 입력칸에 그대로)
 function agRegisterNew() {
+  // 같은 이름(띄어쓰기 무시)이 이미 도감에 있으면 직접 등록 차단 → 가져오기 유도
+  const key = normGameName(state._agTerm || '');
+  const dup = key && Object.values(state._agResults || {}).find(g =>
+    normGameName(g.name_kr) === key || normGameName(g.name_en || '') === key);
+  if (dup) {
+    toast(`이미 도감에 등록된 게임이에요 — 목록에서 "${dup.name_kr}"를 눌러 가져와주세요.`, true);
+    return;
+  }
   state.agPick = null;
-  const btn = document.getElementById('ag-submit');
-  if (btn) btn.textContent = '도감 추가';
+  agShowDetail('manual');
   closeOverlay();
 }
 
@@ -2184,10 +2216,27 @@ async function submitAddGame() {
     toast('이미 등록된 게임명입니다.', true); return;
   }
   const imageUrl = photoState.ag || document.getElementById('ag-image').value.trim();
-  // 도감에서 가져온 게임이면 서버가 도감 정보 그대로 연결 — 이미지 검사 불필요
+  // 도감에서 가져온 게임이면 서버가 도감 정보 그대로 연결 — 나머지 검사 불필요
   const picked = state.agPick && normGameName(state.agPick.name_kr) === nk;
-  if (!picked && !imageUrl) {
-    toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
+  if (!picked) {
+    if (!document.getElementById('ag-min').value.trim() ||
+        !document.getElementById('ag-max').value.trim() ||
+        !document.getElementById('ag-time').value.trim()) {
+      toast('인원수와 플레이타임은 꼭 입력해주세요.', true); return;
+    }
+    if (!imageUrl) {
+      toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
+    }
+    // 직접 등록인데 같은 이름(띄어쓰기 무시)이 도감에 이미 있으면 차단 → 가져오기 유도
+    try {
+      const list = await api('searchCatalog', { term: nameKr });
+      const hit = (list || []).find(g =>
+        normGameName(g.name_kr) === nk || normGameName(g.name_en || '') === nk);
+      if (hit) {
+        toast(`이미 도감에 등록된 게임이에요 — 📚 도감 검색에서 "${hit.name_kr}"를 선택해 가져와주세요.`, true);
+        return;
+      }
+    } catch (e) {}
   }
   const pin = await promptPin();
   if (pin == null) return;
@@ -2293,13 +2342,12 @@ function checkNewGameName() {
     el.textContent = `혹시 "${sim}"인가요? (없으면 그대로 추가하셔도 돼요)`;
   } else {
     el.className = 'mchk ok';
-    el.textContent = '✓ 등록 가능한 새 게임명이에요';
+    el.textContent = '✓ 등록 가능한 새 게임명이에요 · 📚 도감 검색을 눌러주세요';
   }
   // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
   if (state.agPick && normGameName(state.agPick.name_kr) !== key) {
     state.agPick = null;
-    const btn = document.getElementById('ag-submit');
-    if (btn) btn.textContent = '도감 추가';
+    if (state.agMode === 'catalog') agShowDetail('manual');
   }
 }
 
@@ -2746,6 +2794,8 @@ function openAdminPage() {
   // 기록장: 게임·플레이 관리가 필요 없어 가입자(내 정보) 화면만 표시
   const personal = isPersonalHub(state.hub);
   page.querySelector('.subtabs').style.display = personal ? 'none' : '';
+  const catBtn = document.getElementById('adm-cat-btn');
+  if (catBtn) catBtn.style.display = personal ? 'none' : '';
   switchAdminTab(personal ? 'players' : 'games');
 }
 function closeAdminPage() { closeOverlay(); }
@@ -2765,38 +2815,46 @@ function renderAdminGames() {
   const el = document.getElementById('adm-games');
   if (!el.dataset.ready) {
     el.innerHTML = `
-      <div id="adm-cats"></div>
       <div class="searchbox"><span>🔍</span><input id="adm-game-search" placeholder="이름·분류·요약 검색" oninput="adminGameSearch()" /></div>
       <div id="adm-game-list"></div>`;
     el.dataset.ready = '1';
   }
-  renderAdminCats();
   adminGameSearch();
 }
 
-// ----- 분류 관리 (우리 허브 전용 커스텀) -----
+// ----- 🗂 카테고리 관리 (헤더 버튼 → 시트, 우리 허브 전용 커스텀) -----
+async function openAdminCats() {
+  const el = document.getElementById('detail-body');
+  el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  showDetailSheet();
+  await renderAdminCats();
+}
+
 async function renderAdminCats() {
-  const el = document.getElementById('adm-cats');
-  if (!el) return;
+  const el = document.getElementById('detail-body');
+  if (!el || !document.getElementById('detail-overlay').classList.contains('show')) return;
   let cats = [];
   try { cats = await api('getCategoriesFull'); } catch (e) {}
   state._admCats = cats || [];
   el.innerHTML = `
-    <div class="card" style="margin-bottom:14px;">
-      <div class="section-title" style="margin-top:0;">🗂 분류 관리 <small class="muted" style="font-weight:500;">(우리 허브 전용)</small></div>
-      <div class="hint" style="margin-bottom:8px;">이름을 바꾸면 그 분류의 게임도 함께 바뀌어요. 숫자는 표시 순서.</div>
-      ${state._admCats.map(c => `
-        <div class="cat-row" data-name="${esc(c.name)}">
-          <input class="input cname" value="${esc(c.name)}" maxlength="20" />
+    <h2>🗂 카테고리 관리</h2>
+    <div class="hint" style="margin-bottom:12px;">우리 허브 전용 분류예요. 이름을 바꾸면 그 분류의 게임도 함께 바뀌고,
+      카드를 <b>왼쪽으로 밀면</b> 삭제할 수 있어요. 숫자는 표시 순서.</div>
+    ${state._admCats.map(c => `
+      <div class="swipe-wrap">
+        <button class="swipe-del" onclick="admDelCat('${esc(c.name)}')">🗑<br/>삭제</button>
+        <div class="cat-row" data-name="${esc(c.name)}"
+          onpointerdown="admSwipeDown(event,this)" onpointermove="admSwipeMove(event,this)"
+          onpointerup="admSwipeUp(event,this)" onpointercancel="admSwipeUp(event,this)">
           <input class="input csort" type="number" inputmode="numeric" value="${c.sort_order ?? 0}" />
+          <input class="input cname" value="${esc(c.name)}" maxlength="20" />
           <button class="btn sm" style="flex:0 0 auto;padding:8px 10px;" onclick="admSaveCat(this)">저장</button>
-          <button class="btn ghost sm" style="flex:0 0 auto;padding:8px 10px;color:var(--danger);" onclick="admDelCat(this)">삭제</button>
-        </div>`).join('')}
-      <div class="cat-row" style="margin-top:${state._admCats.length ? '4px' : '0'};">
-        <input class="input cname" id="adm-newcat-name" placeholder="새 분류 이름" maxlength="20" />
-        <input class="input csort" id="adm-newcat-sort" type="number" inputmode="numeric" placeholder="순서" />
-        <button class="btn sm" style="flex:0 0 auto;padding:8px 10px;" onclick="admAddCat()">+ 추가</button>
-      </div>
+        </div>
+      </div>`).join('')}
+    <div class="cat-row" style="margin-top:10px;">
+      <input class="input csort" id="adm-newcat-sort" type="number" inputmode="numeric" placeholder="순서" />
+      <input class="input cname" id="adm-newcat-name" placeholder="새 분류 이름" maxlength="20" />
+      <button class="btn sm" style="flex:0 0 auto;padding:8px 10px;" onclick="admAddCat()">+ 추가</button>
     </div>`;
 }
 
@@ -2806,7 +2864,7 @@ async function admCatRefresh(msg) {
     CATEGORIES = await api('getCategories');
     state.games = await api('getGames');
   } catch (e) {}
-  renderAdminCats();
+  await renderAdminCats();   // 카테고리 시트가 열려 있으면 갱신
   adminGameSearch();
   renderGames();
   if (msg) toast(msg);
@@ -2842,8 +2900,7 @@ async function admSaveCat(btn) {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
-async function admDelCat(btn) {
-  const name = btn.closest('.cat-row').getAttribute('data-name');
+async function admDelCat(name) {
   const used = state.games.filter(g => g.category === name).length;
   let moveTo = null;
   if (used > 0) {
@@ -2868,9 +2925,11 @@ function adminGameSearch() {
   const listEl = document.getElementById('adm-game-list');
   if (!listEl) return;
   const raw = (document.getElementById('adm-game-search') || {}).value || '';
+  // 통합 게임탭과 동일: 최근 추가된 게임이 맨 위
+  const gidNum = g => parseInt(String(g.game_id).replace(/\D/g, ''), 10) || 0;
   const list = state.games.filter(g =>
     matchAllTerms([g.name_kr, g.name_en, g.category, g.summary_kr].map(v => v || '').join(' '), raw))
-    .slice().sort((a, b) => String(a.name_kr || a.name_en || '').localeCompare(String(b.name_kr || b.name_en || '')));
+    .slice().sort((a, b) => gidNum(b) - gidNum(a));
   if (!list.length) { listEl.innerHTML = `<div class="empty">검색 결과가 없어요.</div>`; return; }
   listEl.innerHTML = list.map(g => {
     const meta = [];
@@ -2948,9 +3007,9 @@ function renderAdminHubSection() {
       </div>
       ${personal ? '' : `
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
-        <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;">초대코드 ${state.hub && state.hub.invite ? esc(state.hub.invite) : '……'}</div>
-        <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminCopyInvite()">복사</button>
         <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminRotateInvite()">재발급</button>
+        <div id="adm-invite-view" style="flex:1;min-width:0;font-weight:800;color:var(--main);letter-spacing:2px;text-align:center;">초대코드 ${state.hub && state.hub.invite ? esc(state.hub.invite) : '……'}</div>
+        <button class="btn ghost sm" style="flex:0 0 auto;" onclick="adminCopyInvite()">복사</button>
       </div>`}
     </div>`;
   // 저장된 코드가 없으면(오래된 세션 등) 조용히 불러와 채움
@@ -3054,26 +3113,25 @@ function adminPlayerSearch() {
         <button class="btn ghost sm" style="flex:0 0 auto;padding:8px 12px;" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',false)">복귀</button>
       </div>`;
     }
-    const acts = [];
-    if (!isMe && linkedSet.has(p.player_id))
-      acts.push(`<button class="logout-link" style="color:var(--main);" onclick="adminTransferOwner('${esc(p.player_id)}','${esc(p.name)}')">👑 관리자 넘기기</button>`);
     // 탈퇴 처리는 카드를 왼쪽으로 밀면 나오는 버튼으로 (실수 방지)
+    // 관리자 넘기기는 카드 안쪽, PIN/이메일가입 칸 왼편에
     const row = `<div class="adm-prow" data-pid="${esc(p.player_id)}"
       ${isMe ? '' : `onpointerdown="admSwipeDown(event,this)" onpointermove="admSwipeMove(event,this)"
       onpointerup="admSwipeUp(event,this)" onpointercancel="admSwipeUp(event,this)"`}>
       <div class="nm">${esc(p.name)}${p.role === 'admin' ? ' 👑' : ''}
         <div class="jd">가입 ${esc(p.joined_at || '-')}</div>
       </div>
+      ${!isMe && linkedSet.has(p.player_id)
+        ? `<button class="btn ghost sm" style="flex:0 0 auto;padding:8px 10px;color:var(--main);" onclick="adminTransferOwner('${esc(p.player_id)}','${esc(p.name)}')" title="허브 관리자 넘기기">👑 넘기기</button>` : ''}
       ${linkedSet.has(p.player_id) && !state._admShowPin[p.player_id]
         ? `<button class="btn ghost sm" style="flex:0 0 auto;padding:8px 12px;color:var(--main);" onclick="admRevealPin('${esc(p.player_id)}')" title="누르면 백업PIN 표시">📧 이메일가입</button>`
         : `<input class="pin" inputmode="numeric" maxlength="4" value="${esc(p.pin)}" />
       <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSavePin(this)">저장</button>`}
     </div>`;
-    return `<div class="swipe-wrap" style="${acts.length ? 'margin-bottom:2px;' : ''}">
+    return `<div class="swipe-wrap">
       ${isMe ? '' : `<button class="swipe-del" onclick="adminSetLeft('${esc(p.player_id)}','${esc(p.name)}',true)">🚪<br/>탈퇴</button>`}
       ${row}
-    </div>
-    ${acts.length ? `<div style="display:flex;gap:16px;justify-content:flex-end;margin:0 4px 10px;">${acts.join('')}</div>` : ''}`;
+    </div>`;
   }).join('');
 }
 
@@ -3209,7 +3267,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1500 허브별 분류 커스텀 복원 · 도감/Hub 분류 이원화 · 도감 검색 가져오기 · 플레이는 허브 게임만';
+const APP_VERSION = 'v1536 게임 추가 단계형 입력 · 카테고리 버튼/스와이프 삭제 · 관리자 배치 조정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

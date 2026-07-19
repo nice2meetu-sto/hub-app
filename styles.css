@@ -285,6 +285,10 @@
   .swipe-del { position: absolute; top: 0; right: 0; bottom: 0; width: 78px; border: 0;
     background: var(--danger); color: #fff; font-weight: 800; font-size: 12px; line-height: 1.5;
     border-radius: 0 12px 12px 0; }
+  /* 카테고리 관리 카드도 같은 스와이프 패턴 사용 */
+  .swipe-wrap .cat-row { margin-bottom: 0; position: relative; z-index: 1;
+    transition: transform .18s ease; touch-action: pan-y; background: var(--bg); padding: 2px 0; }
+  .swipe-wrap.open .cat-row { transform: translateX(-78px); }
   .cat-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
   .cat-row input.cname { flex: 1; min-width: 0; }
   .cat-row input.csort { width: 58px; text-align: center; }

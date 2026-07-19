@@ -855,7 +855,10 @@ function renderSessionList(containerId, sessions, opts = {}) {
             s.hub_name && state.hub && s.hub_id !== state.hub.hub_id
               ? ` · <span style="color:var(--main);">${esc(s.hub_name)}</span>` : ''}${creator}</div>
         </div>
-        ${canEdit ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="startEditSession('${esc(s.session_id)}')">수정</button>` : ''}
+        ${canEdit
+          ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="startEditSession('${esc(s.session_id)}')">수정</button>`
+          : (s.created_by
+              ? `<span style="flex:0 0 auto;font-size:12px;color:var(--text-sub);padding:5px 2px;" title="이 기록의 작성자 — 수정은 작성자에게 부탁하세요">작성 ${esc(sessAuthorName(s))}</span>` : '')}
       </div>
       <div class="participants">${parts}</div>
     </div>`;
@@ -865,6 +868,16 @@ function renderSessionList(containerId, sessions, opts = {}) {
 function playerNameById(pid) {
   const p = (state.players || []).find(x => String(x.player_id) === String(pid));
   return p ? p.name : pid;
+}
+
+// 기록 작성자 이름: 현재 허브 명단 → (통합 기록) 참가자 명단 순으로 찾기
+function sessAuthorName(s) {
+  const pid = s.created_by;
+  const p = (state.players || []).find(x => String(x.player_id) === String(pid));
+  if (p) return p.name;
+  const pt = (s.participants || []).find(x => String(x.player_id || '') === String(pid));
+  if (pt) return pt.name;
+  return pid;
 }
 
 // ===== 내 플레이 기록: 수정/삭제 (입력자 본인만, 관리자 페이지는 전체) =====
@@ -1294,20 +1307,40 @@ function hubIntegrated() {
 function hubPlays() {
   return hubIntegrated() ? (state._myAllPlays || []) : state.plays;
 }
-// 게임 탭 게임 소스: 통합이면 내가 플레이한 도감 게임(내 최근 플레이 순, ★=전체 평점)
+// 게임 탭 게임 소스: 통합이면 내가 플레이한 도감 게임 + 기록장에 직접 등록한 게임
+// 정렬: 내 최근 플레이 순 — 플레이가 없는 게임은 등록 시각 기준으로 함께 섞임
 function hubGamesList() {
   if (!hubIntegrated()) return state.games;
   const rows = state._myAllGames || [];
-  if (!rows.length) return state.games;
-  const order = []; const seen = new Set();
-  rows.slice().sort((a, b) => a.first_rn - b.first_rn).forEach(r => {
-    if (!seen.has(r.game_id)) { seen.add(r.game_id); order.push(r.game_id); }
+  if (!rows.length && !(state.games || []).length) return state.games;
+  // 게임별 내 최근 플레이 날짜(정렬 키) — 같은 날짜는 first_rn(더 최근 기록 우선)으로
+  const lastPlay = {};
+  (state._myAllPlays || []).forEach(s => {
+    const d = String(s.play_date || '').substring(0, 10);
+    if (!lastPlay[s.game_id] || d > lastPlay[s.game_id]) lastPlay[s.game_id] = d;
   });
-  return order.map((gid, i) => {
-    const g = myGameInfo(gid, 'all');
-    if (g) g._first = i;
-    return g;
-  }).filter(Boolean);
+  const gidNum = g => parseInt(String(g.game_id).replace(/\D/g, ''), 10) || 0;
+  const list = []; const seen = new Set();
+  rows.forEach(r => {
+    if (seen.has(r.game_id)) return;
+    seen.add(r.game_id);
+    const g = myGameInfo(r.game_id, 'all');
+    if (g) { g._key = lastPlay[r.game_id] || '0000'; g._tie = r.first_rn; list.push(g); }
+  });
+  (state.games || []).forEach(g0 => {
+    if (seen.has(g0.game_id)) return;   // 이미 플레이 기준으로 포함됨
+    seen.add(g0.game_id);
+    const g = Object.assign({}, g0);
+    g._key = String(g.added_at || '').substring(0, 19) || '0000';
+    g._tie = 100000 - gidNum(g);        // 같은 시각이면 최근 등록(id 큰 것) 먼저
+    list.push(g);
+  });
+  list.sort((a, b) => {
+    if (a._key !== b._key) return a._key < b._key ? 1 : -1;   // 최근 활동(플레이/등록) 우선
+    return (a._tie ?? 0) - (b._tie ?? 0);
+  });
+  list.forEach((g, i) => { g._first = i; });
+  return list;
 }
 
 // MY 하단: 계정 연결 상태/버튼
@@ -1379,8 +1412,9 @@ function applyAuth(user, pin, welcome) {
 
 // MY에서 계정연결확인으로 바로 이동(세션 없으면 이메일 로그인부터)
 // 지금 쓰던 허브·닉네임·PIN을 기억해 추가 연결 폼에 미리 채워줌
-async function goLinksPage() {
-  state._linkPrefill = (state.hub && state.user) ? {
+// skipPrefill=true면 단순 이동(기록장 관리자 탭 등 이미 연결된 상태에서의 진입)
+async function goLinksPage(skipPrefill) {
+  state._linkPrefill = (!skipPrefill && state.hub && state.user) ? {
     code: state.hub.invite || '',
     name: state.user.name || '',
     pin: localStorage.getItem('bg_pin') || ''
@@ -3219,13 +3253,16 @@ async function renderAdminMyLinks() {
   const links = state._myLinks || [];
   el.innerHTML = `
     <div class="card">
-      <div class="section-title" style="margin-top:0;">🔗 연결된 허브 관리</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div class="section-title" style="margin-top:0;">🔗 연결된 허브 관리</div>
+        <button class="logout-link" style="flex:0 0 auto;color:var(--main);" onclick="goLinksPage(true)">🔗 계정연결확인</button>
+      </div>
       <div class="hint" style="margin-bottom:10px;">각 허브에서 쓰는 닉네임과 비밀번호를 여기서 바로 수정할 수 있어요.</div>
       ${links.map(l => `
         <div class="adm-prow" data-hid="${esc(l.hub_id)}">
           <div class="nm">${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</div>
           <input class="input lk-name" value="${esc(l.name)}" maxlength="20"
-                 style="flex:0 1 96px;min-width:0;padding:8px;" />
+                 style="flex:0 1 96px;min-width:0;padding:8px;text-align:center;" />
           <input class="pin lk-pin" inputmode="numeric" maxlength="4" value="${esc(l.pin || '')}" />
           <button class="btn sm" style="padding:8px 12px;flex:0 0 auto;" onclick="adminSaveMyLink(this)">저장</button>
         </div>`).join('') || '<div class="hint">연결된 허브가 없어요</div>'}
@@ -3280,7 +3317,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1604 연결하기→추가연결 자동 채움 · 초대코드 허브명 확인 · 연결확인 헤더 정리';
+const APP_VERSION = 'v1629 기록장 게임탭에 직접 등록 게임 포함 · 플레이 기록 작성자 표시 · 연결 허브 관리 정돈';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

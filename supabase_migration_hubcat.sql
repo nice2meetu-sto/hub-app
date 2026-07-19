@@ -236,6 +236,7 @@ as $$
     'game_id', g.game_id, 'name_kr', g.name_kr, 'name_en', g.name_en,
     'category', coalesce(nullif(hg.category,''), g.category, ''),
     'catalog_category', coalesce(g.category, ''),
+    'added_at', coalesce(hg.added_at, ''),
     'min_players', g.min_players, 'max_players', g.max_players,
     'playtime_min', g.playtime_min, 'weight', g.weight,
     'summary_kr', g.summary_kr, 'image_url', g.image_url, 'source', g.source,

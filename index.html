@@ -17,12 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1858">
+<link rel="stylesheet" href="styles.css?v=1926">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1858</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1926</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -226,8 +226,13 @@
 
     <!-- 허브 개설 -->
     <div class="start-view" id="sv-create" style="display:none;">
-      <div class="field" style="text-align:left;"><label>허브 이름</label>
-        <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
+      <div style="display:flex;gap:8px;text-align:left;">
+        <div class="field" style="flex:0 0 auto;"><label>허브 아이콘</label>
+          <input class="input" id="sc-icon" value="🎲" maxlength="2"
+                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
+        <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
+          <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
+      </div>
       <div class="field" style="text-align:left;"><label>허브에서 쓸 닉네임</label>
         <input class="input" id="sc-nick" placeholder="비우면 기록장 닉네임 사용" maxlength="20" /></div>
       <div class="field" style="text-align:left;"><label>백업PIN (숫자 4자리)</label>
@@ -275,6 +280,6 @@
 
 <!-- Supabase JS 클라이언트 (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=1858"></script>
+<script src="app.js?v=1926"></script>
 </body>
 </html>

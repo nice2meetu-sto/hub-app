@@ -118,7 +118,7 @@ async function api(action, params = {}) {
     // ===== 멀티허브 / 이메일 계정 =====
     case 'hubByInvite':   return sbrpc('hub_by_invite', { p_code: P.code });
     case 'getHub':        return sbrpc('get_hub', { p_hub_id: hubId() });
-    case 'createHub':     return sbrpc('create_hub', { p_name: P.name, p_kind: P.kind || 'hub' });
+    case 'createHub':     return sbrpc('create_hub', { p_name: P.name, p_kind: P.kind || 'hub', p_icon: P.icon || '' });
     case 'loginLinked':   return sbrpc('login_linked', { p_hub_id: hubId() });
     case 'searchCatalog': return sbrpc('search_catalog', { p_hub_id: hubId(), p_term: P.term });
     case 'myHubs':        return sbrpc('my_hubs');
@@ -1187,13 +1187,13 @@ async function ensurePersonalHub(nick, pin) {
 // ===== 좌측 상단: 내 허브 드롭다운 =====
 // 허브 전환 메뉴의 한 줄: 이름 + 초대코드(허브명 바로 오른쪽, 탭=초대 문구 복사) + 이동 표시
 // 개인 기록장은 공유(초대)코드를 표시하지 않음
-function hubMenuRowHtml(hid, name, kind, invite, cur, clickable) {
+function hubMenuRowHtml(hid, name, kind, invite, cur, clickable, icon) {
   const inv = (invite && kind !== 'personal')
     ? `<span class="invite-mini" onclick="event.stopPropagation(); copyInvite('${esc(name)}','${esc(invite)}')" title="초대 문구 복사">🔑 ${esc(invite)}</span>`
     : '';
   return `<button class="hubmenu-item ${cur ? 'cur' : ''}" ${clickable ? `onclick="switchToHub('${hid}')"` : 'onclick="closeHubMenu()"'}>
     <span style="display:flex;align-items:center;gap:8px;min-width:0;">
-      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${kind === 'personal' ? '📔' : '🏠'} ${esc(name)}</span>
+      <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(icon || (kind === 'personal' ? '📔' : '🎲'))} ${esc(name)}</span>
       ${inv}
     </span>
     <span style="flex:0 0 auto;">
@@ -1211,12 +1211,12 @@ async function openHubMenu() {
     rows = links.map(l => {
       const cur = state.hub && state.hub.hub_id === l.hub_id;
       const inv = l.invite || (cur && state.hub.invite) || '';
-      return hubMenuRowHtml(l.hub_id, l.hub_name, isPersonalHub(l) ? 'personal' : 'hub', inv, cur, true);
+      return hubMenuRowHtml(l.hub_id, l.hub_name, isPersonalHub(l) ? 'personal' : 'hub', inv, cur, true, hubIcon(l));
     }).join('');
   } else if (state.hub) {
     // 이메일 미연결: 현재 허브 정보(이름·초대코드)만 동일한 형식으로
     rows = hubMenuRowHtml(state.hub.hub_id, state.hub.name,
-      isPersonalHub(state.hub) ? 'personal' : 'hub', state.hub.invite || '', true, false);
+      isPersonalHub(state.hub) ? 'personal' : 'hub', state.hub.invite || '', true, false, hubIcon(state.hub));
   } else { openStartPage(true); return; }
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 2px 12px;">
@@ -1240,7 +1240,7 @@ async function switchToHub(hid) {
   showLoader('이동 중…');
   try {
     const u = await sbrpc('login_linked', { p_hub_id: hid });   // 연결 계정 자동 로그인
-    saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub' });
+    saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub', icon: link.icon || '' });
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
     closeHubMenu();
@@ -3166,8 +3166,10 @@ function renderAdminHubSection() {
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-top:0;">${personal ? '📔 기록장 설정' : '🏠 허브 설정'} <small class="muted" style="font-weight:500;">(개설 계정 전용)</small></div>
       <div style="display:flex;gap:8px;">
+        ${personal ? '' : `<input class="input" id="adm-hub-icon" value="${esc(hubIcon(state.hub))}" maxlength="2"
+          style="flex:0 0 47px;width:47px;height:47px;padding:0;text-align:center;font-size:20px;" title="허브 아이콘(이모지)" />`}
         <input class="input" id="adm-hub-name" value="${esc(state.hub ? state.hub.name : '')}" maxlength="30" style="flex:1;min-width:0;" />
-        <button class="btn sm" style="flex:0 0 auto;" onclick="adminHubRename()">이름 저장</button>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="adminHubRename()">저장</button>
       </div>
       ${personal ? '' : `
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
@@ -3209,7 +3211,19 @@ async function adminHubRename() {
   const name = document.getElementById('adm-hub-name').value.trim();
   if (!name) { toast('허브 이름을 입력하세요.', true); return; }
   const r = await hubAuthCall(() => api('hubRename', { name }));
-  if (r) { saveHub(Object.assign({}, state.hub, { name: r.name })); toast('허브 이름을 바꿨어요.'); }
+  if (!r) return;
+  const upd = { name: r.name };
+  // 아이콘(허브 전용 칸)이 바뀌었으면 함께 저장
+  const iconInp = document.getElementById('adm-hub-icon');
+  if (iconInp) {
+    const icon = iconInp.value.trim() || '🎲';
+    if (icon !== hubIcon(state.hub)) {
+      const ri = await hubAuthCall(() => sbrpc('hub_set_icon', { p_hub_id: hubId(), p_icon: icon }));
+      if (ri) upd.icon = ri.icon;
+    }
+  }
+  saveHub(Object.assign({}, state.hub, upd));
+  toast('허브 설정을 저장했어요.');
 }
 
 // 초대 문구 복사(허브 개설 완료 화면과 같은 멘트)
@@ -3381,7 +3395,7 @@ async function renderAdminMyLinks() {
       <div class="hint" style="margin-bottom:10px;">각 허브에서 쓰는 닉네임과 비밀번호를 여기서 바로 수정할 수 있어요.</div>
       ${links.map(l => `
         <div class="adm-prow" data-hid="${esc(l.hub_id)}">
-          <div class="nm">${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</div>
+          <div class="nm">${esc(hubIcon(l))} ${esc(l.hub_name)}</div>
           <input class="input lk-name" value="${esc(l.name)}" maxlength="20"
                  style="flex:0 1 96px;min-width:0;padding:8px;text-align:center;" />
           <input class="pin lk-pin" inputmode="numeric" maxlength="4" value="${esc(l.pin || '')}" />
@@ -3438,7 +3452,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1858 닉네임 미니 메뉴(개인설정·의견·로그아웃) · 기록장에서 내 기록/평점 수정';
+const APP_VERSION = 'v1926 허브별 아이콘(이모지) — 개설 시 지정·관리자 설정에서 변경';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3459,8 +3473,9 @@ async function refreshHubName() {
   try {
     const h = await api('getHub');
     if (h && h.name && state.hub && h.hub_id === state.hub.hub_id
-        && (h.name !== state.hub.name || (h.kind || 'hub') !== (state.hub.kind || 'hub'))) {
-      saveHub(Object.assign({}, state.hub, { name: h.name, kind: h.kind || 'hub' }));
+        && (h.name !== state.hub.name || (h.kind || 'hub') !== (state.hub.kind || 'hub')
+            || (h.icon || '') !== (state.hub.icon || ''))) {
+      saveHub(Object.assign({}, state.hub, { name: h.name, kind: h.kind || 'hub', icon: h.icon || '' }));
     }
   } catch (e) {}
 }
@@ -3511,7 +3526,7 @@ function startShow(view, isBack) {
   if (logo) {
     logo.style.display = view === 'links' ? 'none' : '';
     logo.textContent = view === 'invite'
-      ? (state._joinHub && state._joinHub.kind === 'personal' ? '📔' : '🏠') : '🎲';
+      ? hubIcon(state._joinHub) : '🎲';
   }
 }
 
@@ -3520,6 +3535,12 @@ function startShow(view, isBack) {
 // 서버 create_hub가 강제), 이름은 자유롭게 바꿔도 동작에 영향 없음.
 function isPersonalHub(h) {
   return !!h && h.kind === 'personal';
+}
+
+// 허브 아이콘: 지정한 이모지, 없으면 기본(허브 🎲 / 기록장 📔)
+function hubIcon(h) {
+  if (h && h.icon) return h.icon;
+  return isPersonalHub(h) ? '📔' : '🎲';
 }
 
 // 초대 문구 붙여넣기 → 코드만 추출 ("... 초대코드: AB12CD" / 6자리 토큰)
@@ -3680,7 +3701,7 @@ async function loadStartHubs() {
     <h3 style="margin:0 0 12px;">어디로 들어갈까요?</h3>
     ${items.map(l => `
       <button class="hubmenu-item" onclick="startPickHub('${l.hub_id}')">
-        <span>${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</span><span class="hint">›</span>
+        <span>${esc(hubIcon(l))} ${esc(l.hub_name)}</span><span class="hint">›</span>
       </button>`).join('') || '<div class="hint" style="margin-bottom:10px;">아직 연결된 허브가 없어요</div>'}
     ${!items.some(isPersonalHub) && state._personalErr
       ? `<div class="hint" style="margin:6px 0 4px;color:var(--danger);">📔 기록장 준비 실패: ${esc(state._personalErr)}</div>` : ''}
@@ -3708,7 +3729,7 @@ async function startShowLinks() {
     ${links.map(l => `
       <div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:8px;text-align:left;">
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;">${isPersonalHub(l) ? '📔' : '🏠'} ${esc(l.hub_name)}</div>
+          <div style="font-weight:700;">${esc(hubIcon(l))} ${esc(l.hub_name)}</div>
           <div class="hint">닉네임: ${esc(l.name)}</div>
         </div>
         ${isPersonalHub(l)
@@ -3754,7 +3775,7 @@ function slCodeLookup() {
       const h = await api('hubByInvite', { code });
       const cur = document.getElementById('sl-code');
       if (!cur || extractInvite(cur.value.trim()) !== code) return;   // 입력이 바뀜
-      tag.textContent = (isPersonalHub(h) ? '📔 ' : '🏠 ') + h.name;
+      tag.textContent = hubIcon(h) + ' ' + h.name;
       tag.style.color = '';
     } catch (e) {
       tag.textContent = '코드를 찾을 수 없어요';
@@ -3863,8 +3884,10 @@ async function startCreateHub() {
   if (!/^\d{4}$/.test(scPinChk)) { toast('백업PIN은 숫자 4자리로 입력하세요.', true); return; }
   showLoader('허브 만드는 중…');
   try {
-    const hub = await api('createHub', { name, kind: 'hub' });
-    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code, kind: 'hub' });
+    const icon = (document.getElementById('sc-icon') || {}).value?.trim() || '';
+    const hub = await api('createHub', { name, kind: 'hub', icon });
+    saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code, kind: 'hub',
+              icon: hub.icon || icon || '🎲' });
     const links = state._myLinks || [];
     const personal = links.find(l => isPersonalHub(l));
     const nick = document.getElementById('sc-nick').value.trim()
@@ -3906,7 +3929,8 @@ async function startInviteNext() {
   showLoader('허브 찾는 중…');
   try {
     const hh = await api('hubByInvite', { code });
-    state._joinHub = { hub_id: hh.hub_id, name: hh.name, kind: hh.kind || 'hub', code: code.toUpperCase() };
+    state._joinHub = { hub_id: hh.hub_id, name: hh.name, kind: hh.kind || 'hub',
+                       icon: hh.icon || '', code: code.toUpperCase() };
     document.getElementById('ji-hub').textContent = hh.name + ' Hub';
     jiSetMode(state._jiMode === 'signup' ? 'signup' : 'login');   // 기본은 로그인
     // 최근에 이 허브로 입장한 기록이 있으면 닉네임·비밀번호도 자동 입력
@@ -3950,7 +3974,7 @@ async function joinByInvite() {
     }
     const switching = !state.hub || state.hub.hub_id !== h.hub_id;
     if (switching) { state._myStats = null; state._myRatings = null; state._myRatingsPromise = null; }
-    saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub' });
+    saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub', icon: h.icon || '' });
     localStorage.setItem('bg_last_invite',
       JSON.stringify({ code: h.code, name: h.name, nick: user.name, pin }));
     closeStartPage();
@@ -3997,8 +4021,13 @@ function renderEmailStep(step, extra) {
   } else if (step === 'setup') {
     el.innerHTML = `
       <h2>${isCreate ? '허브 정보 입력' : '기록장 정보 입력'}</h2>
-      ${isCreate ? `<div class="field"><label>허브 이름</label>
-        <input class="input" id="em-hubname" placeholder="예: 슈필" maxlength="30" /></div>` : ''}
+      ${isCreate ? `<div style="display:flex;gap:8px;">
+        <div class="field" style="flex:0 0 auto;"><label>허브 아이콘</label>
+          <input class="input" id="em-hubicon" value="🎲" maxlength="2"
+                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
+        <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
+          <input class="input" id="em-hubname" placeholder="예: 슈필" maxlength="30" /></div>
+      </div>` : ''}
       <div class="field"><label>내 닉네임</label>
         <input class="input" id="em-nick" placeholder="허브에서 쓸 이름" maxlength="20" /></div>
       <div class="field"><label>백업PIN (숫자 4자리)</label>
@@ -4110,7 +4139,8 @@ async function emailSetupGo() {
   if (!nick || !/^\d{4}$/.test(pin)) { toast('닉네임과 숫자 4자리 PIN을 입력하세요.', true); return; }
   showLoader('만드는 중…');
   try {
-    const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal' });
+    const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal',
+      icon: isCreate ? ((document.getElementById('em-hubicon') || {}).value || '').trim() : '' });
     saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code,
               kind: isCreate ? 'hub' : 'personal' });
     if (hub.existing) {

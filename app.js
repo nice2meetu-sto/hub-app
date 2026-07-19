@@ -1218,11 +1218,19 @@ async function openHubMenu() {
     rows = hubMenuRowHtml(state.hub.hub_id, state.hub.name,
       isPersonalHub(state.hub) ? 'personal' : 'hub', state.hub.invite || '', true, false, hubIcon(state.hub));
   } else { openStartPage(true); return; }
+  // 이메일 연결이 있으면 짧은 추가 연결 안내, 없으면 가입 유도(둘째 줄만 링크 효과)
+  const linkNav = links.length
+    ? `<button class="logout-link" style="color:var(--main);flex:0 1 auto;min-width:0;text-align:right;"
+         onclick="closeHubMenu(); goLinksPage(true);">✓ 추가 연결 하러 가기</button>`
+    : `<div style="flex:0 1 auto;min-width:0;text-align:right;line-height:1.5;">
+         <div class="hint" style="margin:0;">여러 허브에 가입하셨다면?</div>
+         <button class="logout-link" style="color:var(--main);"
+           onclick="closeHubMenu(); goLinksPage();">🔗 이메일 가입 후 연결</button>
+       </div>`;
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 2px 12px;">
       <h2 style="font-size:17px;font-weight:900;margin:0;flex:0 0 auto;">내 허브</h2>
-      <button class="logout-link" style="color:var(--main);text-align:right;line-height:1.5;min-width:0;"
-        onclick="closeHubMenu(); goLinksPage();">🔗 여러 허브에 가입하셨다면?<br/>이메일 가입 후 연결</button>
+      ${linkNav}
     </div>
     ${rows}
     <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">메인으로</button>`;
@@ -3452,7 +3460,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1926 허브별 아이콘(이모지) — 개설 시 지정·관리자 설정에서 변경';
+const APP_VERSION = 'v1932 앱바 아이콘 허브별 적용 · 내 허브 연결 안내 정리';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3466,6 +3474,9 @@ function saveHub(h) {
 function updateHubTitle() {
   const el = document.getElementById('hub-title');
   if (el) el.textContent = state.hub ? state.hub.name + ' Hub' : '보드게임 Hub';
+  // 제목 왼쪽 아이콘도 현재 허브가 지정한 아이콘으로(기록장 📔 포함, 없으면 🎲)
+  const ic = document.getElementById('hub-icon');
+  if (ic) ic.textContent = state.hub ? hubIcon(state.hub) : '🎲';
 }
 
 // 허브 이름 최신화(관리자가 이름을 바꿨을 수 있음) — 실패해도 무시

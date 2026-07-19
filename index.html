@@ -166,7 +166,7 @@
   <div class="start-wrap">
     <div class="start-logo" id="start-logo">🎲</div>
     <h2 id="start-title" style="margin:6px 0 2px;">보드게임 Hub</h2>
-    <div id="start-sub" class="hint" style="margin-bottom:26px;">동호회 보드게임 기록 관리</div>
+    <div id="start-sub" class="hint" style="margin-bottom:26px;">모임 중심 보드게임 기록 관리</div>
 
     <!-- 홈: 초대코드 입력(상시) + 이메일 시작 -->
     <div class="start-view" id="sv-home">
@@ -180,7 +180,7 @@
         <div class="hint" style="margin:3px 0 0;font-weight:500;color:#e9e7f8;">받은 초대 문구를 붙여 넣고 간편하게 시작하세요</div>
       </button>
       <button class="btn ghost" onclick="startEmailEntry()">📧 이메일로 시작
-        <div class="hint" style="margin:3px 0 0;font-weight:500;">허브 개설, 여러 허브 통합, 개인 사용이 가능해요</div>
+        <div class="hint" style="margin:3px 0 0;font-weight:500;">신규 허브 개설·여러 허브 통합 사용이 가능해요</div>
       </button>
     </div>
 
@@ -193,7 +193,7 @@
         <button id="ji-tab-signup" onclick="jiSetMode('signup')">처음이에요</button>
       </div>
       <div class="field" style="text-align:left;"><label>닉네임</label>
-        <input class="input" id="ji-name" placeholder="허브에서 쓸 이름" maxlength="20" autocomplete="off" /></div>
+        <input class="input" id="ji-name" placeholder="허브 닉네임 (수정 가능해요)" maxlength="20" autocomplete="off" /></div>
       <div class="field" style="text-align:left;"><label>비밀번호 (숫자 4자리)</label>
         <input class="input" id="ji-pin" type="password" inputmode="numeric" pattern="[0-9]*"
                maxlength="4" placeholder="••••" autocomplete="off"
@@ -213,7 +213,7 @@
       <div class="field" style="text-align:left;"><label>비밀번호 (6자 이상)</label>
         <input class="input" id="se-pw" type="password" placeholder="••••••" /></div>
       <div class="field" id="se-nick-row" style="text-align:left;display:none;"><label>닉네임 (개인 기록장에 사용)</label>
-        <input class="input" id="se-nick" placeholder="예: 수민" maxlength="20" /></div>
+        <input class="input" id="se-nick" placeholder="예: 게임" maxlength="20" /></div>
       <div class="field" id="se-pin-row" style="text-align:left;display:none;"><label>백업PIN (숫자 4자리)</label>
         <input class="input" id="se-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" />
         <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
@@ -234,13 +234,13 @@
           <input class="input" id="sc-icon" value="🎲" maxlength="2"
                  style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
         <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
-          <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
+          <input class="input" id="sc-name" placeholder="예: 허브" maxlength="30" /></div>
       </div>
-      <div class="field" style="text-align:left;"><label>허브에서 쓸 닉네임</label>
+      <div class="field" style="text-align:left;"><label>허브용 닉네임</label>
         <input class="input" id="sc-nick" placeholder="비우면 기록장 닉네임 사용" maxlength="20" /></div>
       <div class="field" style="text-align:left;"><label>백업PIN (숫자 4자리)</label>
         <input class="input" id="sc-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" />
-        <div class="hint" style="margin-top:4px;">이메일을 못 쓸 때 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
+        <div class="hint" style="margin-top:4px;">이메일 오류시 닉네임+백업PIN으로 로그인하는 비상 열쇠예요</div></div>
       <button class="btn" onclick="startCreateHub()">허브 만들기</button>
       <button class="logout-link" style="margin-top:16px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>
     </div>

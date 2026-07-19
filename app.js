@@ -2126,12 +2126,12 @@ function renderAddGameForm() {
   el.innerHTML = `
     <div class="field">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
-        <label style="margin:0;flex:0 0 auto;">한글 게임명 *</label>
+        <label style="margin:0;flex:0 0 auto;">게임명 *</label>
         <div class="mchk" id="ag-namecheck" style="display:none;min-width:0;text-align:right;word-break:keep-all;"></div>
       </div>
       <div style="display:flex;gap:8px;">
         <div class="ac-wrap" style="flex:1;min-width:0;">
-          <input class="input" id="ag-namekr" placeholder="예: 스컬킹" autocomplete="off"
+          <input class="input" id="ag-namekr" placeholder="예: 스컬킹 / Skull King" autocomplete="off"
                  oninput="checkNewGameName(); acRender(this,'game')" onblur="acHide(this)" />
           <div class="ac-menu"></div>
         </div>
@@ -2210,7 +2210,7 @@ function agHubCatWarn() {
 // 띄어쓰기 무시 부분일치 우선, 자모 편집거리(오타) 유사까지 포함해 정렬
 async function agSearchCatalog() {
   const term = document.getElementById('ag-namekr').value.trim();
-  if (!term) { toast('한글 게임명을 먼저 입력하세요.', true); return; }
+  if (!term) { toast('게임명을 먼저 입력하세요.', true); return; }
   showLoader('도감 검색 중…');
   try {
     const norm = normGameName(term);
@@ -2285,10 +2285,29 @@ async function agSearchBGG(term) {
   const slot = document.getElementById('ag-bgg-slot');
   if (!slot || state._agTerm !== term) return;
   slot.innerHTML = `<div class="hint" style="text-align:center;margin:10px 0;">🌐 BGG에서도 찾는 중…</div>`;
+  // 실패 원인을 화면에 그대로 보여주는 도우미(진단용)
+  const showErr = async (label, err) => {
+    if (state._agTerm !== term) return;
+    let detail = '';
+    try {
+      if (err && err.context && typeof err.context.text === 'function') {
+        detail = (await err.context.text() || '').slice(0, 200);
+      }
+    } catch (e) {}
+    const name = (err && (err.name || '')) || '';
+    const msg = (err && (err.message || err.error || '')) || String(err || '');
+    slot.innerHTML = `<div class="hint" style="margin:10px 0;color:var(--danger);word-break:break-all;">
+      🌐 BGG 검색 실패 — ${esc(label)}${name ? ' · ' + esc(name) : ''}<br/>${esc(msg)}${detail ? '<br/>' + esc(detail) : ''}</div>`;
+  };
   try {
+    if (!sb.functions || typeof sb.functions.invoke !== 'function') {
+      slot.innerHTML = `<div class="hint" style="margin:10px 0;color:var(--danger);">🌐 BGG: functions 클라이언트를 쓸 수 없어요(supabase-js 버전 확인)</div>`;
+      return;
+    }
     const { data, error } = await sb.functions.invoke('bgg-search', { body: { q: term } });
-    if (error) throw error;
+    if (error) { await showErr('함수 호출 오류', error); return; }
     if (state._agTerm !== term) return;   // 그 사이 다른 검색을 함
+    if (data && data.error) { await showErr('BGG 응답 오류', { message: data.error }); return; }
     const results = (data && data.results) || [];
     // 이미 우리 도감/결과에 있는 영문명은 제외(중복 방지)
     const have = new Set(Object.values(state._agResults || {})
@@ -2308,8 +2327,7 @@ async function agSearchBGG(term) {
       `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·시간·사진을 가져와요</div>`
       + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('');
   } catch (e) {
-    if (state._agTerm === term)
-      slot.innerHTML = `<div class="hint" style="text-align:center;margin:8px 0;color:var(--text-sub);">BGG 검색을 지금은 쓸 수 없어요</div>`;
+    await showErr('예외', e);
   }
 }
 
@@ -2433,7 +2451,7 @@ async function submitAddGame() {
   const nameKr = document.getElementById('ag-namekr').value.trim();
   const category = document.getElementById('ag-category').value;
   const hubCat = document.getElementById('ag-cat-hub').value;
-  if (!nameKr) { toast('한글 게임명을 입력하세요.', true); return; }
+  if (!nameKr) { toast('게임명을 입력하세요.', true); return; }
   if (!hubCat) { agHubCatWarn(); toast('❗️Hub 분류를 선택해주세요.', true); return; }
   // 중복 게임명 등록 차단(공백·대소문자 무시, 닉네임 중복 방지와 동일)
   const nk = normGameName(nameKr);
@@ -3519,7 +3537,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2231 BGG 연동(도감 검색에 BGG 결과 · Edge Function 프록시)';
+const APP_VERSION = 'v2246 게임명 라벨 · BGG 오류 화면 노출(진단)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

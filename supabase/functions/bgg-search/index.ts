@@ -29,18 +29,42 @@ function decodeEntities(s: string): string {
     .replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(+n));
 }
 
-// BGG는 가끔 202(처리 중)·429(속도 제한)를 주므로 짧게 재시도
-async function bggFetch(url: string, tries = 4): Promise<string> {
-  for (let i = 0; i < tries; i++) {
-    const res = await fetch(url, { headers: { "User-Agent": "boardgamehub/1.0" } });
-    if (res.status === 200) return await res.text();
-    if (res.status === 202 || res.status === 429) {
-      await new Promise((r) => setTimeout(r, 800 + i * 400));
-      continue;
+// BGG 앞단 Cloudflare가 비브라우저 요청(봇)을 401/403으로 막으므로
+// 브라우저처럼 보이는 헤더를 보냄. 두 호스트를 차례로 시도(하나가 막히면 다른 쪽).
+// 202(처리 중)·429(속도 제한)는 짧게 재시도.
+const BGG_HOSTS = [
+  "https://boardgamegeek.com",
+  "https://api.geekdo.com",
+];
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "application/xml,text/xml,text/html,*/*",
+  "Accept-Language": "en-US,en;q=0.9",
+};
+
+async function bggFetch(path: string, tries = 4): Promise<string> {
+  let last = "";
+  for (const host of BGG_HOSTS) {
+    for (let i = 0; i < tries; i++) {
+      let res: Response;
+      try {
+        res = await fetch(host + path, { headers: BROWSER_HEADERS });
+      } catch (e) {
+        last = "fetch " + String((e as Error).message || e);
+        break;
+      }
+      if (res.status === 200) return await res.text();
+      if (res.status === 202 || res.status === 429) {
+        await new Promise((r) => setTimeout(r, 800 + i * 400));
+        continue;
+      }
+      last = "HTTP " + res.status; // 401/403/5xx 등 → 이 호스트 재시도 무의미, 다음 호스트로
+      break;
     }
-    throw new Error("BGG HTTP " + res.status);
   }
-  throw new Error("BGG 응답 지연");
+  throw new Error("BGG " + (last || "응답 지연"));
 }
 
 function firstAttr(xml: string, tag: string, attr = "value"): string | null {
@@ -57,8 +81,7 @@ Deno.serve(async (req: Request) => {
 
     // 1) 검색 → boardgame id 목록(중복 제거, 최대 8개)
     const searchXml = await bggFetch(
-      "https://boardgamegeek.com/xmlapi2/search?type=boardgame&query=" +
-        encodeURIComponent(query),
+      "/xmlapi2/search?type=boardgame&query=" + encodeURIComponent(query),
     );
     const ids: string[] = [];
     const idRe = /<item\b[^>]*\bid="(\d+)"/g;
@@ -69,9 +92,7 @@ Deno.serve(async (req: Request) => {
     if (!ids.length) return json({ results: [] });
 
     // 2) 상세(한 번에 여러 id)
-    const thingXml = await bggFetch(
-      "https://boardgamegeek.com/xmlapi2/thing?id=" + ids.join(","),
-    );
+    const thingXml = await bggFetch("/xmlapi2/thing?id=" + ids.join(","));
     const results: unknown[] = [];
     const itemRe = /<item\b[^>]*\bid="(\d+)"[^>]*>([\s\S]*?)<\/item>/g;
     while ((m = itemRe.exec(thingXml))) {

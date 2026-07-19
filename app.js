@@ -2232,10 +2232,9 @@ async function agSearchCatalog() {
     }).filter(x => x.s < 99).sort((a, b) => a.s - b.s).slice(0, 10);
     agRenderCatalogResults(scored.map(x => x.g), term);
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
-  agSearchBGG(term);   // BGG 결과는 별도로 이어 붙임(실패해도 자체 도감은 그대로)
 }
 
-// 도감/BGG 검색 결과 카드(공용)
+// 도감 검색 결과 카드
 function agResultCardHtml(g) {
   const meta = [];
   if (g.min_players || g.max_players) {
@@ -2250,7 +2249,6 @@ function agResultCardHtml(g) {
       ${thumb(g.image_url, 'gcard-img')}
       <div class="gcard-body">
         <div class="gcard-name">${title}
-          ${g._bgg ? `<span class="badge" style="margin-left:6px;background:#e6f0ff;color:#2a5db0;">🌐 BGG</span>` : ''}
           ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}
           ${g.on_shelf ? `<span class="badge" style="margin-left:4px;">✓ 우리 허브</span>` : ''}</div>
         ${g.name_en && g.name_kr ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
@@ -2270,65 +2268,12 @@ function agRenderCatalogResults(list, term) {
     ? `<h2>📚 도감 검색 결과</h2>
        <div class="hint" style="margin-bottom:10px;">"${esc(term)}" — 게임을 누르면 정보를 그대로 가져와요.</div>
        ${list.map(agResultCardHtml).join('')}
-       <div id="ag-bgg-slot"></div>
        <div class="hint" style="margin:12px 0 6px;">찾는 게임이 없나요? 직접 등록해주세요.</div>
        <button class="btn ghost sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`
     : `<h2>📚 도감 검색</h2>
        <div class="empty" style="padding:22px 0 10px;">우리 도감엔 없는 게임이에요.</div>
-       <div id="ag-bgg-slot"></div>
        <button class="btn sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`;
   showDetailSheet();
-}
-
-// BGG에서 검색해 결과를 슬롯에 이어 붙임(영문명으로 잘 잡힘 · 한글은 커버 제한)
-async function agSearchBGG(term) {
-  const slot = document.getElementById('ag-bgg-slot');
-  if (!slot || state._agTerm !== term) return;
-  slot.innerHTML = `<div class="hint" style="text-align:center;margin:10px 0;">🌐 BGG에서도 찾는 중…</div>`;
-  // 실패 원인을 화면에 그대로 보여주는 도우미(진단용)
-  const showErr = async (label, err) => {
-    if (state._agTerm !== term) return;
-    let detail = '';
-    try {
-      if (err && err.context && typeof err.context.text === 'function') {
-        detail = (await err.context.text() || '').slice(0, 200);
-      }
-    } catch (e) {}
-    const name = (err && (err.name || '')) || '';
-    const msg = (err && (err.message || err.error || '')) || String(err || '');
-    slot.innerHTML = `<div class="hint" style="margin:10px 0;color:var(--danger);word-break:break-all;">
-      🌐 BGG 검색 실패 — ${esc(label)}${name ? ' · ' + esc(name) : ''}<br/>${esc(msg)}${detail ? '<br/>' + esc(detail) : ''}</div>`;
-  };
-  try {
-    if (!sb.functions || typeof sb.functions.invoke !== 'function') {
-      slot.innerHTML = `<div class="hint" style="margin:10px 0;color:var(--danger);">🌐 BGG: functions 클라이언트를 쓸 수 없어요(supabase-js 버전 확인)</div>`;
-      return;
-    }
-    const { data, error } = await sb.functions.invoke('bgg-search', { body: { q: term } });
-    if (error) { await showErr('함수 호출 오류', error); return; }
-    if (state._agTerm !== term) return;   // 그 사이 다른 검색을 함
-    if (data && data.error) { await showErr('BGG 응답 오류', { message: data.error }); return; }
-    const results = (data && data.results) || [];
-    // 이미 우리 도감/결과에 있는 영문명은 제외(중복 방지)
-    const have = new Set(Object.values(state._agResults || {})
-      .map(g => normGameName(g.name_en || '')).filter(Boolean));
-    const fresh = results.filter(r => r.name_en && !have.has(normGameName(r.name_en)));
-    if (!fresh.length) { slot.innerHTML = ''; return; }
-    fresh.forEach(r => {
-      const id = 'bgg:' + r.bgg_id;
-      state._agResults[id] = {
-        game_id: id, _bgg: true, on_shelf: false,
-        name_kr: '', name_en: r.name_en, category: '', summary_kr: '',
-        min_players: r.min_players, max_players: r.max_players,
-        playtime_min: r.playtime_min, image_url: r.image_url || ''
-      };
-    });
-    slot.innerHTML =
-      `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·시간·사진을 가져와요</div>`
-      + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('');
-  } catch (e) {
-    await showErr('예외', e);
-  }
 }
 
 // 도감 게임 선택 → 모든 정보를 도감 그대로 채움
@@ -2337,21 +2282,6 @@ function agPickCatalog(gid) {
   if (!g) return;
   if (g.on_shelf) { toast('이미 우리 허브에 있는 게임이에요.', true); return; }
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v == null ? '' : v; };
-  // BGG 결과: 새 게임으로 직접 등록(도감에 신규) — 한글명은 내가 입력한 것 유지,
-  // 영문명·인원·시간·사진만 BGG에서 채우고 분류는 직접 선택
-  if (g._bgg) {
-    set('ag-nameen', g.name_en);
-    set('ag-min', g.min_players); set('ag-max', g.max_players);
-    set('ag-time', g.playtime_min); set('ag-image', g.image_url);
-    document.getElementById('ag-cat-hub').value = '';
-    agHubCatWarn();
-    state.agPick = null;
-    agShowDetail('manual');
-    closeOverlay();
-    toast('BGG 정보를 가져왔어요. 분류를 선택해 등록해주세요.');
-    checkNewGameName();
-    return;
-  }
   set('ag-namekr', g.name_kr); set('ag-nameen', g.name_en);
   const catSel = document.getElementById('ag-category');
   if (g.category && ![...catSel.options].some(o => o.value === g.category)) {
@@ -2374,11 +2304,10 @@ function agPickCatalog(gid) {
 
 // 도감에 없음 → 직접 등록 모드(검색한 게임명은 입력칸에 그대로)
 function agRegisterNew() {
-  // 같은 이름(띄어쓰기 무시)이 이미 '우리 도감'에 있으면 직접 등록 차단 → 가져오기 유도
-  // (BGG 결과는 아직 우리 도감이 아니므로 제외 — 원하면 BGG 카드를 눌러 가져옴)
+  // 같은 이름(띄어쓰기 무시)이 이미 도감에 있으면 직접 등록 차단 → 가져오기 유도
   const key = normGameName(state._agTerm || '');
   const dup = key && Object.values(state._agResults || {}).find(g =>
-    !g._bgg && (normGameName(g.name_kr) === key || normGameName(g.name_en || '') === key));
+    normGameName(g.name_kr) === key || normGameName(g.name_en || '') === key);
   if (dup) {
     toast(`이미 도감에 등록된 게임이에요 — 목록에서 "${dup.name_kr}"를 눌러 가져와주세요.`, true);
     return;
@@ -3537,7 +3466,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2246 게임명 라벨 · BGG 오류 화면 노출(진단)';
+const APP_VERSION = 'v2258 BGG 연동 제거(자체 도감 검색만) · 게임명 라벨 유지';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

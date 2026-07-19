@@ -3174,9 +3174,8 @@ function renderAdminHubSection() {
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-top:0;">${personal ? '📔 기록장 설정' : '🏠 허브 설정'} <small class="muted" style="font-weight:500;">(개설 계정 전용)</small></div>
       <div style="display:flex;gap:8px;">
-        ${personal ? '' : `<input class="input" id="adm-hub-icon" value="${esc(hubIcon(state.hub))}" maxlength="2" readonly
-          onclick="openEmojiPicker('adm-hub-icon')"
-          style="flex:0 0 47px;width:47px;height:47px;padding:0;text-align:center;font-size:20px;cursor:pointer;" title="허브 아이콘 선택" />`}
+        ${personal ? '' : `<input class="input" id="adm-hub-icon" value="${esc(hubIcon(state.hub))}" maxlength="2"
+          style="flex:0 0 47px;width:47px;height:47px;padding:0;text-align:center;font-size:20px;" title="허브 아이콘(이모지)" />`}
         <input class="input" id="adm-hub-name" value="${esc(state.hub ? state.hub.name : '')}" maxlength="30" style="flex:1;min-width:0;" />
         <button class="btn sm" style="flex:0 0 auto;" onclick="adminHubRename()">저장</button>
       </div>
@@ -3219,6 +3218,9 @@ async function hubAuthCall(fn) {
 async function adminHubRename() {
   const name = document.getElementById('adm-hub-name').value.trim();
   if (!name) { toast('허브 이름을 입력하세요.', true); return; }
+  // 아이콘 먼저 검증(이름만 저장되고 아이콘은 거부되는 반쪽 저장 방지)
+  const iconPre = document.getElementById('adm-hub-icon');
+  if (iconPre && badIconMsg(iconPre.value.trim())) { toast(badIconMsg(iconPre.value.trim()), true); return; }
   const r = await hubAuthCall(() => api('hubRename', { name }));
   if (!r) return;
   const upd = { name: r.name };
@@ -3461,7 +3463,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1941 허브 아이콘 선택창(이모지 그리드) · 글자 입력 차단';
+const APP_VERSION = 'v1948 아이콘 자유 입력(검증 유지) · 닉네임 메뉴 순서 조정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3555,29 +3557,10 @@ function hubIcon(h) {
   return isPersonalHub(h) ? '📔' : '🎲';
 }
 
-// ===== 허브 아이콘 선택창 =====
-// 아이콘 입력칸은 직접 타이핑 불가(readonly) — 누르면 이 그리드에서 선택
-const EMOJI_CHOICES = [
-  '🎲','🎯','🃏','🀄','♟️','🧩','🎮','👑','🏆','🥇','🎉','🔥',
-  '⭐','🌟','💎','🍀','🌈','⚡','🚀','🛡️','⚔️','🗿','🎪','🎨',
-  '🐱','🐶','🐻','🦊','🐼','🐸','🦄','🐢','🦉','🐙','🦖','🐧',
-  '🍕','🍔','🍺','🍻','☕','🍩','🍪','🍎','🍇','🌮','🏠','📚'];
-
-function openEmojiPicker(targetId) {
-  state._emojiTarget = targetId;
-  const grid = document.getElementById('emoji-grid');
-  const cur = (document.getElementById(targetId) || {}).value || '';
-  grid.innerHTML = EMOJI_CHOICES.map(e =>
-    `<button type="button" class="emoji-opt ${e === cur ? 'on' : ''}" onclick="pickEmoji('${e}')">${e}</button>`).join('');
-  document.getElementById('emoji-picker').classList.add('show');
-}
-function pickEmoji(e) {
-  const inp = document.getElementById(state._emojiTarget || '');
-  if (inp) inp.value = e;
-  closeEmojiPicker();
-}
-function closeEmojiPicker() {
-  document.getElementById('emoji-picker').classList.remove('show');
+// 아이콘 검증: 글자·숫자·한글은 아이콘으로 쓸 수 없음(서버도 동일 규칙으로 거부)
+function badIconMsg(icon) {
+  if (icon && /[A-Za-z0-9가-힣ㄱ-ㅎㅏ-ㅣ]/.test(icon)) return '아이콘은 이모지 1개만 넣어주세요.';
+  return null;
 }
 
 // 초대 문구 붙여넣기 → 코드만 추출 ("... 초대코드: AB12CD" / 6자리 토큰)
@@ -3922,6 +3905,7 @@ async function startCreateHub() {
   showLoader('허브 만드는 중…');
   try {
     const icon = (document.getElementById('sc-icon') || {}).value?.trim() || '';
+    if (badIconMsg(icon)) { hideLoader(); toast(badIconMsg(icon), true); return; }
     const hub = await api('createHub', { name, kind: 'hub', icon });
     saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code, kind: 'hub',
               icon: hub.icon || icon || '🎲' });
@@ -4060,9 +4044,8 @@ function renderEmailStep(step, extra) {
       <h2>${isCreate ? '허브 정보 입력' : '기록장 정보 입력'}</h2>
       ${isCreate ? `<div style="display:flex;gap:8px;">
         <div class="field" style="flex:0 0 auto;"><label>허브 아이콘</label>
-          <input class="input" id="em-hubicon" value="🎲" maxlength="2" readonly
-                 onclick="openEmojiPicker('em-hubicon')"
-                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;cursor:pointer;" /></div>
+          <input class="input" id="em-hubicon" value="🎲" maxlength="2"
+                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
         <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
           <input class="input" id="em-hubname" placeholder="예: 슈필" maxlength="30" /></div>
       </div>` : ''}
@@ -4177,8 +4160,9 @@ async function emailSetupGo() {
   if (!nick || !/^\d{4}$/.test(pin)) { toast('닉네임과 숫자 4자리 PIN을 입력하세요.', true); return; }
   showLoader('만드는 중…');
   try {
-    const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal',
-      icon: isCreate ? ((document.getElementById('em-hubicon') || {}).value || '').trim() : '' });
+    const emIcon = isCreate ? ((document.getElementById('em-hubicon') || {}).value || '').trim() : '';
+    if (badIconMsg(emIcon)) { hideLoader(); toast(badIconMsg(emIcon), true); return; }
+    const hub = await api('createHub', { name: hubName, kind: isCreate ? 'hub' : 'personal', icon: emIcon });
     saveHub({ hub_id: hub.hub_id, name: hub.name, invite: hub.invite_code,
               kind: isCreate ? 'hub' : 'personal' });
     if (hub.existing) {

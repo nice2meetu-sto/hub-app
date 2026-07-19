@@ -17,12 +17,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1941">
+<link rel="stylesheet" href="styles.css?v=1948">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1941</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1948</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
@@ -98,22 +98,13 @@
 <div id="nick-menu">
   <button onclick="nickMenuPick('settings')">👤 개인설정</button>
   <button onclick="nickMenuPick('feedback')">💬 의견보내기</button>
-  <button onclick="nickMenuPick('logout')">🚪 로그아웃</button>
   <button onclick="nickMenuPick('main')">🏠 메인으로</button>
+  <button onclick="nickMenuPick('logout')">🚪 로그아웃</button>
 </div>
 
 <!-- ===== 중앙 미니 팝업 (개인설정 / 의견보내기) ===== -->
 <div id="mini-overlay" onclick="if(event.target===this)closeMiniPopup()">
   <div class="gd-memo-card" id="mini-card"></div>
-</div>
-
-<!-- ===== 허브 아이콘 선택창 (이모지 그리드) ===== -->
-<div id="emoji-picker" onclick="if(event.target===this)closeEmojiPicker()">
-  <div class="gd-memo-card" style="max-width:340px;">
-    <h3>허브 아이콘 선택</h3>
-    <div class="muted">허브를 나타낼 이모지를 골라주세요</div>
-    <div id="emoji-grid"></div>
-  </div>
 </div>
 
 <!-- ===== Generic detail sheet (게임 상세) ===== -->
@@ -237,9 +228,8 @@
     <div class="start-view" id="sv-create" style="display:none;">
       <div style="display:flex;gap:8px;text-align:left;">
         <div class="field" style="flex:0 0 auto;"><label>허브 아이콘</label>
-          <input class="input" id="sc-icon" value="🎲" maxlength="2" readonly
-                 onclick="openEmojiPicker('sc-icon')"
-                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;cursor:pointer;" /></div>
+          <input class="input" id="sc-icon" value="🎲" maxlength="2"
+                 style="width:43px;height:43px;padding:0;text-align:center;font-size:20px;" /></div>
         <div class="field" style="flex:1;min-width:0;"><label>허브 이름</label>
           <input class="input" id="sc-name" placeholder="예: 슈필" maxlength="30" /></div>
       </div>
@@ -289,6 +279,6 @@
 
 <!-- Supabase JS 클라이언트 (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=1941"></script>
+<script src="app.js?v=1948"></script>
 </body>
 </html>

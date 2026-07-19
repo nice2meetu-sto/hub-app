@@ -815,8 +815,10 @@ function renderSessionList(containerId, sessions, opts = {}) {
     return;
   }
   el.innerHTML = sessions.map(s => {
-    // 관리자 페이지에서는 모든 기록 수정 가능
-    const canEdit = state.user && (opts.admin || (s.created_by && String(s.created_by) === String(state.user.player_id)));
+    // 관리자 페이지에서는 모든 기록 수정 가능.
+    // 내가 쓴 기록 판정은 '사람' 단위(isMyPid) — 기록장 통합 화면에서도
+    // 다른 허브에서 내가 쓴 기록을 바로 수정할 수 있음(서버도 동일 규칙)
+    const canEdit = state.user && (opts.admin || (s.created_by && isMyPid(s.created_by)));
     const editing = state._editSid === s.session_id;
     const dur = s.duration_min ? ` · ${s.duration_min}분` : '';
     // 관리자 페이지: 작성자 표시(회색 배지)
@@ -1217,7 +1219,11 @@ async function openHubMenu() {
       isPersonalHub(state.hub) ? 'personal' : 'hub', state.hub.invite || '', true, false);
   } else { openStartPage(true); return; }
   el.innerHTML = `
-    <h2 style="font-size:17px;font-weight:900;margin:2px 2px 12px;">내 허브</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 2px 12px;">
+      <h2 style="font-size:17px;font-weight:900;margin:0;flex:0 0 auto;">내 허브</h2>
+      <button class="logout-link" style="color:var(--main);text-align:right;line-height:1.5;min-width:0;"
+        onclick="closeHubMenu(); goLinksPage();">🔗 여러 허브에 가입하셨다면?<br/>이메일 가입 후 연결</button>
+    </div>
     ${rows}
     <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
@@ -1363,24 +1369,13 @@ function hubGamesList() {
 }
 
 // MY 하단: 계정 연결 상태/버튼
-function renderMyLinkRow() {
-  const el = document.getElementById('my-linkrow');
-  if (!el || !state.user) return;
-  const me = (state.players || []).find(p => p.player_id === state.user.player_id);
-  if (me && me.linked) {
-    el.innerHTML = `<span class="hint">✓ 이메일 계정 연결됨 · 여러 허브 기록을 모아볼 수 있어요</span>`;
-  } else {
-    el.innerHTML = `<button class="logout-link" style="color:var(--main);" onclick="goLinksPage()">🔗 여러 허브에 가입하셨다면? 기록 연결하러 가기</button>
-      <div class="hint" style="margin-top:4px;">메인 [이메일로 시작]에서 여러 허브의 내 기록을 통합해 보세요</div>`;
-  }
-}
+// (MY 하단 계정 연결 안내는 좌측 상단 [내 허브] 메뉴로 이동)
 
 function renderMy() {
   if (!state.user) { renderLoginForm(); return; }
   document.getElementById('my-login').style.display = 'none';
   document.getElementById('my-content').style.display = 'block';
   loadMyLinks();
-  renderMyLinkRow();
   // 게임기록 탭 데이터(내 평점)를 전체기록 통계와 병렬로 미리 로드 → 탭 전환 시 즉시 표시
   ensureMyRatings().catch(() => {});
   const tab = state.myTab || 'overview';
@@ -1445,6 +1440,112 @@ async function goLinksPage(skipPrefill) {
 }
 
 function goMain() { openStartPage(true); }
+
+// ===== 상단 닉네임 탭 → 미니 설정 메뉴 =====
+// MY 탭에서 닉네임을 누르면 그 아래 작은 드롭다운 메뉴, 그 외에는 MY로 이동
+function whoamiTap(e) {
+  if (!state.user) { switchView('my'); return; }
+  const onMy = document.getElementById('view-my').classList.contains('active');
+  if (!onMy) { switchView('my'); return; }
+  e.stopPropagation();
+  toggleNickMenu();
+}
+
+function toggleNickMenu() {
+  const m = document.getElementById('nick-menu');
+  if (m.classList.contains('show')) { closeNickMenu(); return; }
+  const r = document.getElementById('whoami').getBoundingClientRect();
+  m.style.top = (r.bottom + 6) + 'px';
+  m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  m.classList.add('show');
+  setTimeout(() => document.addEventListener('click', nickMenuOutside), 0);
+}
+function nickMenuOutside(e) {
+  if (!document.getElementById('nick-menu').contains(e.target)) closeNickMenu();
+}
+function closeNickMenu() {
+  document.getElementById('nick-menu').classList.remove('show');
+  document.removeEventListener('click', nickMenuOutside);
+}
+
+async function nickMenuPick(action) {
+  closeNickMenu();
+  if (action === 'settings') openSelfSettings();
+  else if (action === 'feedback') openFeedback();
+  else if (action === 'logout') await startSignOut();   // 완전 로그아웃 후 메인으로
+  else if (action === 'main') goMain();                 // 로그인 유지한 채 메인으로
+}
+
+// 중앙 미니 팝업(개인설정·의견보내기 공용)
+function openMiniPopup(html) {
+  document.getElementById('mini-card').innerHTML = html;
+  const ov = document.getElementById('mini-overlay');
+  ov.classList.add('show');
+  openOverlay(() => ov.classList.remove('show'));
+}
+function closeMiniPopup() { closeOverlay(); }
+
+// 개인설정: 이 허브의 내 닉네임/비밀번호 변경
+function openSelfSettings() {
+  openMiniPopup(`
+    <h3>👤 개인설정</h3>
+    <div class="muted">이 허브에서 쓰는 닉네임과 비밀번호를 바꿔요.</div>
+    <div class="field" style="margin-top:14px;"><label>닉네임</label>
+      <input class="input" id="ss-name" value="${esc(state.user.name)}" maxlength="20" /></div>
+    <div class="field"><label>새 비밀번호 (숫자 4자리 — 안 바꾸면 비워두세요)</label>
+      <input class="input" id="ss-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" /></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn ghost sm" style="flex:1;" onclick="closeMiniPopup()">취소</button>
+      <button class="btn sm" style="flex:1;" onclick="saveSelfSettings()">저장</button>
+    </div>`);
+}
+
+async function saveSelfSettings() {
+  const name = document.getElementById('ss-name').value.trim();
+  const newPin = document.getElementById('ss-pin').value.trim();
+  if (!name) { toast('닉네임을 입력하세요.', true); return; }
+  if (newPin && !/^\d{4}$/.test(newPin)) { toast('비밀번호는 숫자 4자리로 입력하세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('저장 중…');
+  try {
+    await sbrpc('update_member_self', {
+      p_player_id: state.user.player_id, p_pin: pin, p_name: name, p_new_pin: newPin || null });
+    state.user.name = name;
+    localStorage.setItem('bg_user', JSON.stringify(state.user));
+    if (newPin) localStorage.setItem('bg_pin', newPin);
+    try { state.players = await api('getPlayers'); } catch (e) {}
+    updateWhoami();
+    toast('저장했어요!');
+    closeMiniPopup();
+    renderMy();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// 의견보내기: 건의 게시판(suggestions)에 일반 의견으로 저장
+function openFeedback() {
+  openMiniPopup(`
+    <h3>💬 의견보내기</h3>
+    <div class="muted">어플 사용하시며 느낀 의견을 남겨주세요!</div>
+    <textarea class="input" id="fb-text" placeholder="불편한 점, 바라는 기능, 아이디어 무엇이든 좋아요"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="btn ghost sm" style="flex:1;" onclick="closeMiniPopup()">취소</button>
+      <button class="btn sm" style="flex:1;" onclick="sendFeedback()">보내기</button>
+    </div>`);
+}
+
+async function sendFeedback() {
+  const content = document.getElementById('fb-text').value.trim();
+  if (!content) { toast('의견 내용을 입력하세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('보내는 중…');
+  try {
+    await sbrpc('add_feedback', { p_player_id: state.user.player_id, p_pin: pin, p_content: content });
+    toast('소중한 의견 고마워요! 🙏');
+    closeMiniPopup();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
 
 function updateWhoami() {
   const el = document.getElementById('whoami');
@@ -1803,14 +1904,14 @@ async function renderMyGames() {
 }
 
 // 게임 기록 통합(전체/특정 허브): 허브 게임 기록과 같은 카드 형식.
-// ★=전체 이용자 평점(공용 도감 기준), 나 ★=내 평점(허브별 평균).
-// 평점·후기·메모 편집은 각 허브의 게임 기록에서.
+// ★=나와 게임한 사람들 평점, 평점·후기는 게임 단위 공용이라 여기서 바로 수정 가능
 async function renderMyGamesAll(el, scope) {
   const chips = '';
-  if (!state._myAllGames) {
+  if (!state._myAllGames || !state._myRatings) {
     el.innerHTML = `${chips}<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
     try {
-      state._myAllGames = await api('getMyGamesAll') || [];
+      if (!state._myAllGames) state._myAllGames = await api('getMyGamesAll') || [];
+      await ensureMyRatings();   // 평점 에디터에 내 기존 평점·후기 표시용
     } catch (e) {
       el.innerHTML = `${chips}<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
       return;
@@ -1829,7 +1930,7 @@ async function renderMyGamesAll(el, scope) {
   }
   state._myGamesAllList = games;
   el.innerHTML = `${chips}
-    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=나와 게임한 사람들 평점)<br>평점·후기·메모는 각 허브의 게임 기록에서 남길 수 있어요.</div>
+    <div class="hint" style="margin-bottom:10px;text-align:center;">여러 허브의 내 게임 기록을 모아 보여줘요. (★=나와 게임한 사람들 평점)<br>평점과 후기는 게임마다 하나 — 여기서 남기면 모든 허브에 이어져요.</div>
     <div class="searchrow">
       <div class="searchbox"><span>🔍</span><input id="my-gamesall-search" placeholder="게임 이름, 카테고리 검색" oninput="filterMyGamesAll()" /></div>
       <button class="sortbtn ${state.myGamesSortRating ? 'on' : ''}" id="my-gamesall-sort-btn" title="내 평점 정렬" onclick="cycleMyGamesAllSort()">${sortBtnLabel(state.myGamesSortRating)}</button>
@@ -1859,7 +1960,7 @@ function filterMyGamesAll() {
   const cards = document.getElementById('my-gamesall-cards');
   if (!cards) return;
   cards.innerHTML = list.length
-    ? list.map(g => gameCardHtml(g, { showMine: true, myDetail: true })).join('')
+    ? list.map(g => gameCardHtml(g, { ratingEditor: true })).join('')
     : `<div class="empty">검색 결과가 없어요.</div>`;
 }
 
@@ -1958,6 +2059,7 @@ async function saveRating(gameId) {
     if (hasRating) state.games = await api('getGames');
     toast('저장되었습니다!');
     if (state.myTab === 'games' && document.getElementById('my-games-cards')) filterMyGames();
+    if (state.myTab === 'games' && document.getElementById('my-gamesall-cards')) filterMyGamesAll();
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -3336,7 +3438,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1825 이메일 로그인 화면 정리(기존 허브 연결 버튼) · 시작 화면 뒤로가기 지원';
+const APP_VERSION = 'v1858 닉네임 미니 메뉴(개인설정·의견·로그아웃) · 기록장에서 내 기록/평점 수정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -858,7 +858,7 @@ function renderSessionList(containerId, sessions, opts = {}) {
         ${canEdit
           ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="startEditSession('${esc(s.session_id)}')">수정</button>`
           : (s.created_by
-              ? `<span style="flex:0 0 auto;font-size:12px;color:var(--text-sub);padding:5px 2px;" title="이 기록의 작성자 — 수정은 작성자에게 부탁하세요">작성 ${esc(sessAuthorName(s))}</span>` : '')}
+              ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;background:#f0f0f4;color:var(--text-sub);" onclick="sessAuthorToast('${esc(s.session_id)}')">${esc(sessAuthorName(s))}</button>` : '')}
       </div>
       <div class="participants">${parts}</div>
     </div>`;
@@ -868,6 +868,13 @@ function renderSessionList(containerId, sessions, opts = {}) {
 function playerNameById(pid) {
   const p = (state.players || []).find(x => String(x.player_id) === String(pid));
   return p ? p.name : pid;
+}
+
+// 작성자 이름 버튼 탭 → 안내 토스트(모바일에서는 title 툴팁이 안 떠서)
+function sessAuthorToast(sid) {
+  const s = ((_sessCtx && _sessCtx.sessions) || []).find(x => String(x.session_id) === String(sid));
+  if (!s) return;
+  toast(sessAuthorName(s) + '님이 쓴 기록이에요 · 수정은 작성자에게 부탁하세요!');
 }
 
 // 기록 작성자 이름: 현재 허브 명단 → (통합 기록) 참가자 명단 순으로 찾기
@@ -3317,7 +3324,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1629 기록장 게임탭에 직접 등록 게임 포함 · 플레이 기록 작성자 표시 · 연결 허브 관리 정돈';
+const APP_VERSION = 'v1637 작성자 이름 버튼 스타일·탭 안내 토스트';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

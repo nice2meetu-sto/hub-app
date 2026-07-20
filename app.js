@@ -125,6 +125,9 @@ async function api(action, params = {}) {
     case 'createHub':     return sbrpc('create_hub', { p_name: P.name, p_kind: P.kind || 'hub', p_icon: P.icon || '' });
     case 'loginLinked':   return sbrpc('login_linked', { p_hub_id: hubId() });
     case 'searchCatalog': return sbrpc('search_catalog', { p_hub_id: hubId(), p_term: P.term });
+    case 'catalogBrowse': return sbrpc('catalog_browse', {
+                             p_hub_id: hubId(), p_category: P.category ?? null,
+                             p_term: P.term ?? null, p_limit: P.limit ?? 50, p_offset: P.offset ?? 0 });
     case 'myHubs':        return sbrpc('my_hubs');
     case 'hubGetInvite':  return sbrpc('hub_get_invite', { p_hub_id: hubId() });
     case 'linkPlayer':    return sbrpc('link_player', { p_hub_id: hubId(), p_player_id: P.playerId, p_pin: P.pin });
@@ -3080,6 +3083,192 @@ function openAdminPage() {
 }
 function closeAdminPage() { closeOverlay(); }
 
+// ============================================================
+//  게임 도감 (전체 도감을 플레이 많은 순으로 카드형 브라우즈)
+// ============================================================
+function openDogam() {
+  if (!state.hub) { toast('먼저 허브에 입장해주세요.', true); return; }
+  const page = document.getElementById('dogam-page');
+  page.classList.add('show'); page.scrollTop = 0;
+  openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
+  document.getElementById('dogam-search').value = '';
+  state._dogam = { cat: null, term: '', offset: 0, loading: false, done: false, byId: {} };
+  updateDogamTitle();
+  // 무한 스크롤 감시(최초 1회만 생성)
+  if (!state._dogamObs && 'IntersectionObserver' in window) {
+    state._dogamObs = new IntersectionObserver(
+      ents => { if (ents.some(e => e.isIntersecting)) dogamLoad(false); },
+      { root: page, rootMargin: '400px' });
+    state._dogamObs.observe(document.getElementById('dogam-sentinel'));
+  }
+  dogamLoad(true);
+}
+function closeDogam() { closeOverlay(); }
+
+function updateDogamTitle() {
+  const d = state._dogam || {};
+  const sub = document.getElementById('dogam-sub');
+  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : (d.cat || '전체');
+}
+
+// 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
+async function dogamLoad(reset) {
+  const d = state._dogam;
+  if (!d || d.loading || (!reset && d.done)) return;
+  d.loading = true;
+  const grid = document.getElementById('dogam-grid');
+  if (reset) {
+    d.offset = 0; d.done = false; d.byId = {};
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  }
+  try {
+    // 검색 중엔 카테고리 무시(전체 카테고리에서 검색)
+    const rows = await api('catalogBrowse', {
+      category: d.term ? null : d.cat, term: d.term || null, limit: 50, offset: d.offset }) || [];
+    if (reset) grid.innerHTML = '';
+    const fresh = rows.filter(g => !d.byId[g.game_id]);
+    fresh.forEach(g => { d.byId[g.game_id] = g; });
+    grid.insertAdjacentHTML('beforeend', fresh.map(dogamCardHtml).join(''));
+    d.offset += rows.length;
+    if (rows.length < 50) d.done = true;
+    if (reset && !rows.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">${d.term ? '검색 결과가 없어요.' : '도감에 게임이 없어요.'}</div>`;
+    }
+  } catch (e) {
+    d.done = true;
+    if (reset) grid.innerHTML = `<div class="empty" style="grid-column:1/-1;">불러오기 실패 😢<br>` +
+      `<span class="hint">서버에 catalog_browse 함수가 필요해요<br>(supabase_migration_dogam.sql 실행)</span></div>`;
+  } finally { d.loading = false; }
+}
+
+function dogamCardHtml(g) {
+  const title = esc(g.name_kr || g.name_en || '');
+  const en = (g.name_en && g.name_kr) ? esc(g.name_en) : '&nbsp;';
+  return `<div class="dg-card" onclick="dogamDetail('${esc(g.game_id)}')">
+    ${thumb(g.image_url, 'dg-img')}
+    <div class="dg-name">${title}</div>
+    <div class="dg-en">${en}</div>
+  </div>`;
+}
+
+// 카테고리 드롭다운(공용 8종 + 전체)
+function toggleDogamCat(e) {
+  if (e) e.stopPropagation();
+  const m = document.getElementById('dogam-catmenu');
+  if (m.classList.contains('show')) { closeDogamCat(); return; }
+  const r = document.getElementById('dogam-menu-btn').getBoundingClientRect();
+  m.style.top = (r.bottom + 6) + 'px';
+  m.style.left = Math.max(8, r.left) + 'px';
+  const cur = (state._dogam && state._dogam.cat) || '';
+  const cats = ['전체', ...CATALOG_CATEGORIES];
+  m.innerHTML = cats.map(c => {
+    const val = c === '전체' ? '' : c;
+    const on = cur === val;
+    return `<button class="${on ? 'on' : ''}" onclick="dogamPickCat('${esc(val)}')">${on ? '✓ ' : ''}${esc(c)}</button>`;
+  }).join('');
+  m.classList.add('show');
+  setTimeout(() => document.addEventListener('click', dogamCatOutside), 0);
+}
+function dogamCatOutside(e) {
+  if (!document.getElementById('dogam-catmenu').contains(e.target)) closeDogamCat();
+}
+function closeDogamCat() {
+  document.getElementById('dogam-catmenu').classList.remove('show');
+  document.removeEventListener('click', dogamCatOutside);
+}
+function dogamPickCat(cat) {
+  closeDogamCat();
+  const d = state._dogam;
+  d.cat = cat || null;
+  d.term = ''; document.getElementById('dogam-search').value = '';
+  document.getElementById('dogam-page').scrollTop = 0;
+  updateDogamTitle();
+  dogamLoad(true);
+}
+
+function dogamSearchInput() {
+  clearTimeout(state._dogamTimer);
+  state._dogamTimer = setTimeout(() => {
+    if (!state._dogam) return;
+    state._dogam.term = document.getElementById('dogam-search').value.trim();
+    document.getElementById('dogam-page').scrollTop = 0;
+    updateDogamTitle();
+    dogamLoad(true);
+  }, 300);
+}
+
+// 카드 클릭 → 중앙 팝업(세부정보 + 우리 hub에 추가)
+function dogamDetail(gid) {
+  const g = state._dogam && state._dogam.byId[gid];
+  if (!g) return;
+  const where = isPersonalHub(state.hub) ? '기록장' : '허브';
+  const meta = [];
+  if (g.min_players || g.max_players) {
+    const mn = g.min_players || '?', mx = g.max_players || '?';
+    meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
+  }
+  if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+  if (g.weight) meta.push(`🧠 난이도 ${Number(g.weight).toFixed(2)}`);
+  openMiniPopup(`
+    <div class="dg-detail">
+      ${thumb(g.image_url, 'dg-detail-img')}
+      <h3 style="margin:12px 0 2px;">${esc(g.name_kr || g.name_en)}</h3>
+      ${(g.name_en && g.name_kr) ? `<div class="hint" style="margin:0 0 6px;">${esc(g.name_en)}</div>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0 4px;">
+        ${g.category ? `<span class="badge">${esc(g.category)}</span>` : ''}
+        ${meta.map(m => `<span class="badge" style="background:var(--main-light);color:var(--main);">${m}</span>`).join('')}
+      </div>
+      <div style="font-size:13px;line-height:1.6;color:#444;text-align:left;white-space:pre-wrap;margin:8px 2px 2px;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없어요.</span>'}</div>
+      <div id="dg-add-zone" style="margin-top:16px;">
+        ${g.on_shelf
+          ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
+          : `<button class="btn" style="width:100%;" onclick="dogamAddToHub('${esc(gid)}')">➕ 우리 ${where}에 추가</button>`}
+      </div>
+      <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="closeMiniPopup()">닫기</button>
+    </div>`);
+}
+
+// '우리 hub에 추가' → 분류 선택 노출
+function dogamAddToHub(gid) {
+  const g = state._dogam && state._dogam.byId[gid];
+  if (!g) return;
+  if (!state.user) { toast('먼저 로그인해주세요.', true); return; }
+  const zone = document.getElementById('dg-add-zone');
+  if (!zone) return;
+  const preset = CATEGORIES.includes(g.category) ? g.category : '';
+  zone.innerHTML = `
+    <div class="field" style="text-align:left;margin-bottom:8px;"><label>우리 분류 선택 *</label>
+      <select class="input" id="dg-hubcat">
+        <option value="">선택해주세요</option>
+        ${CATEGORIES.map(c => `<option value="${esc(c)}" ${c === preset ? 'selected' : ''}>${esc(c)}</option>`).join('')}
+      </select></div>
+    <button class="btn" style="width:100%;" onclick="dogamConfirmAdd('${esc(gid)}')">추가하기</button>`;
+}
+async function dogamConfirmAdd(gid) {
+  const g = state._dogam && state._dogam.byId[gid];
+  if (!g) return;
+  const hubCat = (document.getElementById('dg-hubcat') || {}).value;
+  if (!hubCat) { toast('분류를 선택해주세요.', true); return; }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('추가 중…');
+  try {
+    await api('addGame', { payload: JSON.stringify({
+      player_id: state.user.player_id, pin,
+      name_kr: g.name_kr, name_en: g.name_en || '',
+      category: g.category || '', hub_category: hubCat,
+      min_players: g.min_players, max_players: g.max_players,
+      playtime_min: g.playtime_min, weight: g.weight,
+      image_url: g.image_url || '', summary_kr: g.summary_kr || ''
+    }) });
+    state.games = await api('getGames');
+    g.on_shelf = true;
+    const where = isPersonalHub(state.hub) ? '기록장' : '허브';
+    toast(`우리 ${where}에 추가했어요! 🎉`);
+    closeMiniPopup();
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
 function switchAdminTab(tab) {
   ['games', 'plays', 'players'].forEach(t => {
     document.getElementById('admtab-' + t).classList.toggle('on', t === tab);
@@ -3571,7 +3760,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1943 허브 진입 시 로딩 다 끝난 뒤 시작화면 닫아 로딩 비침 방지';
+const APP_VERSION = 'v2027 게임 도감(📚): 플레이순 카드 그리드·카테고리·검색·상세·허브추가';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

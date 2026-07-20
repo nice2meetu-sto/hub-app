@@ -17,15 +17,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1943">
+<link rel="stylesheet" href="styles.css?v=2027">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v1943</span></h1>
+    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v2027</span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
       <button id="admin-btn" onclick="openAdminPage()" title="관리자 페이지"
               style="display:none;background:#fff3e0;color:#c77700;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🛠</button>
+      <button onclick="openDogam()" title="게임 도감"
+              style="background:var(--main-light);color:var(--main);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📚</button>
       <button onclick="refreshAll()" title="최신 데이터로 업데이트"
               style="background:var(--main-light);color:var(--main);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
       <div class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;">비로그인</div>
@@ -139,6 +141,26 @@
     <div class="gd-memo-card" id="gd-session-card"></div>
   </div>
 </div>
+
+<!-- ===== 게임 도감 (전체 화면) ===== -->
+<div id="dogam-page">
+  <div class="gd-header"><button class="gd-back" onclick="closeDogam()">‹ 돌아가기</button></div>
+  <div class="dg-titlerow">
+    <button id="dogam-menu-btn" onclick="toggleDogamCat(event)" title="카테고리">☰</button>
+    <h2 id="dogam-title">게임 도감</h2>
+    <span id="dogam-sub" class="hint" style="margin:0;">전체</span>
+  </div>
+  <div class="searchrow">
+    <div class="searchbox"><span>🔍</span>
+      <input id="dogam-search" placeholder="게임 검색 (한글/영문)" oninput="dogamSearchInput()" />
+    </div>
+  </div>
+  <div id="dogam-grid"></div>
+  <div id="dogam-sentinel" style="height:1px;"></div>
+</div>
+
+<!-- 게임 도감 카테고리 드롭다운 -->
+<div id="dogam-catmenu"></div>
 
 <!-- ===== 관리자 페이지 (전체 화면, admin 전용) ===== -->
 <div id="admin-page">
@@ -297,6 +319,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1943"></script>
+<script src="app.js?v=2027"></script>
 </body>
 </html>

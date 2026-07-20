@@ -367,6 +367,13 @@
     gap: 3px; color: var(--text-sub); font-size: 11px; font-weight: 500;
   }
   .tab .ico { font-size: 20px; line-height: 1; }
+  .tab-add { color: var(--main); font-weight: 700; }
+  .tab-add .add-ico {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--main); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 400;
+    box-shadow: 0 3px 10px rgba(83,74,183,.4); margin-bottom: 1px;
+  }
+  .tab-add:active .add-ico { background: var(--main-dark); }
   .tab.on { color: var(--main); font-weight: 700; }
   .fab {
     position: fixed; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0)); z-index: 55;
@@ -398,6 +405,7 @@
   /* 추가 시트: 항상 최대 높이(--sheet-h)로 열림.
      플레이 결과 폼은 세로 flex — 일자·게임·참가자 헤더줄은 고정,
      참가자 목록(#ap-participants)만 내부 스크롤 */
+  #add-overlay { z-index: 240; }   /* 도감 탭(220) 위에서도 열리도록 */
   #add-overlay .sheet { height: var(--sheet-h); display: flex; flex-direction: column; }
   #add-play-form { flex: 1; min-height: 0; flex-direction: column; }  /* display는 탭 전환 JS가 지정 */
   .ap-parts-field { flex: 1; min-height: 0; display: flex; flex-direction: column; }

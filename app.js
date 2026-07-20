@@ -5,6 +5,10 @@
 const SUPABASE_URL = "https://pqnvfcxstfyjsufdrgcm.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxbnZmY3hzdGZ5anN1ZmRyZ2NtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNDM2OTEsImV4cCI6MjA5OTkxOTY5MX0.drHD0rkKgKuzY2h4T0CW4Mo68KqW6k3nVOGJGvGnfHU";
 
+// 구글 로그인(Google Identity Services). 팝업을 내 도메인에서 띄워
+// 구글 화면에 boardgame-hub.com 이 표시됨(supabase.co 노출 X, 추가비용 0).
+const GOOGLE_CLIENT_ID = "645541153068-3hdo02s304t6rn9n3q764onje9er296j.apps.googleusercontent.com";
+
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
   ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
@@ -3567,7 +3571,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1805 구글 로그인(OAuth) 추가 — 인증 후 기록장 설정 흐름 공용';
+const APP_VERSION = 'v1910 구글 로그인 GIS 방식(내 도메인 팝업, 무료)으로 교체';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3646,6 +3650,7 @@ function startShow(view, isBack) {
     logo.textContent = view === 'invite'
       ? hubIcon(state._joinHub) : '🎲';
   }
+  if (view === 'email') renderGoogleButton();   // 구글 공식 버튼 렌더(GIS)
 }
 
 // 개인 기록장 여부: kind(DB 컬럼)만 기준 — 이름과 완전히 무관.
@@ -3692,11 +3697,90 @@ function startEmailEntry() {
   }).catch(() => { seSetMode('login'); startShow('email'); });
 }
 
-// ----- 구글로 시작 -----
-// Google로 리다이렉트 → 인증 후 이 페이지로 복귀(#access_token). 복귀 처리는
-// init()이 handleAuthReturn()으로 받아 개인 기록장 없으면 닉네임·PIN 설정으로 안내.
-async function startGoogle() {
-  const btn = document.getElementById('se-google');
+// ----- 구글로 시작 (Google Identity Services) -----
+// 팝업을 내 도메인(boardgame-hub.com)에서 띄워 ID 토큰을 받고,
+// Supabase signInWithIdToken으로 로그인 → 구글 화면에 내 도메인이 표시됨.
+// 리다이렉트가 없으므로 콜백 도메인(supabase.co)이 노출되지 않음.
+
+// GIS 스크립트(async) 로드 대기
+function ensureGis(timeout = 3000) {
+  return new Promise((resolve) => {
+    if (window.google && google.accounts && google.accounts.id) return resolve(true);
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if (window.google && google.accounts && google.accounts.id) { clearInterval(iv); resolve(true); }
+      else if (Date.now() - t0 > timeout) { clearInterval(iv); resolve(false); }
+    }, 100);
+  });
+}
+
+// 보안용 nonce: 원본은 signInWithIdToken에, SHA-256 해시는 구글 initialize에 전달.
+// crypto.subtle이 없는 환경(비보안 컨텍스트)에선 nonce 없이 진행(기능은 동작).
+async function makeGoogleNonce() {
+  try {
+    const raw = ([...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join(''));
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    const hashed = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    return { raw, hashed };
+  } catch (e) { return null; }
+}
+
+// 이메일 화면이 열릴 때 구글 공식 버튼을 슬롯에 렌더(없으면 폴백 버튼 노출)
+async function renderGoogleButton() {
+  const slot = document.getElementById('g-signin-slot');
+  const fallback = document.getElementById('se-google-fallback');
+  if (!slot) return;
+  const ok = await ensureGis();
+  if (!ok) {   // 스크립트 차단/미로딩 → 리다이렉트 폴백 버튼
+    slot.innerHTML = '';
+    if (fallback) fallback.style.display = 'flex';
+    return;
+  }
+  if (fallback) fallback.style.display = 'none';
+  const nonce = await makeGoogleNonce();
+  state._gNonce = nonce ? nonce.raw : null;
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: onGoogleCredential,
+      ux_mode: 'popup',
+      context: 'signin',
+      ...(nonce ? { nonce: nonce.hashed } : {}),
+    });
+    slot.innerHTML = '';
+    const w = Math.min(360, Math.max(240, slot.clientWidth || 300));
+    google.accounts.id.renderButton(slot, {
+      type: 'standard', theme: 'outline', size: 'large',
+      text: 'continue_with', shape: 'pill', logo_alignment: 'center',
+      locale: 'ko', width: w,
+    });
+  } catch (e) {
+    slot.innerHTML = '';
+    if (fallback) fallback.style.display = 'flex';
+  }
+}
+
+// 구글이 돌려준 ID 토큰으로 Supabase 로그인 → 기록장 설정/허브 목록으로
+async function onGoogleCredential(response) {
+  if (!response || !response.credential) return;
+  showLoader('구글 로그인 중…');
+  try {
+    const { error } = await sb.auth.signInWithIdToken({
+      provider: 'google',
+      token: response.credential,
+      ...(state._gNonce ? { nonce: state._gNonce } : {}),
+    });
+    if (error) throw error;
+    await loadStartHubs();   // 개인 기록장 없으면 닉네임·PIN 설정 화면으로 안내
+    toast('구글 로그인 완료! 🎉');
+  } catch (e) {
+    toast('구글 로그인 실패: ' + (e.message || e), true);
+  } finally { hideLoader(); }
+}
+
+// 폴백(스크립트 차단 등): 예전 리다이렉트 방식 — 구글 화면엔 supabase.co가 뜨지만 동작은 함
+async function startGoogleRedirect() {
+  const btn = document.getElementById('se-google-fallback');
   if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
   try {
     const { error } = await sb.auth.signInWithOAuth({
@@ -3704,7 +3788,6 @@ async function startGoogle() {
       options: { redirectTo: location.origin + location.pathname },
     });
     if (error) throw error;
-    // 성공 시 브라우저가 Google로 이동하므로 이 아래는 실행되지 않음
   } catch (e) {
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
     toast('구글 로그인을 시작하지 못했어요: ' + (e.message || e), true);

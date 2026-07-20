@@ -11,7 +11,7 @@ const GOOGLE_CLIENT_ID = "645541153068-3hdo02s304t6rn9n3q764onje9er296j.apps.goo
 
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
-  ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+  ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임', '기타'];
 
 // Supabase 클라이언트
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -2123,7 +2123,7 @@ function switchAddTab(tab) {
 
 // ----- 게임 추가 -----
 // 기본 분류(폴백). 앱 시작 시 Supabase categories 테이블에서 읽어와 덮어씀
-let CATEGORIES = ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임'];
+let CATEGORIES = ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임', '기타'];
 // 도감(공용) 기본 분류 — 도감 분류 선택지는 서비스 공통 8종 고정
 const CATALOG_CATEGORIES = DEFAULT_CATEGORIES_FALLBACK;
 
@@ -3832,7 +3832,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2042 도감 상세 팝업: 요약 중앙정렬·추가버튼 🎲·높이 축소';
+const APP_VERSION = 'v2049 전역 word-break keep-all·기본 카테고리 기타 추가(9종)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

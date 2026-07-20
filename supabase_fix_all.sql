@@ -2031,7 +2031,7 @@ begin
 
   insert into public.categories(hub_id, name, sort_order) values
     (v_id,'전략',1),(v_id,'마피아',2),(v_id,'파티게임',3),(v_id,'트릭테이킹',4),
-    (v_id,'1대1 게임',5),(v_id,'카드게임',6),(v_id,'경매게임',7),(v_id,'협력게임',8)
+    (v_id,'1대1 게임',5),(v_id,'카드게임',6),(v_id,'경매게임',7),(v_id,'협력게임',8),(v_id,'기타',9)
   on conflict (hub_id, name) do nothing;
 
   return json_build_object('hub_id', v_id, 'name', v_name, 'invite_code', v_code,

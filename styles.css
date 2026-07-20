@@ -24,6 +24,7 @@
     color: var(--text);
     font-size: 15px;
     line-height: 1.45;
+    word-break: keep-all;   /* 한글이 단어(어절) 중간에서 끊기지 않게 — 전역 기본값 */
   }
   #app {
     max-width: var(--maxw);

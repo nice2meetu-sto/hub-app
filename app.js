@@ -3571,7 +3571,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1910 구글 로그인 GIS 방식(내 도메인 팝업, 무료)으로 교체';
+const APP_VERSION = 'v1919 기록장 설정 화면 상단 로고·제목·설명 숨김';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3963,6 +3963,10 @@ async function loadStartHubs() {
 // 신규 이메일 가입자가 내 기록장을 처음 만들 때: 닉네임·백업PIN 설정 화면
 function renderPersonalSetup() {
   startShow('hubs');
+  // 이 화면에선 상단 주사위·앱 제목·설명 숨김(기록장 설정에 집중)
+  ['start-logo', 'start-title', 'start-sub'].forEach(id => {
+    const e = document.getElementById(id); if (e) e.style.display = 'none';
+  });
   const el = document.getElementById('sv-hubs');
   el.innerHTML = `
     <h3 style="margin:0 0 6px;">📔 내 기록장 만들기</h3>

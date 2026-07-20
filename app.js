@@ -1240,26 +1240,28 @@ async function openHubMenu() {
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 8px;">
       <h2 style="font-size:17px;font-weight:900;margin:0;flex:0 0 auto;">내 허브</h2>
-      ${linkNav}
+      <div id="hubmenu-linknav" style="flex:0 1 auto;min-width:0;text-align:right;">${linkNav}</div>
     </div>
     ${rows}
-    <div id="hubmenu-linked"></div>
     <button class="btn ghost sm" style="width:100%;margin-top:6px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
-  // 닉네임/PIN 로그인이라도 이 멤버가 이메일에 연결된 계정이면 배지 표시
+  // 닉네임/PIN 로그인이라도 이 멤버가 이메일에 연결된 계정이면
+  // 우측 상단 안내를 '연결된 계정' 표시로 교체
   if (!links.length && state.hub && state.user) fillHubMenuLinkedBadge();
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
 
-// PIN 로그인 상태에서 이 멤버가 이메일에 연결돼 있으면 '✓ 연결된 계정' 배지
+// PIN 로그인 상태에서 이 멤버가 이메일에 연결돼 있으면
+// 우측 상단 '여러 허브에 가입하셨다면?' 안내를 '연결된 계정' 표시로 교체
+// (글씨 디자인은 그 hint와 동일)
 async function fillHubMenuLinkedBadge() {
   const pin = localStorage.getItem('bg_pin');
   if (!pin) return;
   try {
     const d = await api('getLinkedEmail', { playerId: state.user.player_id, pin });
-    const el = document.getElementById('hubmenu-linked');
+    const el = document.getElementById('hubmenu-linknav');
     if (el && d && d.linked) {
-      el.innerHTML = `<div class="hint" style="color:var(--ok);font-weight:700;text-align:center;margin:8px 2px 0;">✓ 이메일에 연결된 계정이에요</div>`;
+      el.innerHTML = `<div class="hint" style="margin:0;">✓ 이메일에 연결된 계정이에요</div>`;
     }
   } catch (e) { /* 미지원·PIN 불일치 등은 조용히 무시 */ }
 }
@@ -3888,7 +3890,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2135 내 허브에 이메일 연결 배지·이메일연결 안내 줄간격 축소';
+const APP_VERSION = 'v2140 내 허브: 연결된 계정이면 안내 자리에 연결 표시(동일 hint 디자인)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

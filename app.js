@@ -227,6 +227,7 @@ function switchView(name) {
   }
   const td = document.getElementById('tab-dogam');
   if (td) td.classList.remove('on');
+  document.querySelector('.tabbar').classList.remove('over-dogam');
   ['play', 'games', 'my'].forEach(v => {
     document.getElementById('view-' + v).classList.toggle('active', v === name);
     document.getElementById('tab-' + v).classList.toggle('on', v === name);
@@ -3175,6 +3176,7 @@ function openDogam() {
       const t = document.getElementById('tab-' + v); if (t) t.classList.remove('on');
     });
     const td = document.getElementById('tab-dogam'); if (td) td.classList.add('on');
+    document.querySelector('.tabbar').classList.add('over-dogam');   // 튀어나온 추가 버튼이 안 잘리게
   }
   document.getElementById('dogam-search').value = '';
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
@@ -3920,7 +3922,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v0844 ＋추가 원 60px·돌출 축소·＋추가 간격 확대';
+const APP_VERSION = 'v0850 ＋추가 원 58px·＋축소·추가 보통굵기·도감서 잘림 수정';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

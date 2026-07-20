@@ -17,16 +17,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=0850">
+<link rel="stylesheet" href="styles.css?v=1.0.0">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 onclick="openHubMenu()" style="cursor:pointer;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span> <span id="build-tag" style="font-size:10px;font-weight:500;color:var(--text-sub);vertical-align:middle;">v0850</span></h1>
-    <div style="display:flex;align-items:center;gap:10px;">
+    <h1 style="display:flex;align-items:center;gap:8px;min-width:0;margin:0;">
+      <span onclick="openHubMenu()" style="cursor:pointer;white-space:nowrap;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span></span>
+      <span class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">비로그인</span>
+    </h1>
+    <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto;">
       <button onclick="refreshAll()" title="최신 데이터로 업데이트"
               style="background:var(--main-light);color:var(--main);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
-      <div class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;">비로그인</div>
       <button id="settings-btn" onclick="toggleNickMenu(event)" title="메뉴"
               style="display:none;background:none;font-size:19px;line-height:1;padding:2px 4px;cursor:pointer;color:var(--text-sub);">☰</button>
     </div>
@@ -325,6 +327,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=0850"></script>
+<script src="app.js?v=1.0.0"></script>
 </body>
 </html>

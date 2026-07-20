@@ -367,13 +367,17 @@
     gap: 3px; color: var(--text-sub); font-size: 11px; font-weight: 500;
   }
   .tab .ico { font-size: 20px; line-height: 1; }
-  .tab-add { color: var(--main); font-weight: 700; }
-  .tab-add .add-ico {
-    width: 30px; height: 30px; border-radius: 50%; background: var(--main); color: #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 400;
-    box-shadow: 0 3px 10px rgba(83,74,183,.4); margin-bottom: 1px;
+  /* 가운데 ＋추가: 탭바 위로 살짝 튀어나온 동그란 버튼(원 안에 ＋와 '추가' 흰 글씨) */
+  .tab-add { position: relative; overflow: visible; }
+  .tab-add .add-circle {
+    position: absolute; left: 50%; top: -16px; transform: translateX(-50%);
+    width: 62px; height: 62px; border-radius: 50%; background: var(--main); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 5px 16px rgba(83,74,183,.5);
   }
-  .tab-add:active .add-ico { background: var(--main-dark); }
+  .tab-add .add-plus { font-size: 25px; line-height: .85; font-weight: 300; }
+  .tab-add .add-label { font-size: 12px; font-weight: 800; line-height: 1; margin-top: 1px; }
+  .tab-add:active .add-circle { background: var(--main-dark); }
   .tab.on { color: var(--main); font-weight: 700; }
   .fab {
     position: fixed; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0)); z-index: 55;

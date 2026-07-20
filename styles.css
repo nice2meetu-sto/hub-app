@@ -616,5 +616,6 @@ a[x-apple-data-detectors] {
   display: none; align-items: center; justify-content: center; padding: 20px;
 }
 #hubmenu-overlay.show { display: flex; }
-#hubmenu-body .hubmenu-item { background: #fafafc; }
+#hubmenu-card { padding: 13px 16px; }
+#hubmenu-body .hubmenu-item { background: #fafafc; margin-bottom: 6px; }
 #hubmenu-body .hubmenu-item.cur { background: var(--main-light); }

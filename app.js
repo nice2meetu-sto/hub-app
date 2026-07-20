@@ -1229,19 +1229,19 @@ async function openHubMenu() {
   // 이메일 연결이 있으면 짧은 추가 연결 안내, 없으면 가입 유도(둘째 줄만 링크 효과)
   const linkNav = links.length
     ? `<button class="logout-link" style="color:var(--main);flex:0 1 auto;min-width:0;text-align:right;"
-         onclick="closeHubMenu(); goLinksPage(true);">✓ 추가 연결 하러 가기</button>`
+         onclick="closeHubMenu(); goLinksPage();">✓ 추가 연결 하러 가기</button>`
     : `<div style="flex:0 1 auto;min-width:0;text-align:right;line-height:1.5;">
          <div class="hint" style="margin:0;">여러 허브에 가입하셨다면?</div>
          <button class="logout-link" style="color:var(--main);"
            onclick="closeHubMenu(); goLinksPage();">🔗 이메일 가입 후 연결</button>
        </div>`;
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 2px 12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 2px 8px;">
       <h2 style="font-size:17px;font-weight:900;margin:0;flex:0 0 auto;">내 허브</h2>
       ${linkNav}
     </div>
     ${rows}
-    <button class="btn ghost sm" style="width:100%;margin-top:12px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
+    <button class="btn ghost sm" style="width:100%;margin-top:6px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
@@ -3832,7 +3832,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2049 전역 word-break keep-all·기본 카테고리 기타 추가(9종)';
+const APP_VERSION = 'v2102 내 허브 팝업 간격 축소·추가연결 폼 최근 허브 자동채움';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4299,16 +4299,25 @@ async function startShowLinks() {
       <button class="btn" onclick="addLinkFromStart()">연결하기</button>
     </div>
     <button class="logout-link" style="margin-top:14px;color:var(--text-sub);" onclick="loadStartHubs()">‹ 뒤로</button>`;
-  // MY [연결하기]로 들어온 경우: 추가 연결 폼을 바로 열고 그때의 정보로 채움
-  const pf = state._linkPrefill;
+  // 추가 연결 폼은 최근(현재) 허브의 코드+닉네임+PIN을 항상 미리 채워둠.
+  // _linkPrefill(허브메뉴·MY 링크로 진입)이 있으면 폼을 바로 펼침.
+  const cur = (state.hub && state.user) ? {
+    code: state.hub.invite || '',
+    name: state.user.name || '',
+    pin: localStorage.getItem('bg_pin') || ''
+  } : null;
+  const pf = state._linkPrefill || cur;
+  const openForm = !!state._linkPrefill;
   state._linkPrefill = null;
   if (pf) {
-    const f = document.getElementById('sl-form');
-    if (f) f.style.display = 'block';
     document.getElementById('sl-code').value = pf.code || '';
     document.getElementById('sl-name').value = pf.name || '';
     document.getElementById('sl-pin').value = pf.pin || '';
     slCodeLookup();
+  }
+  if (openForm) {
+    const f = document.getElementById('sl-form');
+    if (f) f.style.display = 'block';
   }
 }
 

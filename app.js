@@ -3290,11 +3290,11 @@ function dogamDetail(gid) {
         ${g.category ? `<span class="badge">${esc(g.category)}</span>` : ''}
         ${meta.map(m => `<span class="badge" style="background:var(--main-light);color:var(--main);">${m}</span>`).join('')}
       </div>
-      <div style="font-size:13px;line-height:1.6;color:#444;text-align:left;white-space:pre-wrap;margin:8px 2px 2px;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없어요.</span>'}</div>
+      <div style="font-size:13px;line-height:1.6;color:#444;text-align:center;white-space:pre-wrap;margin:8px 2px 2px;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없어요.</span>'}</div>
       <div id="dg-add-zone" style="margin-top:16px;">
         ${g.on_shelf
           ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
-          : `<button class="btn" style="width:100%;" onclick="dogamAddToHub('${esc(gid)}')">➕ 우리 ${where}에 추가</button>`}
+          : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 우리 ${where}에 추가</button>`}
       </div>
       <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="closeMiniPopup()">닫기</button>
     </div>`);
@@ -3314,7 +3314,7 @@ function dogamAddToHub(gid) {
         <option value="">선택해주세요</option>
         ${CATEGORIES.map(c => `<option value="${esc(c)}" ${c === preset ? 'selected' : ''}>${esc(c)}</option>`).join('')}
       </select></div>
-    <button class="btn" style="width:100%;" onclick="dogamConfirmAdd('${esc(gid)}')">추가하기</button>`;
+    <button class="btn" style="width:100%;padding:9px;" onclick="dogamConfirmAdd('${esc(gid)}')">🎲 추가하기</button>`;
 }
 async function dogamConfirmAdd(gid) {
   const g = state._dogam && state._dogam.byId[gid];
@@ -3832,7 +3832,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2040 게임 도감: 인원·난이도 드롭다운 필터(게임탭 기준 동일)';
+const APP_VERSION = 'v2042 도감 상세 팝업: 요약 중앙정렬·추가버튼 🎲·높이 축소';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

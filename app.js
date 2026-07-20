@@ -3895,7 +3895,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2257 시작화면 게임 도감 미리보기(추가는 가입 안내 토스트)';
+const APP_VERSION = 'v2341 초대 문구에 사이트 주소(?invite=코드) 추가·링크로 자동 입장';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4536,7 +4536,8 @@ async function startCreateHub() {
 function startEnterHub() { closeStartPage(); switchView('games'); }
 
 function copyInvite(name, code) {
-  const text = '같이 ' + name + ' Hub에서 보드게임 기록해요! 초대코드: ' + code;
+  const text = '같이 ' + name + ' Hub에서 보드게임 기록해요! 초대코드: ' + code
+    + '\n👉 https://boardgame-hub.com/?invite=' + code;
   const done = () => toast('초대 문구를 복사했어요!');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => prompt('아래 문구를 복사하세요', text));
@@ -4832,6 +4833,17 @@ function init() {
   if (/type=signup/.test(urlHash) ||
       (/access_token=/.test(urlHash) && !/type=recovery/.test(urlHash))) {
     handleAuthReturn();
+    return;
+  }
+  // 초대 링크(?invite=CODE)로 진입 → 시작 화면 + 초대코드 자동 채우고 허브 확인
+  const inviteParam = (new URLSearchParams(location.search).get('invite') || '')
+    .trim().toUpperCase();
+  if (/^[A-Z0-9]{6}$/.test(inviteParam)) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}   // 주소 정리
+    openStartPage(!!(state.hub && state.user));
+    const inp = document.getElementById('start-invite');
+    if (inp) inp.value = inviteParam;
+    startInviteNext();   // 허브 조회 후 로그인/가입 화면으로
     return;
   }
   // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터

@@ -1256,9 +1256,9 @@ async function switchToHub(hid) {
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
     closeHubMenu();
-    closeStartPage();
-    await loadCore();
+    await loadCore();      // 데이터를 다 불러온 뒤에
     switchView('games');   // 입장 첫 화면은 게임 탭으로 통일
+    closeStartPage();      // 준비 끝난 다음 시작 화면을 닫아 로딩 비침 방지
   } catch (e) {
     toast(e.message, true);
   } finally { hideLoader(); }
@@ -3571,7 +3571,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1929 구글 로그인 로딩 스피너 중복 제거(화면 안 스피너 1개)';
+const APP_VERSION = 'v1943 허브 진입 시 로딩 다 끝난 뒤 시작화면 닫아 로딩 비침 방지';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

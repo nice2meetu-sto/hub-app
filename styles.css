@@ -567,7 +567,9 @@ a[x-apple-data-detectors] {
   padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0));
 }
 #dogam-page.show { display: block; }
-.dg-titlerow { display: flex; align-items: baseline; gap: 8px; padding: 2px 0 12px; }
+.dg-titlerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 8px; padding: 2px 0 12px; }
+.dg-filters { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.dg-filters .chip { font-size: 12px; padding: 6px 12px; cursor: pointer; }
 #dogam-menu-btn {
   font-size: 20px; line-height: 1; padding: 4px 6px; color: var(--text); background: none;
   align-self: center; border-radius: 8px;

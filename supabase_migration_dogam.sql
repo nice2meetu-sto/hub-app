@@ -8,12 +8,19 @@
 --  on_shelf = 현재 허브(p_hub_id) 서가에 이미 있는지 여부.
 -- ============================================================
 
+-- 이전(필터 없는) 시그니처가 있으면 제거(오버로드 충돌 방지)
+drop function if exists public.catalog_browse(text, text, text, int, int);
+
 create or replace function public.catalog_browse(
   p_hub_id   text,
-  p_category text default null,
-  p_term     text default null,
-  p_limit    int  default 50,
-  p_offset   int  default 0
+  p_category text    default null,
+  p_term     text    default null,
+  p_players  int     default null,   -- 이 인원수를 지원하는 게임(min<=n<=max)
+  p_wlo      numeric default null,    -- 난이도 하한
+  p_whi      numeric default null,    -- 난이도 상한
+  p_whi_inc  boolean default false,   -- 상한 포함 여부(마지막 구간만 true)
+  p_limit    int     default 50,
+  p_offset   int     default 0
 ) returns json
 language sql stable security definer
 set search_path = public
@@ -53,10 +60,19 @@ as $$
              '\s+', '', 'g')
            like '%' || regexp_replace(lower(btrim(p_term)), '\s+', '', 'g') || '%'
       )
+      and (
+        p_players is null
+        or (coalesce(g.min_players, 1) <= p_players and coalesce(g.max_players, 99) >= p_players)
+      )
+      and (
+        p_wlo is null
+        or (g.weight is not null and g.weight >= p_wlo
+            and (case when p_whi_inc then g.weight <= p_whi else g.weight < p_whi end))
+      )
     order by play_count desc, g.name_kr
     limit  greatest(coalesce(p_limit, 50), 0)
     offset greatest(coalesce(p_offset, 0), 0)
   ) r;
 $$;
 
-grant execute on function public.catalog_browse(text, text, text, int, int) to anon;
+grant execute on function public.catalog_browse(text, text, text, int, numeric, numeric, boolean, int, int) to anon;

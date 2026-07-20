@@ -220,6 +220,13 @@ function gameById(id) { return state.games.find(g => g.game_id === id); }
 
 // ===== 네비게이션 =====
 function switchView(name) {
+  // 도감 탭(오버레이)이 떠 있으면 닫고 일반 탭으로 전환
+  const dg = document.getElementById('dogam-page');
+  if (dg && dg.classList.contains('show') && state._dogam && !state._dogam.guest) {
+    dg.classList.remove('show'); closeDogamCat();
+  }
+  const td = document.getElementById('tab-dogam');
+  if (td) td.classList.remove('on');
   ['play', 'games', 'my'].forEach(v => {
     document.getElementById('view-' + v).classList.toggle('active', v === name);
     document.getElementById('tab-' + v).classList.toggle('on', v === name);
@@ -1487,13 +1494,15 @@ function whoamiTap(e) {
   toggleNickMenu();
 }
 
-function toggleNickMenu() {
+function toggleNickMenu(e) {
+  if (e) e.stopPropagation();
   const m = document.getElementById('nick-menu');
   if (m.classList.contains('show')) { closeNickMenu(); return; }
   // 관리자 항목은 admin 로그인 시에만(개인설정 위 첫 번째)
   const adminItem = document.getElementById('nickmenu-admin');
   if (adminItem) adminItem.style.display = (state.user && state.user.role === 'admin') ? '' : 'none';
-  const r = document.getElementById('whoami').getBoundingClientRect();
+  const anchor = document.getElementById('settings-btn') || document.getElementById('whoami');
+  const r = anchor.getBoundingClientRect();
   m.style.top = (r.bottom + 6) + 'px';
   m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
   m.classList.add('show');
@@ -1512,6 +1521,7 @@ async function nickMenuPick(action) {
   if (action === 'admin') openAdminPage();
   else if (action === 'settings') openSelfSettings();
   else if (action === 'feedback') openFeedback();
+  else if (action === 'hub') openHubMenu();              // 허브 이동(내 허브 메뉴)
   else if (action === 'logout') await startSignOut();   // 완전 로그아웃 후 메인으로
   else if (action === 'main') goMain();                 // 로그인 유지한 채 메인으로
 }
@@ -1631,6 +1641,9 @@ function updateWhoami() {
   } else {
     el.textContent = '비로그인';
   }
+  // 메뉴(☰) 버튼은 로그인(허브 입장) 시에만
+  const sb2 = document.getElementById('settings-btn');
+  if (sb2) sb2.style.display = state.user ? '' : 'none';
 }
 
 // ===== MY > 전체 기록 =====
@@ -3145,12 +3158,24 @@ function closeAdminPage() { closeOverlay(); }
 // ============================================================
 //  게임 도감 (전체 도감을 플레이 많은 순으로 카드형 브라우즈)
 // ============================================================
+// 하단바 '도감' 탭 → 허브 안 도감(탭 모드)
+function openDogamTab() { openDogam(); }
+
 function openDogam() {
-  // 허브 미입장(시작 화면)에서도 미리보기(guest)로 열림 — 추가는 막고 안내만
+  // 허브 미입장(시작 화면)이면 미리보기(guest, 전체 오버레이+뒤로가기),
+  // 허브 안이면 탭 모드(하단바 유지·뒤로가기 없음·상단 '게임 도감')
   const guest = !state.hub;
   const page = document.getElementById('dogam-page');
+  page.classList.toggle('as-tab', !guest);
   page.classList.add('show'); page.scrollTop = 0;
-  openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
+  if (guest) {
+    openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
+  } else {
+    ['play', 'games', 'my'].forEach(v => {
+      const t = document.getElementById('tab-' + v); if (t) t.classList.remove('on');
+    });
+    const td = document.getElementById('tab-dogam'); if (td) td.classList.add('on');
+  }
   document.getElementById('dogam-search').value = '';
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
   updateDogamTitle();
@@ -3354,7 +3379,7 @@ function dogamDetail(gid) {
       <div style="font-size:13px;line-height:1.6;color:#444;text-align:center;white-space:pre-wrap;margin:8px 2px 2px;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없어요.</span>'}</div>
       <div id="dg-add-zone" style="margin-top:16px;">
         ${guest
-          ? `<button class="btn" style="width:100%;padding:9px;" onclick="toast('가입하고 hub에 추가해보세요! 🎲')">🎲 우리 허브에 추가</button>`
+          ? ''
           : (g.on_shelf
             ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
             : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 우리 ${where}에 추가</button>`)}
@@ -3895,7 +3920,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2341 초대 문구에 사이트 주소(?invite=코드) 추가·링크로 자동 입장';
+const APP_VERSION = 'v0807 도감 하단탭화·상단바 ☰ 메뉴(허브이동 포함)·guest 추가버튼 숨김';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

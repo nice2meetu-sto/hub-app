@@ -562,6 +562,11 @@ a[x-apple-data-detectors] {
 #mini-overlay textarea { width: 100%; min-height: 180px; margin-top: 10px; }
 
 /* ===== 게임 도감 (전체 화면) ===== */
+#dogam-page.as-tab {   /* 허브 안: 하단 탭바는 남기고, 상단은 '게임 도감' 제목만 */
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0));
+  padding-top: calc(env(safe-area-inset-top, 0) + 12px);
+}
+#dogam-page.as-tab .gd-header { display: none; }
 #dogam-page {
   position: fixed; inset: 0; z-index: 220; background: var(--bg); overflow-y: auto; display: none;
   max-width: var(--maxw); margin: 0 auto;

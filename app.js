@@ -3571,7 +3571,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1919 기록장 설정 화면 상단 로고·제목·설명 숨김';
+const APP_VERSION = 'v1929 구글 로그인 로딩 스피너 중복 제거(화면 안 스피너 1개)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3763,7 +3763,12 @@ async function renderGoogleButton() {
 // 구글이 돌려준 ID 토큰으로 Supabase 로그인 → 기록장 설정/허브 목록으로
 async function onGoogleCredential(response) {
   if (!response || !response.credential) return;
-  showLoader('구글 로그인 중…');
+  // 전역 로더(showLoader) 대신 화면 안 스피너 하나만 사용(로더 두 개 겹침 방지)
+  openStartPage(false);
+  startShow('hubs');
+  const sv = document.getElementById('sv-hubs');
+  if (sv) sv.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div>` +
+    `<div class="hint" style="margin-top:10px;">구글 로그인 중…</div></div>`;
   try {
     const { error } = await sb.auth.signInWithIdToken({
       provider: 'google',
@@ -3775,7 +3780,8 @@ async function onGoogleCredential(response) {
     toast('구글 로그인 완료! 🎉');
   } catch (e) {
     toast('구글 로그인 실패: ' + (e.message || e), true);
-  } finally { hideLoader(); }
+    startShow('email');   // 실패 시 이메일 화면으로 복귀
+  }
 }
 
 // 폴백(스크립트 차단 등): 예전 리다이렉트 방식 — 구글 화면엔 supabase.co가 뜨지만 동작은 함

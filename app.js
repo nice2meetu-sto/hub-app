@@ -125,6 +125,8 @@ async function api(action, params = {}) {
     case 'createHub':     return sbrpc('create_hub', { p_name: P.name, p_kind: P.kind || 'hub', p_icon: P.icon || '' });
     case 'loginLinked':   return sbrpc('login_linked', { p_hub_id: hubId() });
     case 'searchCatalog': return sbrpc('search_catalog', { p_hub_id: hubId(), p_term: P.term });
+    case 'getLinkedEmail': return sbrpc('get_linked_email', { p_player_id: P.playerId, p_pin: P.pin });
+    case 'unlinkByPin':    return sbrpc('unlink_by_pin', { p_player_id: P.playerId, p_pin: P.pin });
     case 'catalogBrowse': return sbrpc('catalog_browse', {
                              p_hub_id: hubId(), p_category: P.category ?? null, p_term: P.term ?? null,
                              p_players: P.players ?? null, p_wlo: P.wlo ?? null, p_whi: P.whi ?? null,
@@ -1505,12 +1507,13 @@ function openMiniPopup(html) {
 }
 function closeMiniPopup() { closeOverlay(); }
 
-// 개인설정: 이 허브의 내 닉네임/비밀번호 변경
+// 개인설정: 이 허브의 내 닉네임/비밀번호 변경 (+ 연결된 이메일 확인·해제)
 function openSelfSettings() {
   openMiniPopup(`
     <h3>👤 개인설정</h3>
     <div class="muted">이 허브에서 쓰는 닉네임과 비밀번호를 바꿔요.</div>
-    <div class="field" style="margin-top:14px;"><label>닉네임</label>
+    <div id="ss-email" style="margin-top:12px;"></div>
+    <div class="field" style="margin-top:12px;"><label>닉네임</label>
       <input class="input" id="ss-name" value="${esc(state.user.name)}" maxlength="20" /></div>
     <div class="field"><label>새 비밀번호 (숫자 4자리 — 안 바꾸면 비워두세요)</label>
       <input class="input" id="ss-pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" /></div>
@@ -1518,6 +1521,42 @@ function openSelfSettings() {
       <button class="btn ghost sm" style="flex:1;" onclick="closeMiniPopup()">취소</button>
       <button class="btn sm" style="flex:1;" onclick="saveSelfSettings()">저장</button>
     </div>`);
+  loadSelfLinkedEmail();
+}
+
+// 연결된 이메일(마스킹) 표시 — 닉네임 위. 연결 없으면 아무것도 안 보임.
+async function loadSelfLinkedEmail() {
+  const el = document.getElementById('ss-email');
+  if (!el || !state.user) return;
+  const pin = localStorage.getItem('bg_pin');
+  if (!pin) return;
+  try {
+    const d = await api('getLinkedEmail', { playerId: state.user.player_id, pin });
+    if (!document.getElementById('ss-email')) return;   // 그새 닫힘
+    if (d && d.linked && d.email) {
+      el.innerHTML = `
+        <label style="display:block;font-size:12px;color:var(--text-sub);margin-bottom:4px;">연결된 이메일</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;min-width:0;font-weight:700;font-size:14px;word-break:break-all;">${esc(d.email)}</div>
+          <button class="btn danger sm" style="flex:0 0 auto;padding:7px 12px;" onclick="unlinkSelfEmail()">연결 해제</button>
+        </div>
+        <div class="hint" style="margin-top:4px;">내가 연결한 게 아니라면 해제할 수 있어요.</div>`;
+    } else {
+      el.innerHTML = '';
+    }
+  } catch (e) { /* PIN 불일치·미지원 등은 조용히 무시(이메일 줄만 숨김) */ }
+}
+
+async function unlinkSelfEmail() {
+  if (!confirm('연결된 이메일을 해제할까요?\n\n해제하면 이 멤버가 그 이메일 계정과 분리돼요.\n(내 것이라면 나중에 다시 연결할 수 있어요)')) return;
+  const pin = localStorage.getItem('bg_pin');
+  if (!pin) { toast('비밀번호 정보가 없어요. 다시 로그인해주세요.', true); return; }
+  showLoader('해제 중…');
+  try {
+    await api('unlinkByPin', { playerId: state.user.player_id, pin });
+    toast('이메일 연결을 해제했어요.');
+    loadSelfLinkedEmail();   // 새로고침(이제 연결 없음)
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
 async function saveSelfSettings() {
@@ -3833,7 +3872,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2119 로딩 스피너 겹침 제거: 로더 불투명 처리·초대입장 순서 정리';
+const APP_VERSION = 'v2130 개인설정에 연결된 이메일(마스킹) 표시·PIN으로 연결 해제';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

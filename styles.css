@@ -445,7 +445,8 @@
     position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 30px); transform: translateX(-50%);
     background: #22222c; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 14px;
     z-index: 400; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none;
-    max-width: 88%; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    width: max-content; max-width: 94vw; text-align: center; word-break: keep-all;
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
   #toast.err { background: var(--danger); }

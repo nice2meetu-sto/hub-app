@@ -1470,6 +1470,9 @@ function whoamiTap(e) {
 function toggleNickMenu() {
   const m = document.getElementById('nick-menu');
   if (m.classList.contains('show')) { closeNickMenu(); return; }
+  // 관리자 항목은 admin 로그인 시에만(개인설정 위 첫 번째)
+  const adminItem = document.getElementById('nickmenu-admin');
+  if (adminItem) adminItem.style.display = (state.user && state.user.role === 'admin') ? '' : 'none';
   const r = document.getElementById('whoami').getBoundingClientRect();
   m.style.top = (r.bottom + 6) + 'px';
   m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
@@ -1486,7 +1489,8 @@ function closeNickMenu() {
 
 async function nickMenuPick(action) {
   closeNickMenu();
-  if (action === 'settings') openSelfSettings();
+  if (action === 'admin') openAdminPage();
+  else if (action === 'settings') openSelfSettings();
   else if (action === 'feedback') openFeedback();
   else if (action === 'logout') await startSignOut();   // 완전 로그아웃 후 메인으로
   else if (action === 'main') goMain();                 // 로그인 유지한 채 메인으로
@@ -1570,9 +1574,6 @@ function updateWhoami() {
   } else {
     el.textContent = '비로그인';
   }
-  // [관리자] 버튼은 admin 로그인 시에만 표시
-  const ab = document.getElementById('admin-btn');
-  if (ab) ab.style.display = (state.user && state.user.role === 'admin') ? '' : 'none';
 }
 
 // ===== MY > 전체 기록 =====
@@ -3832,7 +3833,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2102 내 허브 팝업 간격 축소·추가연결 폼 최근 허브 자동채움';
+const APP_VERSION = 'v2109 관리자 진입을 닉네임 드롭다운(🛠 관리자, 관리자만 첫 항목)으로 이동';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

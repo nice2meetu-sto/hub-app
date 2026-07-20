@@ -452,7 +452,7 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
   #toast.err { background: var(--danger); }
   #loader {
-    position: fixed; inset: 0; background: rgba(245,245,248,.7); z-index: 300;
+    position: fixed; inset: 0; background: var(--bg); z-index: 300;
     display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
   }
   #loader.show { display: flex; }

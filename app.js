@@ -3833,7 +3833,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2109 관리자 진입을 닉네임 드롭다운(🛠 관리자, 관리자만 첫 항목)으로 이동';
+const APP_VERSION = 'v2119 로딩 스피너 겹침 제거: 로더 불투명 처리·초대입장 순서 정리';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4538,11 +4538,11 @@ async function joinByInvite() {
     saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub', icon: h.icon || '' });
     localStorage.setItem('bg_last_invite',
       JSON.stringify({ code: h.code, name: h.name, nick: user.name, pin }));
-    closeStartPage();
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');
-    await loadCore();
+    await loadCore();      // 데이터를 다 불러온 뒤에
     switchView('games');   // 입장하면 그 허브의 통합 게임 탭이 메인
+    closeStartPage();      // 준비 끝난 다음 시작 화면 닫기(로딩 비침 방지)
   } catch (e) {
     toast(e.message, true);
   } finally { hideLoader(); }

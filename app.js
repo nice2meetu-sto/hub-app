@@ -1232,9 +1232,9 @@ async function openHubMenu() {
   const linkNav = links.length
     ? `<button class="logout-link" style="color:var(--main);flex:0 1 auto;min-width:0;text-align:right;"
          onclick="closeHubMenu(); goLinksPage();">✓ 추가 연결 하러 가기</button>`
-    : `<div style="flex:0 1 auto;min-width:0;text-align:right;line-height:1.5;">
-         <div class="hint" style="margin:0;">여러 허브에 가입하셨다면?</div>
-         <button class="logout-link" style="color:var(--main);"
+    : `<div style="flex:0 1 auto;min-width:0;text-align:right;line-height:1.15;">
+         <div class="hint" style="margin:0;line-height:1.15;">여러 허브에 가입하셨다면?</div>
+         <button class="logout-link" style="color:var(--main);line-height:1.15;"
            onclick="closeHubMenu(); goLinksPage();">🔗 이메일 가입 후 연결</button>
        </div>`;
   el.innerHTML = `
@@ -1243,10 +1243,26 @@ async function openHubMenu() {
       ${linkNav}
     </div>
     ${rows}
+    <div id="hubmenu-linked"></div>
     <button class="btn ghost sm" style="width:100%;margin-top:6px;" onclick="closeHubMenu(); goMain();">🏠 메인으로</button>`;
   document.getElementById('hubmenu-overlay').classList.add('show');
+  // 닉네임/PIN 로그인이라도 이 멤버가 이메일에 연결된 계정이면 배지 표시
+  if (!links.length && state.hub && state.user) fillHubMenuLinkedBadge();
 }
 function closeHubMenu() { document.getElementById('hubmenu-overlay').classList.remove('show'); }
+
+// PIN 로그인 상태에서 이 멤버가 이메일에 연결돼 있으면 '✓ 연결된 계정' 배지
+async function fillHubMenuLinkedBadge() {
+  const pin = localStorage.getItem('bg_pin');
+  if (!pin) return;
+  try {
+    const d = await api('getLinkedEmail', { playerId: state.user.player_id, pin });
+    const el = document.getElementById('hubmenu-linked');
+    if (el && d && d.linked) {
+      el.innerHTML = `<div class="hint" style="color:var(--ok);font-weight:700;text-align:center;margin:8px 2px 0;">✓ 이메일에 연결된 계정이에요</div>`;
+    }
+  } catch (e) { /* 미지원·PIN 불일치 등은 조용히 무시 */ }
+}
 
 async function switchToHub(hid) {
   const link = (state._myLinks || []).find(l => l.hub_id === hid);
@@ -3872,7 +3888,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2130 개인설정에 연결된 이메일(마스킹) 표시·PIN으로 연결 해제';
+const APP_VERSION = 'v2135 내 허브에 이메일 연결 배지·이메일연결 안내 줄간격 축소';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

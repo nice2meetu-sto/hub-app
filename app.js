@@ -3567,7 +3567,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v1429 토스트 가로폭 확대(짧은 문구 한 줄 표시)';
+const APP_VERSION = 'v1805 구글 로그인(OAuth) 추가 — 인증 후 기록장 설정 흐름 공용';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3692,14 +3692,35 @@ function startEmailEntry() {
   }).catch(() => { seSetMode('login'); startShow('email'); });
 }
 
-// 이메일 인증 링크로 돌아왔을 때: 세션이 잡히면 '어디로 들어갈까요?'로,
-// 아니면 '인증 완료! 로그인' 안내 화면으로
-async function handleEmailConfirmed() {
+// ----- 구글로 시작 -----
+// Google로 리다이렉트 → 인증 후 이 페이지로 복귀(#access_token). 복귀 처리는
+// init()이 handleAuthReturn()으로 받아 개인 기록장 없으면 닉네임·PIN 설정으로 안내.
+async function startGoogle() {
+  const btn = document.getElementById('se-google');
+  if (btn) { btn.disabled = true; btn.style.opacity = '.6'; }
+  try {
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: location.origin + location.pathname },
+    });
+    if (error) throw error;
+    // 성공 시 브라우저가 Google로 이동하므로 이 아래는 실행되지 않음
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    toast('구글 로그인을 시작하지 못했어요: ' + (e.message || e), true);
+  }
+}
+
+// 인증 후 이 페이지로 복귀했을 때(이메일 인증 링크 / 구글 로그인):
+// 세션이 잡히면 loadStartHubs(개인 기록장 없으면 닉네임·PIN 설정)로,
+// 아니면 안내 화면으로. isEmail은 문구만 다르게(구글/이메일).
+async function handleAuthReturn() {
+  const isEmail = /type=signup/.test(location.hash || '');   // 아니면 구글 등 OAuth
   openStartPage(false);
-  startShow('hubs');   // 인증 확인 중 화면(초대코드 홈이 잠깐 뜨는 것 방지)
+  startShow('hubs');   // 확인 중 화면(초대코드 홈이 잠깐 뜨는 것 방지)
   const sv = document.getElementById('sv-hubs');
   if (sv) sv.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div>` +
-    `<div class="hint" style="margin-top:10px;">이메일 인증 확인 중…</div></div>`;
+    `<div class="hint" style="margin-top:10px;">${isEmail ? '이메일 인증 확인 중…' : '로그인 확인 중…'}</div></div>`;
   // supabase-js가 URL 토큰을 세션으로 바꾸는 중일 수 있어 잠깐 기다림
   let session = null;
   for (let i = 0; i < 8 && !session; i++) {
@@ -3709,10 +3730,10 @@ async function handleEmailConfirmed() {
   try { history.replaceState(null, '', location.pathname); } catch (e) {}   // 해시 정리(새로고침 재실행 방지)
   if (session) {
     loadStartHubs();   // 개인 기록장이 없으면 loadStartHubs가 닉네임·PIN 설정 화면으로 안내
-    toast('이메일 인증이 완료됐어요! 🎉');
+    toast(isEmail ? '이메일 인증이 완료됐어요! 🎉' : '구글 로그인 완료! 🎉');
   } else {
     seSetMode('login'); startShow('email');
-    toast('이메일 인증 완료! 로그인해주세요.');
+    toast(isEmail ? '이메일 인증 완료! 로그인해주세요.' : '로그인을 완료하지 못했어요. 다시 시도해주세요.');
   }
 }
 
@@ -4381,10 +4402,10 @@ function init() {
     if (state.hub && state.user) loadCore();
     return;
   }
-  // 이메일 인증(가입 확인/매직링크) 링크로 복귀 → '어디로 들어갈까요?'로 안내
+  // 이메일 인증(가입 확인) · 구글 로그인 등 인증 복귀 → 개인 기록장 설정/허브 목록으로 안내
   if (/type=signup/.test(urlHash) ||
       (/access_token=/.test(urlHash) && !/type=recovery/.test(urlHash))) {
-    handleEmailConfirmed();
+    handleAuthReturn();
     return;
   }
   // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터

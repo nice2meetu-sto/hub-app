@@ -128,7 +128,7 @@ async function api(action, params = {}) {
     case 'getLinkedEmail': return sbrpc('get_linked_email', { p_player_id: P.playerId, p_pin: P.pin });
     case 'unlinkByPin':    return sbrpc('unlink_by_pin', { p_player_id: P.playerId, p_pin: P.pin });
     case 'catalogBrowse': return sbrpc('catalog_browse', {
-                             p_hub_id: hubId(), p_category: P.category ?? null, p_term: P.term ?? null,
+                             p_hub_id: P.hubId != null ? P.hubId : hubId(), p_category: P.category ?? null, p_term: P.term ?? null,
                              p_players: P.players ?? null, p_wlo: P.wlo ?? null, p_whi: P.whi ?? null,
                              p_whi_inc: P.whiInc ?? false, p_limit: P.limit ?? 50, p_offset: P.offset ?? 0 });
     case 'myHubs':        return sbrpc('my_hubs');
@@ -3146,12 +3146,13 @@ function closeAdminPage() { closeOverlay(); }
 //  게임 도감 (전체 도감을 플레이 많은 순으로 카드형 브라우즈)
 // ============================================================
 function openDogam() {
-  if (!state.hub) { toast('먼저 허브에 입장해주세요.', true); return; }
+  // 허브 미입장(시작 화면)에서도 미리보기(guest)로 열림 — 추가는 막고 안내만
+  const guest = !state.hub;
   const page = document.getElementById('dogam-page');
   page.classList.add('show'); page.scrollTop = 0;
   openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
   document.getElementById('dogam-search').value = '';
-  state._dogam = { cat: null, term: '', players: null, weight: null, offset: 0, loading: false, done: false, byId: {} };
+  state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
   updateDogamTitle();
   updateDogamFilterBtns();
   // 무한 스크롤 감시(최초 1회만 생성)
@@ -3188,6 +3189,7 @@ async function dogamLoad(reset) {
       category: d.term ? null : d.cat, term: d.term || null,
       players: d.players || null,
       wlo: wb ? wb.lo : null, whi: wb ? wb.hi : null, whiInc: wb ? (wb.key === '4-5') : false,
+      hubId: d.guest ? '' : null,   // 미리보기는 특정 허브 없음 → on_shelf 항상 false
       limit: 50, offset: d.offset }) || [];
     if (reset) grid.innerHTML = '';
     const fresh = rows.filter(g => !d.byId[g.game_id]);
@@ -3331,6 +3333,7 @@ function dogamSearchInput() {
 function dogamDetail(gid) {
   const g = state._dogam && state._dogam.byId[gid];
   if (!g) return;
+  const guest = !!(state._dogam && state._dogam.guest);
   const where = isPersonalHub(state.hub) ? '기록장' : '허브';
   const meta = [];
   if (g.min_players || g.max_players) {
@@ -3350,9 +3353,11 @@ function dogamDetail(gid) {
       </div>
       <div style="font-size:13px;line-height:1.6;color:#444;text-align:center;white-space:pre-wrap;margin:8px 2px 2px;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없어요.</span>'}</div>
       <div id="dg-add-zone" style="margin-top:16px;">
-        ${g.on_shelf
-          ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
-          : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 우리 ${where}에 추가</button>`}
+        ${guest
+          ? `<button class="btn" style="width:100%;padding:9px;" onclick="toast('가입하고 hub에 추가해보세요! 🎲')">🎲 우리 허브에 추가</button>`
+          : (g.on_shelf
+            ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
+            : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 우리 ${where}에 추가</button>`)}
       </div>
       <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="closeMiniPopup()">닫기</button>
     </div>`);
@@ -3890,7 +3895,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = 'v2231 앱 아이콘 교체(주사위 아이콘 v2)';
+const APP_VERSION = 'v2257 시작화면 게임 도감 미리보기(추가는 가입 안내 토스트)';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

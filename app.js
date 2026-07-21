@@ -1287,6 +1287,7 @@ async function switchToHub(hid) {
     saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub', icon: link.icon || '' });
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
+    pushRecentHub({ hub_id: hid, name: link.hub_name, icon: link.icon, kind: link.kind, nick: u.name });
     closeHubMenu();
     await loadCore();      // 데이터를 다 불러온 뒤에
     switchView('games');   // 입장 첫 화면은 게임 탭으로 통일
@@ -3925,7 +3926,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3970,11 +3971,101 @@ function openStartPage(closable) {
   const jp = document.getElementById('ji-pin'); if (jp) jp.value = '';
   if (document.getElementById('ji-tab-login')) jiSetMode('login');
   el.classList.add('show');
+  state._recentEdit = false;
   state._startView = null;   // 새로 여는 것 — 직전 세션의 화면 기록과 무관
   startShow('home');
   // 메인은 항상 홈부터 — 이메일 계정의 허브 목록은 [이메일로 시작]을 눌렀을 때만.
   // (멤버로 로그인해 쓰다가 메인으로 나왔는데 기기에 남은 이메일 세션 화면이
   //  자동으로 떠서 '계정이 다르다'고 느껴지던 문제 방지)
+}
+
+// ===== 최근 이용한 허브(이 기기에만 저장, PIN 미저장) =====
+// 자동입장이 풀렸거나 허브를 옮길 때 메인을 매개체로 재입장하는 백업 동선.
+function getRecentHubs() {
+  try { const l = JSON.parse(localStorage.getItem('bg_recent_hubs') || '[]'); return Array.isArray(l) ? l : []; }
+  catch (e) { return []; }
+}
+function pushRecentHub(e) {
+  if (!e || !e.hub_id) return;
+  let list = getRecentHubs().filter(h => h && h.hub_id !== e.hub_id);   // 중복 제거
+  list.unshift({ hub_id: e.hub_id, name: e.name || '', icon: e.icon || '',
+                 kind: e.kind || 'hub', nick: e.nick || '', code: e.code || '' });   // PIN 저장 안 함
+  localStorage.setItem('bg_recent_hubs', JSON.stringify(list.slice(0, 5)));   // 최대 5개
+}
+function removeRecentHub(hid) {
+  localStorage.setItem('bg_recent_hubs', JSON.stringify(getRecentHubs().filter(h => h.hub_id !== hid)));
+}
+
+function renderRecentHubs() {
+  const box = document.getElementById('sv-recent');
+  if (!box) return;
+  const list = getRecentHubs();
+  if (!list.length) { box.innerHTML = ''; box.style.display = 'none'; state._recentEdit = false; return; }
+  box.style.display = 'block';
+  const edit = !!state._recentEdit;
+  box.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 8px;">
+      <span class="hint" style="margin:0;font-weight:700;">최근 이용한 허브</span>
+      <button class="logout-link" style="color:var(--main);text-decoration:none;" onclick="toggleRecentEdit()">${edit ? '완료' : '편집'}</button>
+    </div>
+    ${list.map(h => `
+      <button class="hubmenu-item" style="background:#fafafc;margin-bottom:8px;" onclick="${edit ? '' : `recentEnter('${esc(h.hub_id)}')`}">
+        <span style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(h.icon || (h.kind === 'personal' ? '📔' : '🎲'))} ${esc(h.name)}</span>
+        </span>
+        <span style="flex:0 0 auto;display:flex;align-items:center;gap:10px;">
+          <span class="hint" style="margin:0;">${h.kind === 'personal' ? '내 기록장' : esc(h.nick) + '로 입장'}</span>
+          ${edit
+            ? `<span onclick="event.stopPropagation(); removeRecent('${esc(h.hub_id)}')" style="color:var(--danger);font-weight:800;font-size:15px;padding:0 2px;">✕</span>`
+            : '<span class="hint">›</span>'}
+        </span>
+      </button>`).join('')}
+    ${edit ? `<button class="logout-link" style="color:var(--danger);margin:2px 2px 2px;" onclick="clearAllRecent()">전체 지우기</button>` : ''}`;
+}
+function toggleRecentEdit() { state._recentEdit = !state._recentEdit; renderRecentHubs(); }
+function removeRecent(hid) { removeRecentHub(hid); renderRecentHubs(); }
+function clearAllRecent() {
+  if (!confirm('최근 이용한 허브 목록을 모두 지울까요?\n(이 기기에서만 지워지고 허브·기록엔 영향 없어요)')) return;
+  localStorage.removeItem('bg_recent_hubs'); state._recentEdit = false; renderRecentHubs();
+}
+
+// 최근 허브 탭 → 재입장. 개인 기록장은 이메일 세션 있으면 원탭, 그 외엔 PIN 입력.
+async function recentEnter(hid) {
+  const r = getRecentHubs().find(h => h.hub_id === hid);
+  if (!r) return;
+  if (r.kind === 'personal') {
+    let hasSession = false;
+    try { const { data } = await sb.auth.getSession(); hasSession = !!(data && data.session); } catch (e) {}
+    if (hasSession) { await recentEnterLinked(r); return; }
+  }
+  // PIN 입력 로그인 화면(초대 입장 화면 재사용) — 코드 없이 hub_id로 로그인
+  state._joinHub = { hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', code: r.code || '' };
+  document.getElementById('ji-hub').textContent = r.name + (r.kind === 'personal' ? '' : ' Hub');
+  jiSetMode('login');
+  document.getElementById('ji-name').value = r.nick || '';
+  document.getElementById('ji-pin').value = '';
+  startShow('invite');
+  setTimeout(() => { const p = document.getElementById('ji-pin'); if (p) p.focus(); }, 60);
+}
+// 개인 기록장 원탭 입장(이메일 세션)
+async function recentEnterLinked(r) {
+  showLoader('입장 중…');
+  try {
+    const u = await sbrpc('login_linked', { p_hub_id: r.hub_id });
+    saveHub({ hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '' });
+    applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id }, u.pin, r.name + ' 입장!');
+    pushRecentHub({ hub_id: r.hub_id, name: r.name, icon: r.icon, kind: r.kind, nick: u.name });
+    await loadCore(); switchView('games'); closeStartPage();
+  } catch (e) {
+    // 세션이 만료됐으면 PIN 로그인 화면으로 폴백
+    toast('비밀번호로 입장해주세요.', true);
+    state._joinHub = { hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', code: r.code || '' };
+    document.getElementById('ji-hub').textContent = r.name;
+    jiSetMode('login');
+    document.getElementById('ji-name').value = r.nick || '';
+    document.getElementById('ji-pin').value = '';
+    startShow('invite');
+  } finally { hideLoader(); }
 }
 
 // 시작 페이지 내부 화면 전환 — 이동할 때 히스토리에 쌓아
@@ -4005,6 +4096,7 @@ function startShow(view, isBack) {
       ? hubIcon(state._joinHub) : '🎲';
   }
   if (view === 'email') renderGoogleButton();   // 구글 공식 버튼 렌더(GIS)
+  if (view === 'home') renderRecentHubs();      // 최근 이용한 허브 목록
 }
 
 // 개인 기록장 여부: kind(DB 컬럼)만 기준 — 이름과 완전히 무관.
@@ -4044,11 +4136,12 @@ function inviteAutoExtract(inp) {
 }
 
 // ----- 이메일로 시작 -----
-function startEmailEntry() {
+function startEmailEntry(mode) {
+  const m = mode === 'signup' ? 'signup' : 'login';
   sb.auth.getSession().then(({ data }) => {
     if (data && data.session) loadStartHubs();
-    else { seSetMode('login'); startShow('email'); }
-  }).catch(() => { seSetMode('login'); startShow('email'); });
+    else { seSetMode(m); startShow('email'); }
+  }).catch(() => { seSetMode(m); startShow('email'); });
 }
 
 // ----- 구글로 시작 (Google Identity Services) -----
@@ -4631,6 +4724,7 @@ async function joinByInvite() {
     saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub', icon: h.icon || '' });
     localStorage.setItem('bg_last_invite',
       JSON.stringify({ code: h.code, name: h.name, nick: user.name, pin }));
+    pushRecentHub({ hub_id: h.hub_id, name: h.name, icon: h.icon, kind: h.kind, nick: user.name, code: h.code });
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');
     await loadCore();      // 데이터를 다 불러온 뒤에

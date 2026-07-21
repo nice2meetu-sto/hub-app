@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.7">
+<link rel="stylesheet" href="styles.css?v=1.0.8">
 </head>
 <body>
 <div id="app">
@@ -195,8 +195,9 @@
     <h2 id="start-title" style="margin:6px 0 2px;">보드게임 Hub</h2>
     <div id="start-sub" class="hint" style="margin-bottom:26px;">모임 중심 보드게임 기록 관리</div>
 
-    <!-- 홈: 초대코드 입력(상시) + 이메일 시작 -->
+    <!-- 홈: 최근 이용한 허브 + 초대코드 + 신규 개설 + 이메일 로그인 -->
     <div class="start-view" id="sv-home">
+      <div id="sv-recent" style="text-align:left;margin-bottom:18px;display:none;"></div>
       <div class="field" style="text-align:left;">
         <label style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">허브 초대코드
           <span id="last-hub-tag" class="hint" style="margin:0;font-weight:500;"></span></label>
@@ -206,12 +207,12 @@
       <button class="btn" style="margin-bottom:10px;" onclick="startInviteNext()">🔑 기존 허브 이용
         <div class="hint" style="margin:3px 0 0;font-weight:500;color:#e9e7f8;">받은 초대 문구를 붙여 넣고 간편하게 시작하세요</div>
       </button>
-      <button class="btn ghost" onclick="startEmailEntry()">🎲 신규 허브 개설
+      <button class="btn ghost" onclick="startEmailEntry('signup')">🎲 신규 허브 개설
         <div class="hint" style="margin:3px 0 0;font-weight:500;">신규 허브를 개설하고 우리 모임만의 기록을 시작해요</div>
       </button>
-      <button class="btn ghost" style="margin-top:10px;" onclick="openDogam()">📚 게임 도감 구경
-        <div class="hint" style="margin:3px 0 0;font-weight:500;">어떤 게임들이 있는지 미리 둘러보세요</div>
-      </button>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);">
+        <button class="logout-link" style="color:var(--main);font-size:13px;" onclick="startEmailEntry('login')">📧 이메일 계정 로그인</button>
+      </div>
     </div>
 
     <!-- 초대코드 입장: 허브 확인 후 로그인/가입 -->
@@ -327,6 +328,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.7"></script>
+<script src="app.js?v=1.0.8"></script>
 </body>
 </html>

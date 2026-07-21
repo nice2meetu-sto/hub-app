@@ -2256,7 +2256,10 @@ function renderAddGameForm() {
         <div id="ag-photo-preview"></div>
         <div class="hint">사진을 올리면 작게 압축해서 저장합니다. 올리면 url 대신 사용합니다</div>
       </div>
-      <button class="btn sheet-save" id="ag-submit" onclick="submitAddGame()">도감 추가</button>
+      <div class="sheet-save" style="display:flex;gap:8px;">
+        <button class="btn ghost" style="flex:1;" onclick="closeAddSheet()">취소</button>
+        <button class="btn" id="ag-submit" style="flex:1;" onclick="submitAddGame()">도감 추가</button>
+      </div>
     </div>`;
   photoState.ag = '';
 }
@@ -2752,7 +2755,10 @@ function renderAddPlayForm() {
       </div>
       <div id="ap-participants" onscroll="apScrollBtnUpdate()"></div>
     </div>
-    <button class="btn sheet-save" onclick="submitAddPlay()">플레이 결과 저장</button>`;
+    <div class="sheet-save" style="display:flex;gap:8px;">
+      <button class="btn ghost" style="flex:1;" onclick="closeAddSheet()">취소</button>
+      <button class="btn" style="flex:1;" onclick="submitAddPlay()">플레이 결과 저장</button>
+    </div>`;
   renderParticipants();
 }
 
@@ -3973,7 +3979,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.13';
+const APP_VERSION = '1.0.14';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

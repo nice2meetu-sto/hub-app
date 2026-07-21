@@ -141,6 +141,7 @@ async function api(action, params = {}) {
     case 'getMyGamesAll': return sbrpc('get_my_games_all');
     case 'hubRename':     return sbrpc('hub_rename', { p_hub_id: hubId(), p_name: P.name });
     case 'hubRotateInvite': return sbrpc('hub_rotate_invite', { p_hub_id: hubId() });
+    case 'deleteHub':     return sbrpc('delete_hub', { p_player_id: P.playerId, p_pin: P.pin });
     default: throw new Error('Unknown action: ' + action);
   }
 }
@@ -3723,6 +3724,45 @@ async function adminRotateInvite() {
   }
 }
 
+// 허브 삭제: 경고 → "확인했습니다" 정확 입력 → 관리자 PIN 확인 → 소프트 삭제.
+// 기록(플레이·회원·평점)은 서버에서 보존 — 연동 회원은 개인 기록장에서 열람 가능.
+async function adminDeleteHub() {
+  if (!state.hub || !state.user) return;
+  const ans = window.prompt(
+    '허브 삭제시 되돌릴 수 없습니다.\n' +
+    '모임원 개인 데이터는 이메일 가입을 통해 백업 후 삭제해주세요.\n\n' +
+    '계속하려면 아래에 "확인했습니다" 를 정확히 입력하세요.');
+  if (ans == null) return;                       // 취소
+  if (ans.trim() !== '확인했습니다') {
+    toast('입력이 일치하지 않아 삭제를 취소했어요.', true); return;
+  }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('허브 삭제 중…');
+  try {
+    await api('deleteHub', { playerId: state.user.player_id, pin });
+    // 로컬 정리: 최근 목록·자동입장에서 이 허브 제거
+    try { removeRecentHub(state.hub.hub_id); } catch (e) {}
+    const delId = state.hub.hub_id;
+    if (state._myLinks) state._myLinks = state._myLinks.filter(l => l.hub_id !== delId);
+    hideLoader();
+    closeAdminPage();
+    // 삭제한 허브에서 나와 메인으로(허브 컨텍스트 정리)
+    state.hub = null; state.user = null;
+    localStorage.removeItem('bg_user');
+    localStorage.removeItem('bg_pin');
+    localStorage.removeItem('bg_hub');
+    state.games = []; state.plays = []; state.players = [];
+    state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
+    updateWhoami(); updateHubTitle();
+    toast('허브를 삭제했어요.');
+    openStartPage(false);
+  } catch (e) {
+    hideLoader();
+    toast(e.message, true);
+  }
+}
+
 async function renderAdminPlayers() {
   const el = document.getElementById('adm-players');
   // 기록장 탭: 멤버 목록 없이 기록장 설정 + 연결된 허브 관리만 (PIN 확인 불필요)
@@ -3740,7 +3780,14 @@ async function renderAdminPlayers() {
     el.innerHTML = `
       <div id="adm-hub-section"></div>
       <div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-player-search" placeholder="닉네임 검색 (쉼표로 여러 조건)" oninput="adminPlayerSearch()" /></div>
-      <div id="adm-player-list"></div>`;
+      <div id="adm-player-list"></div>
+      <div class="card" style="margin-top:22px;border:1px solid #f3c9c9;background:#fdf5f5;">
+        <div class="section-title" style="margin-top:0;color:var(--danger);">⚠️ 허브 삭제 <small class="muted" style="font-weight:500;color:#c98a8a;">(개설 계정 전용)</small></div>
+        <div class="muted" style="font-size:12px;line-height:1.55;margin-bottom:12px;">
+          허브를 삭제하면 초대·입장이 막히고 되돌릴 수 없어요.<br/>
+          지난 플레이·회원 기록은 남아 있어, 이메일로 연동한 분들은 개인 기록장에서 계속 볼 수 있어요.</div>
+        <button class="btn sm danger" style="width:100%;" onclick="adminDeleteHub()">허브 삭제</button>
+      </div>`;
     renderAdminHubSection();
     adminPlayerSearch();
   } catch (e) {
@@ -3926,7 +3973,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.12';
+const APP_VERSION = '1.0.13';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

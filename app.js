@@ -3196,7 +3196,7 @@ function closeDogam() { closeOverlay(); }
 function updateDogamTitle() {
   const d = state._dogam || {};
   const sub = document.getElementById('dogam-sub');
-  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : (d.cat || '전체');
+  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : '';
 }
 
 // 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
@@ -3282,8 +3282,8 @@ function toggleDogamCat(e) {
   if (dogamMenuOpenIs('cat')) { closeDogamCat(); return; }
   state._dogamMenu = 'cat';
   const opts = [['', '전체'], ...CATALOG_CATEGORIES.map(c => [c, c])];
-  dogamMenuShow(document.getElementById('dogam-menu-btn'),
-    dogamOptsHtml(opts, (state._dogam && state._dogam.cat) || '', 'dogamPickCat'), 'left');
+  dogamMenuShow(document.getElementById('dogam-cat-btn'),
+    dogamOptsHtml(opts, (state._dogam && state._dogam.cat) || '', 'dogamPickCat'), 'right');
 }
 function dogamPickCat(cat) {
   closeDogamCat();
@@ -3292,6 +3292,7 @@ function dogamPickCat(cat) {
   d.term = ''; document.getElementById('dogam-search').value = '';
   document.getElementById('dogam-page').scrollTop = 0;
   updateDogamTitle();
+  updateDogamFilterBtns();
   dogamLoad(true);
 }
 
@@ -3332,6 +3333,11 @@ function dogamPickWeight(key) {
 // 필터 버튼 라벨·활성 표시 갱신
 function updateDogamFilterBtns() {
   const d = state._dogam || {};
+  const cat = document.getElementById('dogam-cat-btn');
+  if (cat) {
+    cat.textContent = d.cat ? d.cat : '분류 전체';
+    cat.classList.toggle('on', !!d.cat);
+  }
   const pc = document.getElementById('dogam-pc-btn');
   if (pc) {
     pc.textContent = d.players ? (d.players >= 7 ? '7명+' : d.players + '명') : '인원 전체';
@@ -3922,7 +3928,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.2';
+const APP_VERSION = '1.0.3';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

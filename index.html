@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.2">
+<link rel="stylesheet" href="styles.css?v=1.0.3">
 </head>
 <body>
 <div id="app">
@@ -147,10 +147,10 @@
 <div id="dogam-page">
   <div class="gd-header"><button class="gd-back" onclick="closeDogam()">‹ 돌아가기</button></div>
   <div class="dg-titlerow">
-    <button id="dogam-menu-btn" onclick="toggleDogamCat(event)" title="카테고리">☰</button>
     <h2 id="dogam-title">게임 도감</h2>
-    <span id="dogam-sub" class="hint" style="margin:0;">전체</span>
+    <span id="dogam-sub" class="hint" style="margin:0;"></span>
     <div class="dg-filters">
+      <button class="chip" id="dogam-cat-btn" onclick="toggleDogamCat(event)">분류 전체</button>
       <button class="chip" id="dogam-pc-btn" onclick="toggleDogamPlayers(event)">인원 전체</button>
       <button class="chip" id="dogam-wt-btn" onclick="toggleDogamWeight(event)">난이도 전체</button>
     </div>
@@ -327,6 +327,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.2"></script>
+<script src="app.js?v=1.0.3"></script>
 </body>
 </html>

@@ -3926,7 +3926,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.11';
+const APP_VERSION = '1.0.12';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4993,8 +4993,11 @@ function init() {
   if (/^[A-Z0-9]{6}$/.test(inviteParam)) {
     try { history.replaceState(null, '', location.pathname); } catch (e) {}   // 주소 정리
     openStartPage(!!(state.hub && state.user));
+    const invField = document.getElementById('start-invite-field');
+    if (invField) invField.style.display = '';   // 접혀 있어도 펼쳐 바로 진행
     const inp = document.getElementById('start-invite');
     if (inp) inp.value = inviteParam;
+    state._jiMode = 'signup';   // 초대 링크로 온 사람은 대개 처음 → 가입 탭 기본
     startInviteNext();   // 허브 조회 후 로그인/가입 화면으로
     return;
   }

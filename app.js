@@ -1193,7 +1193,7 @@ function renderGameCards() {
 // 이메일 계정에는 개인 기록장을 자동으로 하나 마련(이미 있으면 그대로)
 async function ensurePersonalHub(nick, pin) {
   try {
-    const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
+    const hub = await sbrpc('create_hub', { p_name: nick, p_kind: 'personal' });
     if (!hub.existing) {
       const u = await sbrpc('signup', { p_name: nick, p_pin: pin, p_hub_id: hub.hub_id, p_invite: hub.invite_code });
       await sbrpc('link_player', { p_hub_id: hub.hub_id, p_player_id: u.player_id, p_pin: pin });
@@ -3925,7 +3925,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.6';
+const APP_VERSION = '1.0.7';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4231,7 +4231,7 @@ async function doStartEmail() {
 async function ensurePersonalNamed(nick, backupPin) {
   state._personalErr = null;
   try {
-    const hub = await sbrpc('create_hub', { p_name: nick + '의 기록장', p_kind: 'personal' });
+    const hub = await sbrpc('create_hub', { p_name: nick, p_kind: 'personal' });
     const linked = (state._myLinks || []).some(l => l.hub_id === hub.hub_id);
     if (!linked) {
       const name = hub.existing
@@ -4788,7 +4788,7 @@ async function emailSetupGo() {
   const isCreate = emailFlow.purpose === 'create';
   const nick = document.getElementById('em-nick').value.trim();
   const pin = document.getElementById('em-pin').value.trim();
-  const hubName = isCreate ? document.getElementById('em-hubname').value.trim() : nick + '의 기록장';
+  const hubName = isCreate ? document.getElementById('em-hubname').value.trim() : nick;
   if (isCreate && !hubName) { toast('허브 이름을 입력하세요.', true); return; }
   if (!nick || !/^\d{4}$/.test(pin)) { toast('닉네임과 숫자 4자리 PIN을 입력하세요.', true); return; }
   showLoader('만드는 중…');

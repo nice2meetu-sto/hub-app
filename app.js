@@ -3196,7 +3196,7 @@ function closeDogam() { closeOverlay(); }
 function updateDogamTitle() {
   const d = state._dogam || {};
   const sub = document.getElementById('dogam-sub');
-  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : '';
+  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : (d.cat || '전체');
 }
 
 // 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
@@ -3925,7 +3925,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

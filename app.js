@@ -3926,7 +3926,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.10';
+const APP_VERSION = '1.0.11';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4693,11 +4693,10 @@ function closeStartPage() { document.getElementById('start-page').classList.remo
 // 초대코드 확인 → 허브명 보여주고 로그인/가입 화면으로
 async function startInviteNext() {
   // 최근 허브가 있어 입력칸을 접어 둔 상태면, 첫 클릭은 입력칸을 펼치기만 함
+  // (자동 포커스는 하지 않음 — 키보드가 바로 올라와 오히려 불편)
   const invField = document.getElementById('start-invite-field');
   if (invField && invField.style.display === 'none') {
     invField.style.display = '';
-    const inp = document.getElementById('start-invite');
-    if (inp) inp.focus();
     return;
   }
   const code = extractInvite(document.getElementById('start-invite').value.trim());

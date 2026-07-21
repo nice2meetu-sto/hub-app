@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.9">
+<link rel="stylesheet" href="styles.css?v=1.0.10">
 </head>
 <body>
 <div id="app">
@@ -198,7 +198,7 @@
     <!-- 홈: 최근 이용한 허브 + 초대코드 + 신규 개설 + 이메일 로그인 -->
     <div class="start-view" id="sv-home">
       <div id="sv-recent" style="text-align:left;margin-bottom:18px;display:none;"></div>
-      <div class="field" style="text-align:left;">
+      <div class="field" id="start-invite-field" style="text-align:left;">
         <label style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">허브 초대코드
           <span id="last-hub-tag" class="hint" style="margin:0;font-weight:500;"></span></label>
         <input class="input" id="start-invite" placeholder="예: AB12CD"
@@ -328,6 +328,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.9"></script>
+<script src="app.js?v=1.0.10"></script>
 </body>
 </html>

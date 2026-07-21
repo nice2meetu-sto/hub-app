@@ -3926,7 +3926,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.9';
+const APP_VERSION = '1.0.10';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4111,7 +4111,13 @@ function startShow(view, isBack) {
       ? hubIcon(state._joinHub) : '🎲';
   }
   if (view === 'email') renderGoogleButton();   // 구글 공식 버튼 렌더(GIS)
-  if (view === 'home') renderRecentHubs();      // 최근 이용한 허브 목록
+  if (view === 'home') {
+    renderRecentHubs();                          // 최근 이용한 허브 목록
+    // 최근 허브가 있으면 초대코드 입력칸은 접어 두고, [기존 허브 이용]을
+    // 눌렀을 때 펼침. 최근 허브가 아예 없는 첫 방문에서만 기본 노출.
+    const invField = document.getElementById('start-invite-field');
+    if (invField) invField.style.display = getRecentHubs().length ? 'none' : '';
+  }
 }
 
 // 개인 기록장 여부: kind(DB 컬럼)만 기준 — 이름과 완전히 무관.
@@ -4686,6 +4692,14 @@ function closeStartPage() { document.getElementById('start-page').classList.remo
 // 초대코드로 허브 입장/전환
 // 초대코드 확인 → 허브명 보여주고 로그인/가입 화면으로
 async function startInviteNext() {
+  // 최근 허브가 있어 입력칸을 접어 둔 상태면, 첫 클릭은 입력칸을 펼치기만 함
+  const invField = document.getElementById('start-invite-field');
+  if (invField && invField.style.display === 'none') {
+    invField.style.display = '';
+    const inp = document.getElementById('start-invite');
+    if (inp) inp.focus();
+    return;
+  }
   const code = extractInvite(document.getElementById('start-invite').value.trim());
   if (!code) { toast('초대코드를 입력하세요.', true); return; }
   showLoader('허브 찾는 중…');

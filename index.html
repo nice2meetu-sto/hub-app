@@ -17,14 +17,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.5">
+<link rel="stylesheet" href="styles.css?v=1.0.6">
 </head>
 <body>
 <div id="app">
   <div class="appbar">
-    <h1 style="display:flex;align-items:center;gap:8px;min-width:0;margin:0;">
+    <h1 style="display:flex;align-items:baseline;gap:8px;min-width:0;margin:0;">
       <span onclick="openHubMenu()" style="cursor:pointer;white-space:nowrap;" title="허브 전환"><span class="dice" id="hub-icon">🎲</span> <span id="hub-title">보드게임 Hub</span></span>
-      <span class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">비로그인</span>
+      <span class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;font-size:14px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">비로그인</span>
     </h1>
     <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto;">
       <button onclick="refreshAll()" title="최신 데이터로 업데이트"
@@ -327,6 +327,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.5"></script>
+<script src="app.js?v=1.0.6"></script>
 </body>
 </html>

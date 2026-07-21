@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.0">
+<link rel="stylesheet" href="styles.css?v=1.0.1">
 </head>
 <body>
 <div id="app">
@@ -203,11 +203,11 @@
         <input class="input" id="start-invite" placeholder="예: AB12CD"
                oninput="inviteAutoExtract(this)" onkeydown="if(event.key==='Enter')startInviteNext()" />
       </div>
-      <button class="btn" style="margin-bottom:10px;" onclick="startInviteNext()">🔑 초대코드로 시작
+      <button class="btn" style="margin-bottom:10px;" onclick="startInviteNext()">🔑 기존 허브 이용
         <div class="hint" style="margin:3px 0 0;font-weight:500;color:#e9e7f8;">받은 초대 문구를 붙여 넣고 간편하게 시작하세요</div>
       </button>
-      <button class="btn ghost" onclick="startEmailEntry()">📧 이메일로 시작
-        <div class="hint" style="margin:3px 0 0;font-weight:500;">신규 허브 개설·여러 허브 통합 사용이 가능해요</div>
+      <button class="btn ghost" onclick="startEmailEntry()">🎲 신규 허브 개설
+        <div class="hint" style="margin:3px 0 0;font-weight:500;">신규 허브를 개설하고 우리 모임만의 게임 기록을 시작해요</div>
       </button>
       <button class="btn ghost" style="margin-top:10px;" onclick="openDogam()">📚 게임 도감 구경
         <div class="hint" style="margin:3px 0 0;font-weight:500;">어떤 게임들이 있는지 미리 둘러보세요</div>
@@ -327,6 +327,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.0"></script>
+<script src="app.js?v=1.0.1"></script>
 </body>
 </html>

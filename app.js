@@ -2757,7 +2757,7 @@ function renderAddPlayForm() {
     </div>
     <div class="sheet-save" style="display:flex;gap:8px;">
       <button class="btn ghost" style="flex:1;" onclick="closeAddSheet()">취소</button>
-      <button class="btn" style="flex:1;" onclick="submitAddPlay()">플레이 결과 저장</button>
+      <button class="btn" style="flex:1;" onclick="submitAddPlay()">저장</button>
     </div>`;
   renderParticipants();
 }
@@ -3979,7 +3979,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.14';
+const APP_VERSION = '1.0.15';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -1287,7 +1287,7 @@ async function switchToHub(hid) {
     saveHub({ hub_id: hid, name: link.hub_name, kind: link.kind || 'hub', icon: link.icon || '' });
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id },
               u.pin, link.hub_name + '(으)로 이동!');
-    pushRecentHub({ hub_id: hid, name: link.hub_name, icon: link.icon, kind: link.kind, nick: u.name });
+    pushRecentHub({ hub_id: hid, name: link.hub_name, icon: link.icon, kind: link.kind, nick: u.name, pin: u.pin });
     closeHubMenu();
     await loadCore();      // 데이터를 다 불러온 뒤에
     switchView('games');   // 입장 첫 화면은 게임 탭으로 통일
@@ -3926,7 +3926,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -3989,7 +3989,7 @@ function pushRecentHub(e) {
   if (!e || !e.hub_id) return;
   let list = getRecentHubs().filter(h => h && h.hub_id !== e.hub_id);   // 중복 제거
   list.unshift({ hub_id: e.hub_id, name: e.name || '', icon: e.icon || '',
-                 kind: e.kind || 'hub', nick: e.nick || '', code: e.code || '' });   // PIN 저장 안 함
+                 kind: e.kind || 'hub', nick: e.nick || '', code: e.code || '', pin: e.pin || '' });
   localStorage.setItem('bg_recent_hubs', JSON.stringify(list.slice(0, 5)));   // 최대 5개
 }
 function removeRecentHub(hid) {
@@ -4029,7 +4029,8 @@ function clearAllRecent() {
   localStorage.removeItem('bg_recent_hubs'); state._recentEdit = false; renderRecentHubs();
 }
 
-// 최근 허브 탭 → 재입장. 개인 기록장은 이메일 세션 있으면 원탭, 그 외엔 PIN 입력.
+// 최근 허브 탭 → 클릭 한 번에 재입장(저장된 PIN 사용).
+// 개인 기록장은 이메일 세션 있으면 login_linked 원탭, 그 외엔 저장된 PIN으로 즉시 로그인.
 async function recentEnter(hid) {
   const r = getRecentHubs().find(h => h.hub_id === hid);
   if (!r) return;
@@ -4038,14 +4039,23 @@ async function recentEnter(hid) {
     try { const { data } = await sb.auth.getSession(); hasSession = !!(data && data.session); } catch (e) {}
     if (hasSession) { await recentEnterLinked(r); return; }
   }
-  // PIN 입력 로그인 화면(초대 입장 화면 재사용) — 코드 없이 hub_id로 로그인
-  state._joinHub = { hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', code: r.code || '' };
-  document.getElementById('ji-hub').textContent = r.name + (r.kind === 'personal' ? '' : ' Hub');
-  jiSetMode('login');
-  document.getElementById('ji-name').value = r.nick || '';
-  document.getElementById('ji-pin').value = '';
-  startShow('invite');
-  setTimeout(() => { const p = document.getElementById('ji-pin'); if (p) p.focus(); }, 60);
+  if (r.pin) { await recentEnterPin(r); return; }   // 저장된 PIN → 원클릭
+  showRecentPinScreen(r);                            // PIN 없으면 입력 화면
+}
+// 저장된 PIN으로 즉시 로그인(코드 없이 hub_id로)
+async function recentEnterPin(r) {
+  showLoader('입장 중…');
+  try {
+    const d = await sbrpc('login', { p_name: r.nick, p_pin: r.pin, p_hub_id: r.hub_id });
+    if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
+    saveHub({ hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', invite: r.code || '' });
+    applyAuth({ player_id: d.player_id, name: d.name, role: d.role, hub_id: r.hub_id }, r.pin, r.name + ' 입장!');
+    pushRecentHub({ hub_id: r.hub_id, name: r.name, icon: r.icon, kind: r.kind, nick: d.name, code: r.code, pin: r.pin });
+    await loadCore(); switchView('games'); closeStartPage();
+  } catch (e) {
+    toast('비밀번호가 바뀌었나 봐요. 다시 입력해주세요.', true);
+    showRecentPinScreen(r);   // 저장된 PIN이 안 맞으면 입력 화면으로
+  } finally { hideLoader(); }
 }
 // 개인 기록장 원탭 입장(이메일 세션)
 async function recentEnterLinked(r) {
@@ -4054,18 +4064,23 @@ async function recentEnterLinked(r) {
     const u = await sbrpc('login_linked', { p_hub_id: r.hub_id });
     saveHub({ hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '' });
     applyAuth({ player_id: u.player_id, name: u.name, role: u.role, hub_id: u.hub_id }, u.pin, r.name + ' 입장!');
-    pushRecentHub({ hub_id: r.hub_id, name: r.name, icon: r.icon, kind: r.kind, nick: u.name });
+    pushRecentHub({ hub_id: r.hub_id, name: r.name, icon: r.icon, kind: r.kind, nick: u.name, pin: u.pin });
     await loadCore(); switchView('games'); closeStartPage();
   } catch (e) {
-    // 세션이 만료됐으면 PIN 로그인 화면으로 폴백
-    toast('비밀번호로 입장해주세요.', true);
-    state._joinHub = { hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', code: r.code || '' };
-    document.getElementById('ji-hub').textContent = r.name;
-    jiSetMode('login');
-    document.getElementById('ji-name').value = r.nick || '';
-    document.getElementById('ji-pin').value = '';
-    startShow('invite');
+    // 세션이 만료됐으면 저장된 PIN → 없으면 입력 화면
+    if (r.pin) { await recentEnterPin(r); return; }
+    showRecentPinScreen(r);
   } finally { hideLoader(); }
+}
+// PIN 입력 로그인 화면(초대 입장 화면 재사용)
+function showRecentPinScreen(r) {
+  state._joinHub = { hub_id: r.hub_id, name: r.name, kind: r.kind || 'hub', icon: r.icon || '', code: r.code || '' };
+  document.getElementById('ji-hub').textContent = r.name + (r.kind === 'personal' ? '' : ' Hub');
+  jiSetMode('login');
+  document.getElementById('ji-name').value = r.nick || '';
+  document.getElementById('ji-pin').value = '';
+  startShow('invite');
+  setTimeout(() => { const p = document.getElementById('ji-pin'); if (p) p.focus(); }, 60);
 }
 
 // 시작 페이지 내부 화면 전환 — 이동할 때 히스토리에 쌓아
@@ -4724,7 +4739,7 @@ async function joinByInvite() {
     saveHub({ hub_id: h.hub_id, name: h.name, invite: h.code, kind: h.kind || 'hub', icon: h.icon || '' });
     localStorage.setItem('bg_last_invite',
       JSON.stringify({ code: h.code, name: h.name, nick: user.name, pin }));
-    pushRecentHub({ hub_id: h.hub_id, name: h.name, icon: h.icon, kind: h.kind, nick: user.name, code: h.code });
+    pushRecentHub({ hub_id: h.hub_id, name: h.name, icon: h.icon, kind: h.kind, nick: user.name, code: h.code, pin });
     applyAuth({ player_id: user.player_id, name: user.name, role: user.role, hub_id: h.hub_id },
               pin, (isSignup ? '가입 완료! ' : '') + h.name + ' 허브에 들어왔어요!');
     await loadCore();      // 데이터를 다 불러온 뒤에

@@ -3334,10 +3334,7 @@ function dogamPickWeight(key) {
 function updateDogamFilterBtns() {
   const d = state._dogam || {};
   const cat = document.getElementById('dogam-cat-btn');
-  if (cat) {
-    cat.textContent = d.cat ? d.cat : '분류 전체';
-    cat.classList.toggle('on', !!d.cat);
-  }
+  if (cat) cat.classList.toggle('cat-on', !!d.cat);   // ☰: 분류 선택 시 강조
   const pc = document.getElementById('dogam-pc-btn');
   if (pc) {
     pc.textContent = d.players ? (d.players >= 7 ? '7명+' : d.players + '명') : '인원 전체';
@@ -3928,7 +3925,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

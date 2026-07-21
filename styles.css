@@ -590,11 +590,12 @@ a[x-apple-data-detectors] {
 .dg-titlerow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; row-gap: 8px; padding: 2px 0 12px; }
 .dg-filters { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .dg-filters .chip { font-size: 12px; padding: 6px 12px; cursor: pointer; }
-#dogam-menu-btn {
-  font-size: 20px; line-height: 1; padding: 4px 6px; color: var(--text); background: none;
+#dogam-cat-btn {
+  font-size: 19px; line-height: 1; padding: 4px 8px; color: var(--text-sub); background: none;
   align-self: center; border-radius: 8px;
 }
-#dogam-menu-btn:active { background: var(--main-light); }
+#dogam-cat-btn.cat-on { color: var(--main); }
+#dogam-cat-btn:active { background: var(--main-light); }
 #dogam-title { font-size: 20px; font-weight: 900; margin: 0; letter-spacing: -.02em; }
 #dogam-sub { font-size: 12px; color: var(--text-sub); }
 #dogam-grid {

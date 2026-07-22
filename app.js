@@ -26,7 +26,6 @@ const state = {
   gameFilter: { category: null, playerCount: null, weight: null, search: '' },
   myTab: 'overview',
   myGameSort: 'winrate',
-  authMode: 'login',   // 'login' | 'signup'
 };
 
 // ===== API (Supabase) =====
@@ -53,12 +52,6 @@ async function sbWriteWithPayload(fn, payloadStr) {
 async function api(action, params = {}) {
   const P = params;
   switch (action) {
-    case 'login': {
-      // v2: 실패 시 예외 대신 {ok:false, error}를 반환(PIN 시도 잠금 카운터 유지용)
-      const d = await sbrpc('login', { p_name: P.name, p_pin: P.pin, p_hub_id: hubId() });
-      if (d && d.ok === false) throw new Error(d.error || '로그인에 실패했습니다.');
-      return d;
-    }
     case 'signup':         return sbrpc('signup', { p_name: P.name, p_pin: P.pin,
                              p_hub_id: hubId(), p_invite: (state.hub && state.hub.invite) || null });
     case 'getGames':       return sbrpc('get_games', { p_hub_id: hubId() });
@@ -92,7 +85,6 @@ async function api(action, params = {}) {
         p_player_id: P.playerId, p_pin: P.pin, p_game_id: P.gameId, p_memo: P.memo || ''
       });
     case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
-    case 'getReviewsAll': return sbrpc('get_reviews_all', { p_game_id: P.gameId });
     case 'getReviewsMates': return sbrpc('get_reviews_mates', { p_game_id: P.gameId });
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
@@ -201,13 +193,6 @@ function showDetailSheet() {
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-function fmtDate(d) {
-  if (!d) return '';
-  const s = String(d).substring(0, 10);
-  const parts = s.split('-');
-  if (parts.length === 3) return `${parts[1]}.${parts[2]}`;
-  return s;
 }
 function thumb(url, cls) {
   // referrerpolicy=no-referrer: BGG 이미지 CDN의 핫링크 차단(403) 회피용.
@@ -3752,20 +3737,11 @@ async function adminDeleteHub() {
   showLoader('허브 삭제 중…');
   try {
     await api('deleteHub', { playerId: state.user.player_id, pin });
-    // 로컬 정리: 최근 목록·자동입장에서 이 허브 제거
+    // 로컬 정리: 최근 목록에서 이 허브 제거(clearSession 전에 — state.hub 참조)
     try { removeRecentHub(state.hub.hub_id); } catch (e) {}
-    const delId = state.hub.hub_id;
-    if (state._myLinks) state._myLinks = state._myLinks.filter(l => l.hub_id !== delId);
     hideLoader();
     closeAdminPage();
-    // 삭제한 허브에서 나와 메인으로(허브 컨텍스트 정리)
-    state.hub = null; state.user = null;
-    localStorage.removeItem('bg_user');
-    localStorage.removeItem('bg_pin');
-    localStorage.removeItem('bg_hub');
-    state.games = []; state.plays = []; state.players = [];
-    state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
-    updateWhoami(); updateHubTitle();
+    clearSession();   // 삭제한 허브에서 나와 메인으로(허브 컨텍스트 정리)
     toast('허브를 삭제했어요.');
     openStartPage(false);
   } catch (e) {
@@ -3984,7 +3960,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.19';
+const APP_VERSION = '1.0.20';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4657,6 +4633,21 @@ async function unlinkFromStart(pid, hubName) {
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
+// 로컬 세션/허브 컨텍스트 전체 정리(로그아웃·허브 삭제 등 공통)
+function clearSession() {
+  state.user = null;
+  state.hub = null;
+  localStorage.removeItem('bg_user');
+  localStorage.removeItem('bg_pin');
+  localStorage.removeItem('bg_hub');
+  state.games = []; state.plays = []; state.players = [];
+  state._myLinks = null; state._myStatsBy = null;
+  state._myAllPlays = null; state._myAllGames = null;
+  state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
+  updateWhoami();
+  updateHubTitle();
+}
+
 // 계정 로그아웃 = 완전 로그아웃: 이메일 세션 + 멤버 세션 + 허브 컨텍스트 정리
 // (허브는 유지한 채 화면만 나가는 건 '메인으로'가 담당)
 async function startSignOut() {
@@ -4670,17 +4661,7 @@ async function startSignOut() {
     }
   } catch (e) {}
   hideLoader();
-  state.user = null;
-  state.hub = null;
-  localStorage.removeItem('bg_user');
-  localStorage.removeItem('bg_pin');
-  localStorage.removeItem('bg_hub');
-  state.games = []; state.plays = []; state.players = [];
-  state._myLinks = null; state._myStatsBy = null;
-  state._myAllPlays = null; state._myAllGames = null;
-  state._myStats = null; state._myRatings = null; state._myRatingsPromise = null;
-  updateWhoami();
-  updateHubTitle();
+  clearSession();
   toast('로그아웃했어요.');
   openStartPage(false);   // 돌아갈 허브 없음 → ✕ 숨김, 처음 화면부터
 }

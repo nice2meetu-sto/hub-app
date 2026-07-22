@@ -178,7 +178,7 @@
   .gcard-edit:active { opacity: 1; }
   .rate-mine { font-size: 13px; font-weight: 700; color: var(--ok); }
   .rate-mine .star { color: var(--win); }
-  .gcard-top { display: flex; gap: 12px; }
+  .gcard-top { display: flex; gap: 12px; position: relative; }
   .gcard-img {
     width: 68px; height: 68px; border-radius: 12px;
   }
@@ -230,7 +230,6 @@
   .gcard-actions { position: absolute; top: 8px; right: 8px; z-index: 2; display: flex; gap: 6px; align-items: center; }
   /* 후기 버튼 우측 하단 배치(br): 플레이탭 카드는 카드 하단, 게임탭 카드는 평점 줄 끝 */
   .gcard-actions.br { top: auto; bottom: 11px; }
-  .gcard-top { position: relative; }
   .gcard-top .gcard-actions.br { right: 0; bottom: -2px; }
   .gcard-pill { padding: 4px 10px; border-radius: 999px; background: var(--main-light); color: var(--main);
     font-size: 11px; font-weight: 800; line-height: 1.4; white-space: nowrap; }
@@ -381,15 +380,6 @@
   /* 도감 탭이 열려 있을 땐 탭바(+튀어나온 추가 버튼)를 도감(220) 위로 */
   .tabbar.over-dogam { z-index: 230; }
   .tab.on { color: var(--main); font-weight: 700; }
-  .fab {
-    position: fixed; bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0)); z-index: 55;
-    left: 50%; margin-left: calc(var(--maxw) / 2 - 74px);
-    width: 56px; height: 56px; border-radius: 50%; background: var(--main); color: #fff;
-    font-size: 30px; font-weight: 300; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 6px 18px rgba(83,74,183,.45);
-  }
-  @media (max-width: 720px) { .fab { left: auto; right: 18px; margin-left: 0; } }
-  .fab:active { background: var(--main-dark); }
 
   /* ===== Modal / sheet ===== */
   .overlay {
@@ -521,11 +511,6 @@
 }
 .start-wrap { max-width: 360px; margin: 0 auto; padding-top: 12vh; text-align: center; }
 .start-logo { font-size: 54px; }
-.start-div {
-  display: flex; align-items: center; gap: 10px; color: var(--text-sub);
-  font-size: 12px; margin: 22px 0 14px;
-}
-.start-div::before, .start-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .invite-code {
   font-size: 28px; font-weight: 900; letter-spacing: 6px; color: var(--main);
   background: var(--main-light); border-radius: 12px; padding: 14px; text-align: center;

@@ -3188,6 +3188,8 @@ function openDogam() {
     });
     const td = document.getElementById('tab-dogam'); if (td) td.classList.add('on');
     document.querySelector('.tabbar').classList.add('over-dogam');   // 튀어나온 추가 버튼이 안 잘리게
+    // 당겨서 새로고침(전체 리로드) 후에도 도감 탭으로 복귀하도록 기억
+    try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
   document.getElementById('dogam-search').value = '';
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
@@ -3982,7 +3984,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.18';
+const APP_VERSION = '1.0.19';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5069,6 +5071,7 @@ function init() {
   // 새로고침(당겨서 새로고침 포함) 후 직전에 보던 탭으로 복귀(기본은 게임)
   const lastView = localStorage.getItem('bg_view');
   if (lastView === 'play' || lastView === 'my') switchView(lastView);
+  else if (lastView === 'dogam') openDogamTab();   // 도감 탭도 그대로 복원
   loadCore();
   refreshHubName();
 }

@@ -513,8 +513,11 @@
 }
 #start-page.show { display: block; }
 #start-close {
-  position: absolute; top: 14px; right: 16px; font-size: 20px; color: var(--text-sub);
-  background: none; padding: 6px 10px;
+  position: absolute; top: 12px; right: 14px; z-index: 2;
+  font-size: 13px; font-weight: 700; color: var(--main);
+  background: var(--main-light); padding: 8px 13px; border-radius: 999px;
+  max-width: calc(100% - 28px); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
 .start-wrap { max-width: 360px; margin: 0 auto; padding-top: 12vh; text-align: center; }
 .start-logo { font-size: 54px; }

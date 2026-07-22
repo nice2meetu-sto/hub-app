@@ -3979,7 +3979,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.15';
+const APP_VERSION = '1.0.16';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4010,10 +4010,15 @@ async function refreshHubName() {
   } catch (e) {}
 }
 
-// 시작/허브전환 화면. closable=true면 우측 상단 ✕ 표시(허브 있는 상태에서 전환용)
+// 시작/허브전환 화면. closable=true면 우측 상단에 '○○ Hub로 돌아가기 ›' 표시
+// (허브에 입장한 채로 '메인으로' 눌러 들어온 경우 — 눌러서 원래 허브로 복귀)
 function openStartPage(closable) {
   const el = document.getElementById('start-page');
-  document.getElementById('start-close').style.display = closable ? '' : 'none';
+  const closeBtn = document.getElementById('start-close');
+  closeBtn.style.display = closable ? '' : 'none';
+  if (closable) {
+    closeBtn.textContent = (state.hub ? state.hub.name + ' Hub' : '허브') + '로 돌아가기 ›';
+  }
   const inv = document.getElementById('start-invite');
   let last = null;
   try { last = JSON.parse(localStorage.getItem('bg_last_invite') || 'null'); } catch (e) {}

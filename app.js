@@ -3979,7 +3979,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.16';
+const APP_VERSION = '1.0.17';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -4064,7 +4064,10 @@ function renderRecentHubs() {
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 8px;">
       <span class="hint" style="margin:0;font-weight:700;">최근 이용한 허브</span>
-      <button class="logout-link" style="color:var(--main);text-decoration:none;" onclick="toggleRecentEdit()">${edit ? '완료' : '편집'}</button>
+      <span style="display:flex;align-items:center;gap:14px;">
+        ${edit ? `<button class="logout-link" style="color:var(--danger);text-decoration:none;" onclick="clearAllRecent()">전체 지우기</button>` : ''}
+        <button class="logout-link" style="color:var(--main);text-decoration:none;" onclick="toggleRecentEdit()">${edit ? '완료' : '편집'}</button>
+      </span>
     </div>
     ${list.map(h => `
       <button class="hubmenu-item" style="background:#fafafc;margin-bottom:8px;" onclick="${edit ? '' : `recentEnter('${esc(h.hub_id)}')`}">
@@ -4077,8 +4080,7 @@ function renderRecentHubs() {
             ? `<span onclick="event.stopPropagation(); removeRecent('${esc(h.hub_id)}')" style="color:var(--danger);font-weight:800;font-size:15px;padding:0 2px;">✕</span>`
             : '<span class="hint">›</span>'}
         </span>
-      </button>`).join('')}
-    ${edit ? `<button class="logout-link" style="color:var(--danger);margin:2px 2px 2px;" onclick="clearAllRecent()">전체 지우기</button>` : ''}`;
+      </button>`).join('')}`;
 }
 function toggleRecentEdit() { state._recentEdit = !state._recentEdit; renderRecentHubs(); }
 function removeRecent(hid) { removeRecentHub(hid); renderRecentHubs(); }

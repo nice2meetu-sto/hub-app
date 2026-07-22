@@ -233,6 +233,9 @@ function switchView(name) {
     document.getElementById('view-' + v).classList.toggle('active', v === name);
     document.getElementById('tab-' + v).classList.toggle('on', v === name);
   });
+  // 현재 탭 기억 — 안드로이드 '당겨서 새로고침'(전체 리로드) 후에도
+  // 같은 탭으로 복귀시켜 페이지 고정 새로고침처럼 동작하게 함
+  try { localStorage.setItem('bg_view', name); } catch (e) {}
   if (name === 'my') renderMy();
   if (name === 'games') renderGames();
   if (name === 'play') renderPlay();
@@ -3979,7 +3982,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.17';
+const APP_VERSION = '1.0.18';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5063,6 +5066,9 @@ function init() {
   }
   // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터
   if (!state.hub || !state.user) { openStartPage(false); return; }
+  // 새로고침(당겨서 새로고침 포함) 후 직전에 보던 탭으로 복귀(기본은 게임)
+  const lastView = localStorage.getItem('bg_view');
+  if (lastView === 'play' || lastView === 'my') switchView(lastView);
   loadCore();
   refreshHubName();
 }

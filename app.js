@@ -3041,7 +3041,7 @@ document.getElementById('gd-session-overlay').addEventListener('click', e => {
 async function deleteGameAdmin(gameId) {
   const g = gameById(gameId);
   const nm = g ? (g.name_kr || g.name_en) : gameId;
-  if (!confirm(`"${nm}" 게임을 삭제할까요?\n이 게임의 평점·후기도 함께 삭제됩니다.\n(플레이 기록은 남아 있어요)`)) return;
+  if (!confirm(`우리 허브 게임 목록에서 "${nm}"을(를) 뺄까요?\n우리 허브의 평점·후기도 함께 삭제됩니다.\n(도감엔 그대로 남고, 플레이 기록도 남아요)`)) return;
   const pin = await promptPin();
   if (pin == null) return;
   showLoader('삭제 중…');
@@ -3960,7 +3960,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.21';
+const APP_VERSION = '1.0.22';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

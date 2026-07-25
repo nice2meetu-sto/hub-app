@@ -2559,24 +2559,29 @@ async function submitAddGame() {
   // 도감에서 가져온 게임이면 서버가 도감 정보 그대로 연결 — 나머지 검사 불필요
   const picked = state.agPick && normGameName(state.agPick.name_kr) === nk;
   if (!picked) {
-    if (!document.getElementById('ag-min').value.trim() ||
-        !document.getElementById('ag-max').value.trim() ||
-        !document.getElementById('ag-time').value.trim()) {
-      toast('인원수와 플레이타임은 꼭 입력해주세요.', true); return;
-    }
-    if (!imageUrl) {
-      toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
-    }
-    // 직접 등록인데 같은 이름(띄어쓰기 무시)이 도감에 이미 있으면 차단 → 가져오기 유도
+    // 같은 이름(띄어쓰기 무시)이 도감에 이미 있는지 먼저 확인
+    let hit = null;
     try {
       const list = await api('searchCatalog', { term: nameKr });
-      const hit = (list || []).find(g =>
+      hit = (list || []).find(g =>
         normGameName(g.name_kr) === nk || normGameName(g.name_en || '') === nk);
-      if (hit) {
-        toast(`이미 도감에 등록된 게임이에요 — 📚 도감 검색에서 "${hit.name_kr}"를 선택해 가져와주세요.`, true);
-        return;
-      }
     } catch (e) {}
+    if (hit && hit.on_shelf) {
+      toast('이미 우리 허브에 등록된 게임이에요.', true); return;
+    }
+    if (!hit) {
+      // 완전 새 게임 → 필수 정보 검증
+      if (!document.getElementById('ag-min').value.trim() ||
+          !document.getElementById('ag-max').value.trim() ||
+          !document.getElementById('ag-time').value.trim()) {
+        toast('인원수와 플레이타임은 꼭 입력해주세요.', true); return;
+      }
+      if (!imageUrl) {
+        toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
+      }
+    }
+    // hit && !on_shelf(예: 삭제 후 재추가): 그대로 진행 →
+    // add_game이 도감 항목을 찾아 우리 허브에 다시 담음(source='catalog')
   }
   const pin = await promptPin();
   if (pin == null) return;
@@ -3960,7 +3965,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.22';
+const APP_VERSION = '1.0.23';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -403,6 +403,8 @@
      참가자 목록(#ap-participants)만 내부 스크롤 */
   #add-overlay { z-index: 240; }   /* 도감 탭(220) 위에서도 열리도록 */
   #add-overlay .sheet { height: var(--sheet-h); display: flex; flex-direction: column; }
+  /* 도감 검색 결과 시트는 추가 시트(240) 안에서 열리므로 그 위에 떠야 함 */
+  #detail-overlay { z-index: 245; }
   #add-play-form { flex: 1; min-height: 0; flex-direction: column; }  /* display는 탭 전환 JS가 지정 */
   .ap-parts-field { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .ap-parts-field > #ap-participants { flex: 1; min-height: 0; overflow-y: auto; }

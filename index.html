@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.27">
+<link rel="stylesheet" href="styles.css?v=1.0.28">
 </head>
 <body>
 <div id="app">
@@ -44,6 +44,7 @@
 
   <!-- ===== VIEW: 게임 ===== -->
   <div class="view active" id="view-games">
+    <div class="hint" style="margin:2px 2px 12px;">🎯 우리 Hub에서 플레이한 게임을 확인하세요</div>
     <div class="searchrow">
       <div class="searchbox">
         <span>🔍</span>
@@ -77,8 +78,8 @@
     <button class="tab" id="tab-play" onclick="switchView('play')"><span class="ico">📋</span>플레이</button>
     <button class="tab on" id="tab-games" onclick="switchView('games')"><span class="ico">🎯</span>게임</button>
     <button class="tab tab-add" id="tab-add" onclick="openAddSheet()"><span class="add-circle"><span class="add-plus">＋</span><span class="add-label">추가</span></span></button>
-    <button class="tab" id="tab-dogam" onclick="openDogamTab()"><span class="ico">📚</span>도감</button>
     <button class="tab" id="tab-my" onclick="switchView('my')"><span class="ico">👤</span>MY</button>
+    <button class="tab" id="tab-dogam" onclick="openDogamTab()"><span class="ico">📚</span>도감</button>
   </div>
 </div>
 
@@ -328,6 +329,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.27"></script>
+<script src="app.js?v=1.0.28"></script>
 </body>
 </html>

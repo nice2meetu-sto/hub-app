@@ -2213,7 +2213,7 @@ function renderAddGameForm() {
                  oninput="checkNewGameName(); acRender(this,'game')" onblur="acHide(this)" />
           <div class="ac-menu"></div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">📚 도감 검색</button>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="agSearchCatalog()">🔍 검색</button>
       </div>
       <div class="hint" style="margin-top:4px;text-align:center;">쉼표로 여러 이름 검색(예: 스컬킹, skull) · 없으면 직접 등록해요.</div>
     </div>
@@ -2771,7 +2771,7 @@ function checkNewGameName() {
     el.textContent = `혹시 "${sim}"인가요?(아니면 도감 검색)`;
   } else {
     el.className = 'mchk ok';
-    el.textContent = '✓ 등록 가능 · 📚도감 검색을 눌러주세요';
+    el.textContent = '✓ 등록 가능 · 검색 버튼을 눌러주세요';
   }
   // 도감에서 가져온 상태에서 이름을 바꾸면 '직접 등록' 모드로 복귀
   if (state.agPick && normGameName(state.agPick.name_kr) !== key) {
@@ -2816,7 +2816,7 @@ function renderAddPlayForm() {
                  oninput="acRender(this,'game'); updateGameBadge()" onblur="acHide(this)" />
           <div class="ac-menu"></div>
         </div>
-        <button class="btn sm" style="flex:0 0 auto;" onclick="apSearchCatalog()">📚 도감 검색</button>
+        <button class="btn sm" style="flex:0 0 auto;" onclick="apSearchCatalog()">🔍 검색</button>
       </div>
     </div>
     <div class="field ap-parts-field">
@@ -2893,7 +2893,7 @@ function updateGameBadge() {
   }
   const sim = v ? similarGameName(v) : null;
   el.textContent = sim ? `혹시 "${sim}"인가요? 등록된 게임이 없어요`
-                       : '등록된 게임이 없어요, 도감 검색을 눌러주세요';
+                       : '등록된 게임이 없어요, 검색 버튼을 눌러주세요';
   el.className = 'mchk no';
 }
 
@@ -4046,7 +4046,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.28';
+const APP_VERSION = '1.0.29';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

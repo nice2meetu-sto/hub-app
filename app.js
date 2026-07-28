@@ -9,6 +9,11 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // 구글 화면에 boardgame-hub.com 이 표시됨(supabase.co 노출 X, 추가비용 0).
 const GOOGLE_CLIENT_ID = "645541153068-3hdo02s304t6rn9n3q764onje9er296j.apps.googleusercontent.com";
 
+// BGG(BoardGameGeek) 검색 프록시 — Cloudflare Worker 주소를 넣으세요.
+// (배포 가이드: cloudflare-worker-bgg/README.md) 비워두면 BGG 검색은 숨겨지고
+// 자체 도감 검색만 동작합니다.
+const BGG_PROXY_URL = "";   // 예: "https://bgg-search.내계정.workers.dev"
+
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
   ['전략', '마피아', '파티게임', '트릭테이킹', '1대1 게임', '카드게임', '경매게임', '협력게임', '기타'];
@@ -2341,6 +2346,7 @@ function agResultCardHtml(g) {
       ${thumb(g.image_url, 'gcard-img')}
       <div class="gcard-body">
         <div class="gcard-name">${title}
+          ${g._bgg ? `<span class="badge" style="margin-left:6px;background:#e6f0ff;color:#2a5db0;">🌐 BGG</span>` : ''}
           ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}
           ${g.on_shelf ? `<span class="badge" style="margin-left:4px;">✓ 우리 허브</span>` : ''}</div>
         ${g.name_en && g.name_kr ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
@@ -2356,16 +2362,56 @@ function agRenderCatalogResults(list, term) {
   state._agResults = {};
   list.forEach(g => { state._agResults[g.game_id] = g; });
   const el = document.getElementById('detail-body');
+  // 게임 추가 맥락 + BGG 프록시가 설정돼 있으면 BGG 결과 슬롯을 이어 붙임
+  const withBgg = state._agCtx === 'game' && !!BGG_PROXY_URL;
+  const bggSlot = withBgg ? `<div id="ag-bgg-slot"></div>` : '';
   el.innerHTML = list.length
     ? `<h2>📚 도감 검색 결과</h2>
        <div class="hint" style="margin-bottom:10px;">"${esc(term)}" — 게임을 누르면 정보를 그대로 가져와요.</div>
        ${list.map(agResultCardHtml).join('')}
+       ${bggSlot}
        <div class="hint" style="margin:12px 0 6px;">찾는 게임이 없나요? 직접 등록해주세요.</div>
        <button class="btn ghost sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`
     : `<h2>📚 도감 검색</h2>
        <div class="empty" style="padding:22px 0 10px;">우리 도감엔 없는 게임이에요.</div>
+       ${bggSlot}
        <button class="btn sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`;
   showDetailSheet();
+  if (withBgg) agSearchBGG(term);   // BGG는 비동기로 이어 붙임(실패해도 자체 도감은 그대로)
+}
+
+// BGG에서 검색해 결과를 슬롯에 이어 붙임(영문명에 강함 · 한글 커버는 제한적)
+// Cloudflare Worker 프록시(BGG_PROXY_URL)로 호출 — CORS·XML·차단을 서버에서 해결.
+async function agSearchBGG(term) {
+  const slot = document.getElementById('ag-bgg-slot');
+  if (!slot || state._agTerm !== term) return;
+  slot.innerHTML = `<div class="hint" style="text-align:center;margin:10px 0;">🌐 BGG에서도 찾는 중…</div>`;
+  try {
+    const url = BGG_PROXY_URL.replace(/\/$/, '') + '/?q=' + encodeURIComponent(term);
+    const res = await fetch(url);
+    const data = await res.json();
+    if (state._agTerm !== term) return;   // 그 사이 다른 검색을 함
+    const results = (data && data.results) || [];
+    // 이미 자체 도감/결과에 있는 영문명은 제외(중복 방지)
+    const have = new Set(Object.values(state._agResults || {})
+      .map(g => normGameName(g.name_en || '')).filter(Boolean));
+    const fresh = results.filter(r => r.name_en && !have.has(normGameName(r.name_en)));
+    if (!fresh.length) { slot.innerHTML = ''; return; }
+    fresh.forEach(r => {
+      state._agResults['bgg:' + r.bgg_id] = {
+        game_id: 'bgg:' + r.bgg_id, _bgg: true, on_shelf: false,
+        name_kr: '', name_en: r.name_en, category: '', summary_kr: '',
+        min_players: r.min_players, max_players: r.max_players,
+        playtime_min: r.playtime_min, image_url: r.image_url || ''
+      };
+    });
+    slot.innerHTML =
+      `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·시간·사진을 가져와요</div>`
+      + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('');
+  } catch (e) {
+    if (state._agTerm === term)
+      slot.innerHTML = `<div class="hint" style="text-align:center;margin:8px 0;color:var(--text-sub);">BGG 검색을 지금은 쓸 수 없어요</div>`;
+  }
 }
 
 // 도감 게임 선택 → 모든 정보를 도감 그대로 채움
@@ -2375,6 +2421,21 @@ function agPickCatalog(gid) {
   if (state._agCtx === 'play') { apPickCatalog(g); return; }
   if (g.on_shelf) { toast('이미 우리 허브에 있는 게임이에요.', true); return; }
   const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v == null ? '' : v; };
+  // BGG 결과: 도감엔 없는 새 게임 → 영문명·인원·시간·사진만 채우고 한글명·분류는 직접.
+  // (내가 입력한 한글명 유지, 분류 직접 선택 후 등록 → 도감 신규 manual)
+  if (g._bgg) {
+    set('ag-nameen', g.name_en);
+    set('ag-min', g.min_players); set('ag-max', g.max_players);
+    set('ag-time', g.playtime_min); set('ag-image', g.image_url);
+    document.getElementById('ag-cat-hub').value = '';
+    agHubCatWarn();
+    state.agPick = null;
+    agShowDetail('manual');
+    closeOverlay();          // 검색 팝업 닫기(추가 시트로 복귀)
+    toast('BGG 정보를 가져왔어요. 한글명·분류를 확인하고 등록해주세요.');
+    checkNewGameName();
+    return;
+  }
   set('ag-namekr', g.name_kr); set('ag-nameen', g.name_en);
   const catSel = document.getElementById('ag-category');
   if (g.category && ![...catSel.options].some(o => o.value === g.category)) {
@@ -3965,7 +4026,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.23';
+const APP_VERSION = '1.0.24';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

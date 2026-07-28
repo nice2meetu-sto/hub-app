@@ -2244,7 +2244,13 @@ function renderAddGameForm() {
         <div class="field"><label>플레이타임(분) *</label><input class="input" id="ag-time" type="number" inputmode="numeric" /></div>
         <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
       </div>
-      <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label><input class="input" id="ag-image" placeholder="https://..." /></div>
+      <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label>
+        <div style="display:flex;gap:8px;">
+          <input class="input" id="ag-image" placeholder="https://..." style="flex:1;min-width:0;" />
+          <button type="button" class="btn ghost sm" style="flex:0 0 auto;white-space:nowrap;" onclick="agGoogleImage()">🔍 구글 검색</button>
+        </div>
+        <div class="hint">구글에서 이미지를 찾아 '이미지 주소 복사' 후 여기에 붙여넣으세요</div>
+      </div>
       <div class="field"><label>게임 요약</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
       <div class="field" id="ag-photo-field">
         <label>게임 사진 (URL과 둘 중 하나 필수 — 찍거나 앨범에서 선택)</label>
@@ -2381,6 +2387,17 @@ function agRenderCatalogResults(list, term) {
        <button class="btn sheet-save" onclick="agRegisterNew()">직접 등록하기</button>`;
   showDetailSheet();
   if (withBgg) agSearchBGG(term);   // BGG는 비동기로 이어 붙임(실패해도 자체 도감은 그대로)
+}
+
+// 이미지 URL 찾기: 입력한 게임명으로 구글 이미지 검색을 새 탭에 엶
+// (검색 결과에서 '이미지 주소 복사' 후 URL 칸에 붙여넣기)
+function agGoogleImage() {
+  const kr = (document.getElementById('ag-namekr').value || '').trim();
+  const en = (document.getElementById('ag-nameen').value || '').trim();
+  const q = kr || en;
+  if (!q) { toast('게임명을 먼저 입력하세요.', true); return; }
+  const url = 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q + ' 보드게임');
+  window.open(url, '_blank', 'noopener');
 }
 
 // BGG에서 검색해 결과를 슬롯에 이어 붙임(영문명에 강함 · 한글 커버는 제한적)
@@ -2876,7 +2893,7 @@ function updateGameBadge() {
   }
   const sim = v ? similarGameName(v) : null;
   el.textContent = sim ? `혹시 "${sim}"인가요? 등록된 게임이 없어요`
-                       : '등록된 게임이 없어요, 추가해주세요';
+                       : '등록된 게임이 없어요, 도감 검색을 눌러주세요';
   el.className = 'mchk no';
 }
 
@@ -4029,7 +4046,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.26';
+const APP_VERSION = '1.0.27';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

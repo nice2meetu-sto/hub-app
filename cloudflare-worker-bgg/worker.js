@@ -1,33 +1,41 @@
 // ============================================================
 //  Cloudflare Worker: BGG(BoardGameGeek) 검색 프록시
 //
-//  브라우저는 CORS·XML 때문에 BGG XML API를 직접 못 부르고,
-//  Supabase Edge Function(데이터센터 IP)은 BGG 앞단 Cloudflare가
-//  401/403으로 막는다. Cloudflare Worker는 Cloudflare 자체 망에서
-//  나가므로 차단을 통과할 가능성이 높다.
+//  BGG XML API는 2025-07 정책부터 '앱 등록 + Authorization Bearer 토큰'이
+//  사실상 필수(무등록 요청은 401). 이 Worker는 서버측 프록시(BGG 권장 구조)로,
+//  등록 후 발급받은 토큰을 붙여 호출하고 결과를 JSON+CORS로 돌려준다.
 //
-//  배포: cloudflare-worker-bgg/README.md 참고 (대시보드 5분)
+//  ① 앱 등록: https://boardgamegeek.com/applications (Non-commercial, 승인 1주+)
+//  ② 승인되면 같은 페이지 Tokens에서 토큰 생성
+//  ③ Cloudflare 대시보드 → 이 Worker → Settings → Variables →
+//     'BGG_TOKEN' 이름의 Secret으로 토큰 저장 → 재배포
+//  (배포 방법 전체: cloudflare-worker-bgg/README.md)
+//
 //  호출: GET  https://<worker>/?q=검색어
 //        POST https://<worker>/   body: {"q":"검색어"}
 //  반환: { results: [{ bgg_id, name_en, min_players, max_players,
 //                      playtime_min, image_url }] }
 // ============================================================
 
+// 정책상 요청 도메인은 boardgamegeek.com (www 없이)
 const BGG_HOSTS = ['https://boardgamegeek.com', 'https://api.geekdo.com'];
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-                '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'application/xml,text/xml,text/html,*/*',
-  'Accept-Language': 'en-US,en;q=0.9',
+const BASE_HEADERS = {
+  'User-Agent': 'boardgame-hub.com (non-commercial board game club app)',
+  'Accept': 'application/xml,text/xml,*/*',
 };
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
+let BGG_HEADERS = BASE_HEADERS;   // env.BGG_TOKEN 있으면 Authorization 추가
 
 export default {
-  async fetch(req) {
+  async fetch(req, env) {
+    // BGG 앱 토큰(Secret): "Bearer <토큰>" 헤더 — 등록/승인 후 필수
+    BGG_HEADERS = env && env.BGG_TOKEN
+      ? { ...BASE_HEADERS, 'Authorization': 'Bearer ' + env.BGG_TOKEN }
+      : BASE_HEADERS;
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     const url = new URL(req.url);
     let q = url.searchParams.get('q') || '';
@@ -93,7 +101,7 @@ async function bggFetch(path, tries = 4) {
   for (const host of BGG_HOSTS) {
     for (let i = 0; i < tries; i++) {
       let res;
-      try { res = await fetch(host + path, { headers: BROWSER_HEADERS }); }
+      try { res = await fetch(host + path, { headers: BGG_HEADERS }); }
       catch (e) { last = 'fetch ' + ((e && e.message) || e); break; }
       if (res.status === 200) return await res.text();
       if (res.status === 202 || res.status === 429) {      // 처리 중/속도제한 → 재시도

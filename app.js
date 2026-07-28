@@ -2429,7 +2429,11 @@ async function agSearchBGG(term) {
     });
     slot.innerHTML =
       `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·시간·사진을 가져와요</div>`
-      + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('');
+      + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('')
+      // BGG 정책: 공개 앱은 'Powered by BGG' 표기(+BGG 링크) 필수
+      + `<div class="hint" style="text-align:right;margin:4px 2px 0;">
+           <span onclick="window.open('https://boardgamegeek.com','_blank','noopener')" style="cursor:pointer;font-weight:700;">Powered by BGG</span>
+         </div>`;
   } catch (e) {
     if (state._agTerm === term)
       slot.innerHTML = `<div class="hint" style="text-align:center;margin:8px 0;color:var(--text-sub);">BGG 검색을 지금은 쓸 수 없어요</div>`;

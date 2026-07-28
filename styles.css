@@ -545,7 +545,7 @@ a[x-apple-data-detectors] {
 
 /* 닉네임 미니 메뉴: 상단 닉네임 아래 딱 필요한 크기의 드롭다운 */
 #nick-menu {
-  position: fixed; z-index: 95; display: none; flex-direction: column;
+  position: fixed; z-index: 265; display: none; flex-direction: column;   /* 도감(220) 위에서도 열리게 */
   min-width: 148px; padding: 6px;
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 10px 28px rgba(20,20,30,.16);
@@ -566,9 +566,8 @@ a[x-apple-data-detectors] {
 #mini-overlay textarea { width: 100%; min-height: 180px; margin-top: 10px; }
 
 /* ===== 게임 도감 (전체 화면) ===== */
-#dogam-page.as-tab {   /* 허브 안: 하단 탭바는 남기고, 상단은 '게임 도감' 제목만 */
+#dogam-page.as-tab {   /* 허브 안: 하단 탭바는 남기고, 상단은 다른 탭과 같은 흰 앱바 */
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0));
-  padding-top: calc(env(safe-area-inset-top, 0) + 12px);
 }
 #dogam-page.as-tab .gd-header { display: none; }
 #dogam-page {
@@ -577,19 +576,14 @@ a[x-apple-data-detectors] {
   padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0));
 }
 #dogam-page.show { display: block; }
-.dg-titlerow { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; row-gap: 8px; padding: 2px 0 12px; }
-.dg-filters { margin-left: auto; display: flex; gap: 6px; align-items: center; align-self: center; }
-.dg-filters .chip { font-size: 12px; padding: 6px 12px; cursor: pointer; }
-#dogam-cat-btn {
-  font-size: 19px; line-height: 1; padding: 4px 8px; color: var(--text-sub); background: none;
-  align-self: center; border-radius: 8px;
+/* 도감 상단 흰 바: 다른 탭 앱바와 동일 — 페이지 좌우 패딩(16px)을 상쇄해 꽉 차게 */
+.dg-appbar {
+  margin: 0 -16px 12px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0));
 }
-#dogam-cat-btn.cat-on { color: var(--main); }
-#dogam-cat-btn:active { background: var(--main-light); }
-#dogam-title { font-size: 20px; font-weight: 900; margin: 0; letter-spacing: -.02em; }
-#dogam-sub { font-size: 12px; color: var(--text-sub); }
 #dogam-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px;
+  margin-top: 10px;   /* 난이도 칩과 첫 줄 간격 — 카테고리 칩 위 여백과 동일하게 */
 }
 .dg-card { cursor: pointer; min-width: 0; }
 .dg-card:active { opacity: .7; }

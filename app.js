@@ -1500,7 +1500,9 @@ function toggleNickMenu(e) {
   // 관리자 항목은 admin 로그인 시에만(개인설정 위 첫 번째)
   const adminItem = document.getElementById('nickmenu-admin');
   if (adminItem) adminItem.style.display = (state.user && state.user.role === 'admin') ? '' : 'none';
-  const anchor = document.getElementById('settings-btn') || document.getElementById('whoami');
+  // 누른 버튼(앱바 ☰ 또는 도감 ☰) 기준으로 위치 잡기
+  const anchor = (e && e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget : null)
+    || document.getElementById('settings-btn') || document.getElementById('whoami');
   const r = anchor.getBoundingClientRect();
   m.style.top = (r.bottom + 6) + 'px';
   m.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
@@ -3263,7 +3265,9 @@ function openDogam() {
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
-  updateDogamTitle();
+  // 게스트(허브 미입장) 미리보기에선 우측 상단 메뉴(☰) 숨김
+  const menuBtn = document.getElementById('dg-menu-btn');
+  if (menuBtn) menuBtn.style.display = guest ? 'none' : '';
   renderDogamFilters();
   // 무한 스크롤 감시(최초 1회만 생성)
   if (!state._dogamObs && 'IntersectionObserver' in window) {
@@ -3275,12 +3279,6 @@ function openDogam() {
   dogamLoad(true);
 }
 function closeDogam() { closeOverlay(); }
-
-function updateDogamTitle() {
-  const d = state._dogam || {};
-  const sub = document.getElementById('dogam-sub');
-  if (sub) sub.textContent = d.term ? `검색: ${d.term}` : (d.cat || '전체');
-}
 
 // 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
 async function dogamLoad(reset) {
@@ -3349,7 +3347,7 @@ function dogamPickCat(cat) {
   state._dogam.cat = cat || null;
   state._dogam.term = '';
   document.getElementById('dogam-page').scrollTop = 0;
-  updateDogamTitle(); renderDogamFilters(); dogamLoad(true);
+  renderDogamFilters(); dogamLoad(true);
 }
 function dogamPickPlayers(n) {
   if (!state._dogam) return;
@@ -3976,7 +3974,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.30';
+const APP_VERSION = '1.0.31';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

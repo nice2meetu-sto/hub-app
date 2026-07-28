@@ -12,7 +12,7 @@ const GOOGLE_CLIENT_ID = "645541153068-3hdo02s304t6rn9n3q764onje9er296j.apps.goo
 // BGG(BoardGameGeek) 검색 프록시 — Cloudflare Worker 주소를 넣으세요.
 // (배포 가이드: cloudflare-worker-bgg/README.md) 비워두면 BGG 검색은 숨겨지고
 // 자체 도감 검색만 동작합니다.
-const BGG_PROXY_URL = "";   // 예: "https://bgg-search.내계정.workers.dev"
+const BGG_PROXY_URL = "https://bgg-search.ism199962.workers.dev";
 
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
@@ -4026,7 +4026,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.24';
+const APP_VERSION = '1.0.25';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

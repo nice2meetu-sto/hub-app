@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.29">
+<link rel="stylesheet" href="styles.css?v=1.0.30">
 </head>
 <body>
 <div id="app">
@@ -147,21 +147,14 @@
 <!-- ===== 게임 도감 (전체 화면) ===== -->
 <div id="dogam-page">
   <div class="gd-header"><button class="gd-back" onclick="closeDogam()">‹ 돌아가기</button></div>
+  <div class="hint" style="margin:0 2px 1px;">다른 hub에서 등록한 게임을 구경하세요</div>
   <div class="dg-titlerow">
     <h2 id="dogam-title">게임 도감</h2>
     <span id="dogam-sub" class="hint" style="margin:0;"></span>
-    <div class="dg-filters">
-      <button class="chip" id="dogam-pc-btn" onclick="toggleDogamPlayers(event)">인원 전체</button>
-      <button class="chip" id="dogam-wt-btn" onclick="toggleDogamWeight(event)">난이도 전체</button>
-      <button id="dogam-cat-btn" onclick="toggleDogamCat(event)" title="분류">☰</button>
-    </div>
   </div>
-  <div class="hint" style="margin:0 2px 10px;">📚 다른 hub에서 등록한 게임을 구경하세요</div>
-  <div class="searchrow">
-    <div class="searchbox"><span>🔍</span>
-      <input id="dogam-search" placeholder="게임 검색 (한글/영문)" oninput="dogamSearchInput()" />
-    </div>
-  </div>
+  <div class="chip-row" id="dogam-cat-filter"></div>
+  <div class="chip-row" id="dogam-pc-filter"></div>
+  <div class="chip-row" id="dogam-wt-filter"></div>
   <div id="dogam-grid"></div>
   <div id="dogam-sentinel" style="height:1px;"></div>
 </div>
@@ -330,6 +323,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.29"></script>
+<script src="app.js?v=1.0.30"></script>
 </body>
 </html>

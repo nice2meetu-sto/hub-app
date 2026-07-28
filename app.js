@@ -3262,10 +3262,9 @@ function openDogam() {
     // 당겨서 새로고침(전체 리로드) 후에도 도감 탭으로 복귀하도록 기억
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
-  document.getElementById('dogam-search').value = '';
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
   updateDogamTitle();
-  updateDogamFilterBtns();
+  renderDogamFilters();
   // 무한 스크롤 감시(최초 1회만 생성)
   if (!state._dogamObs && 'IntersectionObserver' in window) {
     state._dogamObs = new IntersectionObserver(
@@ -3328,119 +3327,50 @@ function dogamCardHtml(g) {
   </div>`;
 }
 
-// ── 공용 드롭다운(카테고리·인원·난이도) — 한 번에 하나만 열림 ──
-function dogamMenuOpenIs(kind) {
-  const m = document.getElementById('dogam-catmenu');
-  return m.classList.contains('show') && state._dogamMenu === kind;
+// 도감 필터: 카테고리·인원·난이도 칩(게임 탭과 동일 스타일) — 한 줄씩
+function renderDogamFilters() {
+  const d = state._dogam || {};
+  const cat = document.getElementById('dogam-cat-filter');
+  if (cat) cat.innerHTML =
+    `<span class="chip ${!d.cat ? 'on' : ''}" onclick="dogamPickCat('')">전체</span>` +
+    CATALOG_CATEGORIES.map(c => `<span class="chip ${d.cat === c ? 'on' : ''}" onclick="dogamPickCat('${esc(c)}')">${esc(c)}</span>`).join('');
+  const pc = document.getElementById('dogam-pc-filter');
+  if (pc) pc.innerHTML =
+    `<span class="chip ${!d.players ? 'on' : ''}" onclick="dogamPickPlayers(0)">인원 전체</span>` +
+    [2, 3, 4, 5, 6].map(n => `<span class="chip ${d.players === n ? 'on' : ''}" onclick="dogamPickPlayers(${n})">${n}명</span>`).join('') +
+    `<span class="chip ${d.players === 7 ? 'on' : ''}" onclick="dogamPickPlayers(7)">7명+</span>`;
+  const wt = document.getElementById('dogam-wt-filter');
+  if (wt) wt.innerHTML =
+    `<span class="chip ${!d.weight ? 'on' : ''}" onclick="dogamPickWeight('')">난이도 전체</span>` +
+    WEIGHT_BUCKETS.map(b => `<span class="chip ${d.weight === b.key ? 'on' : ''}" onclick="dogamPickWeight('${b.key}')">${b.label}</span>`).join('');
 }
-function dogamMenuShow(anchor, html, align) {
-  const m = document.getElementById('dogam-catmenu');
-  document.removeEventListener('click', dogamCatOutside);
-  m.innerHTML = html;
-  m.classList.add('show');
-  const r = anchor.getBoundingClientRect();
-  const mw = m.offsetWidth;
-  let left = align === 'right' ? (r.right - mw) : r.left;
-  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
-  m.style.left = left + 'px';
-  m.style.top = (r.bottom + 6) + 'px';
-  setTimeout(() => document.addEventListener('click', dogamCatOutside), 0);
+function dogamPickCat(cat) {
+  if (!state._dogam) return;
+  state._dogam.cat = cat || null;
+  state._dogam.term = '';
+  document.getElementById('dogam-page').scrollTop = 0;
+  updateDogamTitle(); renderDogamFilters(); dogamLoad(true);
 }
+function dogamPickPlayers(n) {
+  if (!state._dogam) return;
+  state._dogam.players = n ? Number(n) : null;
+  document.getElementById('dogam-page').scrollTop = 0;
+  renderDogamFilters(); dogamLoad(true);
+}
+function dogamPickWeight(key) {
+  if (!state._dogam) return;
+  state._dogam.weight = key || null;
+  document.getElementById('dogam-page').scrollTop = 0;
+  renderDogamFilters(); dogamLoad(true);
+}
+// 화면 전환 시 잔재 정리(예전 드롭다운 메뉴가 열려 있으면 닫기)
 function dogamCatOutside(e) {
   if (!document.getElementById('dogam-catmenu').contains(e.target)) closeDogamCat();
 }
 function closeDogamCat() {
-  document.getElementById('dogam-catmenu').classList.remove('show');
+  const m = document.getElementById('dogam-catmenu');
+  if (m) m.classList.remove('show');
   document.removeEventListener('click', dogamCatOutside);
-}
-function dogamOptsHtml(opts, cur, pickFn) {
-  return opts.map(([val, label]) => {
-    const on = String(cur ?? '') === String(val ?? '');
-    return `<button class="${on ? 'on' : ''}" onclick="${pickFn}('${esc(String(val))}')">${on ? '✓ ' : ''}${esc(label)}</button>`;
-  }).join('');
-}
-
-// 카테고리 드롭다운(공용 8종 + 전체) — ☰ 버튼
-function toggleDogamCat(e) {
-  if (e) e.stopPropagation();
-  if (dogamMenuOpenIs('cat')) { closeDogamCat(); return; }
-  state._dogamMenu = 'cat';
-  const opts = [['', '전체'], ...CATALOG_CATEGORIES.map(c => [c, c])];
-  dogamMenuShow(document.getElementById('dogam-cat-btn'),
-    dogamOptsHtml(opts, (state._dogam && state._dogam.cat) || '', 'dogamPickCat'), 'right');
-}
-function dogamPickCat(cat) {
-  closeDogamCat();
-  const d = state._dogam;
-  d.cat = cat || null;
-  d.term = ''; document.getElementById('dogam-search').value = '';
-  document.getElementById('dogam-page').scrollTop = 0;
-  updateDogamTitle();
-  updateDogamFilterBtns();
-  dogamLoad(true);
-}
-
-// 인원수 드롭다운(게임 탭과 동일 기준: 2~6, 7명+)
-function toggleDogamPlayers(e) {
-  if (e) e.stopPropagation();
-  if (dogamMenuOpenIs('players')) { closeDogamCat(); return; }
-  state._dogamMenu = 'players';
-  const opts = [['', '전체'], ['2', '2명'], ['3', '3명'], ['4', '4명'], ['5', '5명'], ['6', '6명'], ['7', '7명+']];
-  dogamMenuShow(document.getElementById('dogam-pc-btn'),
-    dogamOptsHtml(opts, (state._dogam && state._dogam.players) || '', 'dogamPickPlayers'), 'right');
-}
-function dogamPickPlayers(v) {
-  closeDogamCat();
-  state._dogam.players = v ? Number(v) : null;
-  document.getElementById('dogam-page').scrollTop = 0;
-  updateDogamFilterBtns();
-  dogamLoad(true);
-}
-
-// 난이도 드롭다운(게임 탭과 동일 구간)
-function toggleDogamWeight(e) {
-  if (e) e.stopPropagation();
-  if (dogamMenuOpenIs('weight')) { closeDogamCat(); return; }
-  state._dogamMenu = 'weight';
-  const opts = [['', '전체'], ...WEIGHT_BUCKETS.map(b => [b.key, b.label])];
-  dogamMenuShow(document.getElementById('dogam-wt-btn'),
-    dogamOptsHtml(opts, (state._dogam && state._dogam.weight) || '', 'dogamPickWeight'), 'right');
-}
-function dogamPickWeight(key) {
-  closeDogamCat();
-  state._dogam.weight = key || null;
-  document.getElementById('dogam-page').scrollTop = 0;
-  updateDogamFilterBtns();
-  dogamLoad(true);
-}
-
-// 필터 버튼 라벨·활성 표시 갱신
-function updateDogamFilterBtns() {
-  const d = state._dogam || {};
-  const cat = document.getElementById('dogam-cat-btn');
-  if (cat) cat.classList.toggle('cat-on', !!d.cat);   // ☰: 분류 선택 시 강조
-  const pc = document.getElementById('dogam-pc-btn');
-  if (pc) {
-    pc.textContent = d.players ? (d.players >= 7 ? '7명+' : d.players + '명') : '인원 전체';
-    pc.classList.toggle('on', !!d.players);
-  }
-  const wt = document.getElementById('dogam-wt-btn');
-  if (wt) {
-    const b = d.weight ? WEIGHT_BUCKETS.find(x => x.key === d.weight) : null;
-    wt.textContent = b ? '난이도 ' + b.label : '난이도 전체';
-    wt.classList.toggle('on', !!d.weight);
-  }
-}
-
-function dogamSearchInput() {
-  clearTimeout(state._dogamTimer);
-  state._dogamTimer = setTimeout(() => {
-    if (!state._dogam) return;
-    state._dogam.term = document.getElementById('dogam-search').value.trim();
-    document.getElementById('dogam-page').scrollTop = 0;
-    updateDogamTitle();
-    dogamLoad(true);
-  }, 300);
 }
 
 // 카드 클릭 → 중앙 팝업(세부정보 + 우리 hub에 추가)
@@ -4046,7 +3976,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.29';
+const APP_VERSION = '1.0.30';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

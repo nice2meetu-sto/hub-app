@@ -572,7 +572,7 @@ a[x-apple-data-detectors] {
 }
 #dogam-page.as-tab .gd-header { display: none; }
 #dogam-page {
-  position: fixed; inset: 0; z-index: 220; background: var(--main-light); overflow-y: auto; display: none;
+  position: fixed; inset: 0; z-index: 220; background: #f6f4fc; overflow-y: auto; display: none;
   max-width: var(--maxw); margin: 0 auto;
   padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0));
 }

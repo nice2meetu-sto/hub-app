@@ -9,10 +9,13 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // 구글 화면에 boardgame-hub.com 이 표시됨(supabase.co 노출 X, 추가비용 0).
 const GOOGLE_CLIENT_ID = "645541153068-3hdo02s304t6rn9n3q764onje9er296j.apps.googleusercontent.com";
 
-// BGG(BoardGameGeek) 검색 프록시 — Cloudflare Worker 주소를 넣으세요.
+// BGG(BoardGameGeek) 검색 프록시 — Cloudflare Worker 주소.
 // (배포 가이드: cloudflare-worker-bgg/README.md) 비워두면 BGG 검색은 숨겨지고
 // 자체 도감 검색만 동작합니다.
-const BGG_PROXY_URL = "https://bgg-search.ism199962.workers.dev";
+// ※ 현재 비활성화: BGG가 Worker IP까지 401로 막아, 대신 인기 게임을 도감에
+//   미리 담는 방식(supabase_seed_games.sql)으로 대체함. Worker가 다시 열리면
+//   아래에 주소를 넣기만 하면 BGG 검색이 되살아납니다.
+const BGG_PROXY_URL = "";   // "https://bgg-search.ism199962.workers.dev"
 
 // 카테고리 탭 로드 실패 시 폴백
 const DEFAULT_CATEGORIES_FALLBACK =
@@ -4026,7 +4029,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.25';
+const APP_VERSION = '1.0.26';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

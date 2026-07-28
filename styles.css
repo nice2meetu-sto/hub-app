@@ -576,11 +576,13 @@ a[x-apple-data-detectors] {
   padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0));
 }
 #dogam-page.show { display: block; }
-/* 도감 상단 흰 바: 다른 탭 앱바와 동일 — 페이지 좌우 패딩(16px)을 상쇄해 꽉 차게 */
+/* 도감 상단 바: 위치·여백은 다른 탭 앱바와 동일, 색만 보라(추가 버튼과 동일) */
 .dg-appbar {
   margin: 0 -16px 12px;
   padding-top: calc(14px + env(safe-area-inset-top, 0));
+  background: var(--main); border-bottom: none; color: #fff;
 }
+.dg-appbar .who { color: rgba(255,255,255,.85); }
 #dogam-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px;
   margin-top: 10px;   /* 난이도 칩과 첫 줄 간격 — 카테고리 칩 위 여백과 동일하게 */

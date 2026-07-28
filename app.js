@@ -3265,9 +3265,6 @@ function openDogam() {
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
-  // 게스트(허브 미입장) 미리보기에선 우측 상단 메뉴(☰) 숨김
-  const menuBtn = document.getElementById('dg-menu-btn');
-  if (menuBtn) menuBtn.style.display = guest ? 'none' : '';
   renderDogamFilters();
   // 무한 스크롤 감시(최초 1회만 생성)
   if (!state._dogamObs && 'IntersectionObserver' in window) {
@@ -3974,7 +3971,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.31';
+const APP_VERSION = '1.0.32';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

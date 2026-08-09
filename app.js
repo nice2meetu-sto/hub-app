@@ -5017,7 +5017,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.57';
+const APP_VERSION = '1.0.58';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5705,9 +5705,18 @@ function clearSession() {
   updateHubTitle();
 }
 
+// 세션 만료 등으로 로그인이 풀렸을 때: 조용히 깨진 화면 대신
+// 메인(로그인) 화면으로 보내고 이유를 토스트로 알려준다
+function forceLogout() {
+  clearSession();
+  openStartPage(false);
+  toast('로그아웃되었어요. 다시 로그인해주세요.');
+}
+
 // 계정 로그아웃 = 완전 로그아웃: 이메일 세션 + 멤버 세션 + 허브 컨텍스트 정리
 // (허브는 유지한 채 화면만 나가는 건 '메인으로'가 담당)
 async function startSignOut() {
+  state._signingOut = true;   // 아래 SIGNED_OUT 리스너가 중복 안내하지 않게
   showLoader('로그아웃 중…');
   try { await sb.auth.signOut(); } catch (e) {}
   // 네트워크 오류 등으로 세션이 남았으면 로컬 저장 토큰을 직접 제거(확실한 로그아웃)
@@ -5721,6 +5730,7 @@ async function startSignOut() {
   clearSession();
   toast('로그아웃했어요.');
   openStartPage(false);   // 돌아갈 허브 없음 → ✕ 숨김, 처음 화면부터
+  state._signingOut = false;
 }
 
 async function startPickHub(hid) {
@@ -6122,8 +6132,24 @@ function init() {
   loadCore();
   refreshHubName();
   syncAppbarHeight();
+  // 기록장(이메일 로그인 필수)인데 로그인 세션이 만료된 채 열렸으면
+  // 조용히 깨진 화면 대신 로그아웃 안내 후 메인으로
+  if (isPersonalHub(state.hub)) {
+    sb.auth.getSession().then(({ data }) => {
+      if (!data || !data.session) forceLogout();
+    }).catch(() => {});
+  }
 }
 init();
+
+// 앱 사용 중 로그인 세션이 풀린 경우(토큰 만료·철회 등):
+// 기록장은 이메일 로그인이 필수라 로그아웃 안내 후 메인으로.
+// (직접 로그아웃은 startSignOut이 별도 처리 — _signingOut로 중복 방지)
+try {
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT' && !state._signingOut && isPersonalHub(state.hub)) forceLogout();
+  });
+} catch (e) {}
 
 // 상단 헤더(appbar) 높이를 CSS 변수로 → sticky 요소(MY 달력 칩 줄 등)가 정확히 그 아래에 붙게
 function syncAppbarHeight() {

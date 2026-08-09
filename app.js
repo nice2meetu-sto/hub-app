@@ -5017,7 +5017,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.58';
+const APP_VERSION = '1.0.59';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5136,6 +5136,10 @@ async function recentEnter(hid) {
     let hasSession = false;
     try { const { data } = await sb.auth.getSession(); hasSession = !!(data && data.session); } catch (e) {}
     if (hasSession) { await recentEnterLinked(r); return; }
+    // 기록장은 이메일 로그인이 필수 — 세션이 없으면 PIN 우회 없이 이메일 로그인으로
+    toast('기록장은 이메일 로그인이 필요해요.');
+    startEmailEntry('login');
+    return;
   }
   if (r.pin) { await recentEnterPin(r); return; }   // 저장된 PIN → 원클릭
   showRecentPinScreen(r);                            // PIN 없으면 입력 화면
@@ -5165,9 +5169,9 @@ async function recentEnterLinked(r) {
     pushRecentHub({ hub_id: r.hub_id, name: r.name, icon: r.icon, kind: r.kind, nick: u.name, pin: u.pin });
     await loadCore(); switchView('games'); closeStartPage();
   } catch (e) {
-    // 세션이 만료됐으면 저장된 PIN → 없으면 입력 화면
-    if (r.pin) { await recentEnterPin(r); return; }
-    showRecentPinScreen(r);
+    // 세션이 만료됐거나 연결 조회 실패 → 기록장은 이메일 재로그인으로
+    toast('로그인이 만료되었어요. 이메일로 다시 로그인해주세요.', true);
+    startEmailEntry('login');
   } finally { hideLoader(); }
 }
 // PIN 입력 로그인 화면(초대 입장 화면 재사용)

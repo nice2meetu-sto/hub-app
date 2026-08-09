@@ -4001,6 +4001,17 @@ function openDogam() {
 }
 function closeDogam() { closeOverlay(); }
 
+// 도감 앱바 ‹ 뒤로가기: 탭 모드면 밑에 열려 있던 탭으로 복귀, 미리보기(guest)면 오버레이 닫기
+function closeDogamTab() {
+  if (state._dogam && state._dogam.guest) { closeDogam(); return; }
+  const page = document.getElementById('dogam-page');
+  page.classList.remove('show'); closeDogamCat();
+  document.querySelector('.tabbar').classList.remove('over-dogam');
+  const cur = ['play', 'games', 'reviews', 'my']
+    .find(v => document.getElementById('view-' + v).classList.contains('active')) || 'games';
+  try { localStorage.setItem('bg_view', cur); } catch (e) {}
+}
+
 // 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
 async function dogamLoad(reset) {
   const d = state._dogam;
@@ -4910,7 +4921,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.41';
+const APP_VERSION = '1.0.42';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

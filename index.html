@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.41">
+<link rel="stylesheet" href="styles.css?v=1.0.42">
 </head>
 <body>
 <div id="app">
@@ -178,6 +178,7 @@
   <div class="gd-header"><button class="gd-back" onclick="closeDogam()">‹ 돌아가기</button></div>
   <div class="appbar dg-appbar">
     <h1 style="display:flex;align-items:baseline;gap:8px;min-width:0;margin:0;">
+      <button class="dg-back" onclick="closeDogamTab()" title="돌아가기">‹</button>
       <span style="white-space:nowrap;"><span class="dice">📚</span> 게임 도감</span>
       <span class="who" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:400;">다른 hub에서 등록한 게임을 구경하세요</span>
     </h1>
@@ -355,6 +356,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.41"></script>
+<script src="app.js?v=1.0.42"></script>
 </body>
 </html>

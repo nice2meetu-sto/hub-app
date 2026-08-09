@@ -710,6 +710,11 @@ a[x-apple-data-detectors] {
   background: var(--main); border-bottom: none; color: #fff;
 }
 .dg-appbar .who { color: rgba(255,255,255,.85); }
+/* 도감 앱바 ‹ 뒤로가기 (책 아이콘 왼쪽) — 미리보기(guest)에선 상단 '돌아가기'가 있어 숨김 */
+.dg-back { background: none; border: none; color: #fff; font-size: 22px; font-weight: 700;
+  line-height: 1; padding: 0 4px 0 0; cursor: pointer; flex: 0 0 auto; }
+.dg-back:active { opacity: .7; }
+#dogam-page:not(.as-tab) .dg-back { display: none; }
 #dogam-grid {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 10px;
   margin-top: 10px;   /* 난이도 칩과 첫 줄 간격 — 카테고리 칩 위 여백과 동일하게 */

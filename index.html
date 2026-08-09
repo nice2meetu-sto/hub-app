@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.32">
+<link rel="stylesheet" href="styles.css?v=1.0.33">
 </head>
 <body>
 <div id="app">
@@ -27,6 +27,8 @@
       <span class="who" id="whoami" onclick="whoamiTap(event)" style="cursor:pointer;font-size:14px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">비로그인</span>
     </h1>
     <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto;">
+      <button onclick="openDogamTab()" title="게임 도감"
+              style="background:var(--main-light);color:var(--main);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">📚</button>
       <button onclick="refreshAll()" title="최신 데이터로 업데이트"
               style="background:var(--main-light);color:var(--main);border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">🔄</button>
       <button id="settings-btn" onclick="toggleNickMenu(event)" title="메뉴"
@@ -58,6 +60,15 @@
     <div id="games-list"></div>
   </div>
 
+  <!-- ===== VIEW: 후기 (모두의 게임 후기 — 채팅형) ===== -->
+  <div class="view" id="view-reviews">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px;margin-bottom:10px;">
+      <div class="section-title" style="margin:0;">💬 모두의 게임 후기</div>
+      <button class="btn ghost sm" style="padding:7px 12px;font-size:12px;white-space:nowrap;" onclick="openReviewWrite()">✏️ 후기 쓰기</button>
+    </div>
+    <div class="rv-chat" id="reviews-list"></div>
+  </div>
+
   <!-- ===== VIEW: MY ===== -->
   <div class="view" id="view-my">
     <div id="my-login" style="display:none;"></div>
@@ -78,8 +89,8 @@
     <button class="tab" id="tab-play" onclick="switchView('play')"><span class="ico">📋</span>플레이</button>
     <button class="tab on" id="tab-games" onclick="switchView('games')"><span class="ico">🎯</span>게임</button>
     <button class="tab tab-add" id="tab-add" onclick="openAddSheet()"><span class="add-circle"><span class="add-plus">＋</span><span class="add-label">추가</span></span></button>
+    <button class="tab" id="tab-reviews" onclick="switchView('reviews')"><span class="ico">💬</span>후기</button>
     <button class="tab" id="tab-my" onclick="switchView('my')"><span class="ico">👤</span>MY</button>
-    <button class="tab" id="tab-dogam" onclick="openDogamTab()"><span class="ico">📚</span>도감</button>
   </div>
 </div>
 
@@ -109,6 +120,13 @@
 <!-- ===== 중앙 미니 팝업 (개인설정 / 의견보내기) ===== -->
 <div id="mini-overlay" onclick="if(event.target===this)closeMiniPopup()">
   <div class="gd-memo-card" id="mini-card"></div>
+</div>
+
+<!-- ===== 후기 쓰기 중앙 팝업 (최근 플레이 게임 선택 → 별점·후기 작성) ===== -->
+<div id="rvwrite-overlay">
+  <div class="rvwrite-card">
+    <div id="rvwrite-body"></div>
+  </div>
 </div>
 
 <!-- ===== Generic detail sheet (게임 상세) ===== -->
@@ -324,6 +342,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.32"></script>
+<script src="app.js?v=1.0.33"></script>
 </body>
 </html>

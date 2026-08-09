@@ -94,6 +94,7 @@ async function api(action, params = {}) {
       });
     case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
     case 'getReviewsMates': return sbrpc('get_reviews_mates', { p_game_id: P.gameId });
+    case 'getAllReviews': return sbrpc('get_all_reviews', { p_hub_id: hubId() });   // 후기 탭(허브 전체 후기)
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
@@ -214,15 +215,13 @@ function gameById(id) { return state.games.find(g => g.game_id === id); }
 
 // ===== 네비게이션 =====
 function switchView(name) {
-  // 도감 탭(오버레이)이 떠 있으면 닫고 일반 탭으로 전환
+  // 도감(전체 화면)이 떠 있으면 닫고 일반 탭으로 전환
   const dg = document.getElementById('dogam-page');
   if (dg && dg.classList.contains('show') && state._dogam && !state._dogam.guest) {
     dg.classList.remove('show'); closeDogamCat();
   }
-  const td = document.getElementById('tab-dogam');
-  if (td) td.classList.remove('on');
   document.querySelector('.tabbar').classList.remove('over-dogam');
-  ['play', 'games', 'my'].forEach(v => {
+  ['play', 'games', 'reviews', 'my'].forEach(v => {
     document.getElementById('view-' + v).classList.toggle('active', v === name);
     document.getElementById('tab-' + v).classList.toggle('on', v === name);
   });
@@ -232,6 +231,7 @@ function switchView(name) {
   if (name === 'my') renderMy();
   if (name === 'games') renderGames();
   if (name === 'play') renderPlay();
+  if (name === 'reviews') renderReviews();
 }
 
 // ============================================================
@@ -254,6 +254,8 @@ async function loadCore(manual) {
     state._myStats = null; state._myStatsHub = null; state._myStatsAll = null; state._myStatsBy = null;
     state._myRatings = null;
     state._myRatingsPromise = null;
+    state._allReviews = null;   // 후기 탭 캐시(허브 범위)도 새로
+    if (document.getElementById('view-reviews').classList.contains('active')) renderReviews();
     // 기록장: 플레이·게임 탭도 전 허브 통합으로 — 렌더 전에 통합 데이터 준비
     state._myAllPlays = null; state._myAllGames = null;
     if (isPersonalHub(state.hub)) {
@@ -2148,6 +2150,10 @@ async function saveRating(gameId) {
     toast('저장되었습니다!');
     if (state.myTab === 'games' && document.getElementById('my-games-cards')) filterMyGames();
     if (state.myTab === 'games' && document.getElementById('my-gamesall-cards')) filterMyGamesAll();
+    // 후기 탭 연동: 캐시 무효화 + 후기쓰기 팝업 닫기 + 탭이 열려있으면 갱신
+    state._allReviews = null;
+    if (document.getElementById('rvwrite-overlay').classList.contains('show')) closeReviewWrite();
+    if (document.getElementById('view-reviews').classList.contains('active')) renderReviews();
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -3260,12 +3266,9 @@ function openDogam() {
   if (guest) {
     openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
   } else {
-    ['play', 'games', 'my'].forEach(v => {
-      const t = document.getElementById('tab-' + v); if (t) t.classList.remove('on');
-    });
-    const td = document.getElementById('tab-dogam'); if (td) td.classList.add('on');
+    // 도감은 상단 📚 버튼으로 여는 전체 화면 — 하단 탭 하이라이트는 그대로 둠
     document.querySelector('.tabbar').classList.add('over-dogam');   // 튀어나온 추가 버튼이 안 잘리게
-    // 당겨서 새로고침(전체 리로드) 후에도 도감 탭으로 복귀하도록 기억
+    // 당겨서 새로고침(전체 리로드) 후에도 도감으로 복귀하도록 기억
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
@@ -3370,6 +3373,145 @@ function closeDogamCat() {
   const m = document.getElementById('dogam-catmenu');
   if (m) m.classList.remove('show');
   document.removeEventListener('click', dogamCatOutside);
+}
+
+// ============================================================
+//  후기 탭 (모두의 게임 후기 — 채팅형, 허브 범위)
+// ============================================================
+let _rvObserver = null;
+
+async function renderReviews() {
+  const list = document.getElementById('reviews-list');
+  if (!list) return;
+  if (!state._allReviews) {
+    list.innerHTML = `<div class="muted" style="text-align:center;padding:24px 0;font-size:13px;">불러오는 중…</div>`;
+    try {
+      state._allReviews = await api('getAllReviews');
+    } catch (e) {
+      list.innerHTML = `<div class="empty"><div class="big">💬</div>후기를 불러오지 못했어요.<br/><span class="hint">supabase_migration_reviewtab.sql 적용이 필요할 수 있어요.</span></div>`;
+      return;
+    }
+  }
+  renderReviewChunk(true);
+}
+
+// 후기 날짜 → 'M.D.' (예: 2026-07-24 → 7.24.)
+function fmtChatDate(s) {
+  const d = String(s || '').substring(0, 10).split('-');
+  if (d.length !== 3 || !d[0]) return '';
+  return `${Number(d[1])}.${Number(d[2])}.`;
+}
+
+// 후기 1건 → 채팅 말풍선(내 후기는 오른쪽, 남의 후기는 왼쪽)
+function rvMsgHtml(r) {
+  const mine = state.user && isMyPid(r.player_id);
+  const gid = esc(String(r.game_id || ''));
+  const head = mine
+    ? esc(r.game_name || '')
+    : `${esc(r.game_name || '')} · ${esc(r.player_name || '익명')}`;
+  const avatar = mine ? ''
+    : `<div onclick="showGameInfo('${gid}')" style="flex:0 0 auto;">${thumb(r.game_image, 'rvm-av')}</div>`;
+  return `<div class="rvm ${mine ? 'mine' : ''}">
+    ${avatar}
+    <div class="rvm-body">
+      <div class="rvm-head">${head}</div>
+      <div class="rvm-bubble-row">
+        <div class="rvm-bubble" onclick="showGameInfo('${gid}')">${esc(r.review || '')}</div>
+        <span class="rvm-date">${fmtChatDate(r.updated_at)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// 10건씩 렌더 + 무한 스크롤
+function renderReviewChunk(reset) {
+  const list = document.getElementById('reviews-list');
+  if (!list) return;
+  const all = state._allReviews || [];
+  if (reset) { list.innerHTML = ''; state._rvShown = 0; }
+  if (!all.length) {
+    list.innerHTML = `<div class="empty"><div class="big">💬</div>아직 후기가 없어요.<br/>플레이한 게임의 후기를 남겨보세요.</div>`;
+    return;
+  }
+  const from = state._rvShown || 0, to = Math.min(from + 10, all.length);
+  const old = document.getElementById('rv-sentinel'); if (old) old.remove();
+  list.insertAdjacentHTML('beforeend', all.slice(from, to).map(rvMsgHtml).join(''));
+  state._rvShown = to;
+  if (_rvObserver) { _rvObserver.disconnect(); _rvObserver = null; }
+  if (to < all.length) {
+    list.insertAdjacentHTML('beforeend', '<div id="rv-sentinel" style="height:1px;"></div>');
+    _rvObserver = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) renderReviewChunk(false);
+    }, { rootMargin: '300px' });
+    _rvObserver.observe(document.getElementById('rv-sentinel'));
+  }
+}
+
+// ===== 후기 바로 쓰기(중앙 팝업): 최근 플레이 게임 선택 → 별점·후기 작성 =====
+// 내가 참가한 세션이 있는 허브 게임을 최근 플레이 순으로
+function recentlyPlayedGames() {
+  const seen = new Set(); const firstIdx = {};
+  (state.plays || []).forEach((s, i) => {
+    if ((s.participants || []).some(p => isMyPid(p.player_id))) {
+      if (!seen.has(s.game_id)) { seen.add(s.game_id); firstIdx[s.game_id] = i; }
+    }
+  });
+  return (state.games || []).filter(g => seen.has(g.game_id))
+    .sort((a, b) => firstIdx[a.game_id] - firstIdx[b.game_id]);
+}
+
+async function openReviewWrite() {
+  if (!state.user) { toast('후기를 쓰려면 MY에서 로그인하세요.', true); switchView('my'); return; }
+  const ov = document.getElementById('rvwrite-overlay');
+  ov.classList.add('show');
+  openOverlay(() => ov.classList.remove('show'));
+  state._rvwGid = null;
+  document.getElementById('rvwrite-body').innerHTML =
+    `<div class="empty" style="padding:20px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  try { await ensureMyRatings(); } catch (e) {}
+  renderReviewWrite();
+}
+function closeReviewWrite() { closeOverlay(); }
+function reviewWritePick(gid) { state._rvwGid = gid; renderReviewWrite(); }
+function reviewWriteBack() { state._rvwGid = null; renderReviewWrite(); }
+
+function renderReviewWrite() {
+  const body = document.getElementById('rvwrite-body');
+  if (!body) return;
+  const card = body.closest('.rvwrite-card');
+  if (card) card.classList.toggle('picking', !state._rvwGid);
+  if (!state._rvwGid) {
+    const reviewed = g => !!(state._myRatings && state._myRatings[g.game_id] && (state._myRatings[g.game_id].review || '').trim());
+    // 후기 미작성 게임을 위로(1차), 그 안에서 최근 플레이 순 유지(2차, stable sort)
+    const played = recentlyPlayedGames().slice().sort((a, b) => (reviewed(a) ? 1 : 0) - (reviewed(b) ? 1 : 0));
+    const cards = played.length ? played.map(g => {
+      const rr = state._myRatings && state._myRatings[g.game_id];
+      const done = !!(rr && (rr.review || '').trim());
+      return `<button type="button" class="rvw-pick ${done ? 'done' : ''}" onclick="reviewWritePick('${g.game_id}')">
+        ${thumb(g.image_url, 'rvw-thumb')}
+        <span class="rvw-pick-name">${esc(g.name_kr || g.name_en)}${done ? '<span class="rvw-done-tag">후기완료</span>' : ''}</span>
+      </button>`;
+    }).join('') : `<div class="muted" style="font-size:13px;text-align:center;padding:20px 0;">최근 플레이한 게임이 없어요.<br/>플레이 결과를 먼저 추가해 주세요.</div>`;
+    body.innerHTML = `
+      <div class="rvw-pick-head" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+        <h3 style="font-size:16px;font-weight:800;margin:0;">✏️ 후기 쓸 게임 선택</h3>
+        <button type="button" class="rvw-close" onclick="closeReviewWrite()">✕ 닫기</button>
+      </div>
+      <div class="rvw-list">${cards}</div>`;
+  } else {
+    const g = gameById(state._rvwGid);
+    if (!g) { reviewWriteBack(); return; }
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;">
+        <button type="button" class="lnk-clear" onclick="reviewWriteBack()">‹ 게임 다시 선택</button>
+        <button type="button" class="rvw-close" onclick="closeReviewWrite()">✕ 닫기</button>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+        ${thumb(g.image_url, 'rvw-thumb-lg')}
+        <div style="font-weight:800;font-size:15px;min-width:0;">${esc(g.name_kr || g.name_en)}</div>
+      </div>
+      ${ratingEditorHtml(g)}`;
+  }
 }
 
 // 카드 클릭 → 중앙 팝업(세부정보 + 우리 hub에 추가)
@@ -3975,7 +4117,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.32';
+const APP_VERSION = '1.0.33';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5066,8 +5208,8 @@ function init() {
   if (!state.hub || !state.user) { openStartPage(false); return; }
   // 새로고침(당겨서 새로고침 포함) 후 직전에 보던 탭으로 복귀(기본은 게임)
   const lastView = localStorage.getItem('bg_view');
-  if (lastView === 'play' || lastView === 'my') switchView(lastView);
-  else if (lastView === 'dogam') openDogamTab();   // 도감 탭도 그대로 복원
+  if (lastView === 'play' || lastView === 'my' || lastView === 'reviews') switchView(lastView);
+  else if (lastView === 'dogam') openDogamTab();   // 도감도 그대로 복원
   loadCore();
   refreshHubName();
 }

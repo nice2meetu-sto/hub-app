@@ -243,6 +243,52 @@
   .rv-name { font-weight: 800; font-size: 13px; }
   .rv-name .rv-when { font-weight: 500; font-size: 11px; color: var(--text-sub); margin-left: 6px; }
   .rv-text { font-size: 13px; color: #444; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
+  /* 후기 탭: 채팅형 (내 후기 오른쪽 / 남의 후기 왼쪽) */
+  .rv-chat { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+  .rvm { display: flex; gap: 8px; align-items: flex-start; }
+  .rvm.mine { flex-direction: row-reverse; }
+  .rvm .thumb.rvm-av { width: 42px; height: 42px; border-radius: 12px; cursor: pointer; }
+  .rvm .thumb.rvm-av::after { font-size: 18px; }
+  .rvm-body { display: flex; flex-direction: column; gap: 3px; max-width: 80%; min-width: 0; }
+  .rvm.mine .rvm-body { align-items: flex-end; }
+  .rvm-head { font-size: 11px; color: var(--text-sub); font-weight: 700; padding: 0 4px;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rvm-bubble { background: var(--card); border: 1px solid var(--border);
+    border-radius: 4px 14px 14px 14px; padding: 9px 12px; font-size: 13px; line-height: 1.45;
+    color: var(--text); white-space: pre-wrap; word-break: break-word; cursor: pointer; }
+  .rvm.mine .rvm-bubble { background: var(--main-light); border-color: transparent; border-radius: 14px 4px 14px 14px; }
+  .rvm-bubble:active { filter: brightness(.97); }
+  /* 말풍선 옆 날짜(채팅 타임스탬프): 남의 후기=오른쪽, 내 후기=왼쪽 */
+  .rvm-bubble-row { display: flex; align-items: flex-end; gap: 5px; min-width: 0; }
+  .rvm.mine .rvm-bubble-row { flex-direction: row-reverse; }
+  .rvm-date { font-size: 10px; color: var(--text-sub); white-space: nowrap; flex: 0 0 auto; padding-bottom: 2px; }
+  /* 후기 작성 중앙 팝업 */
+  #rvwrite-overlay { position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
+    display: none; align-items: center; justify-content: center; padding: 20px; }
+  #rvwrite-overlay.show { display: flex; }
+  .rvwrite-card { background: var(--bg); border-radius: 18px; width: 100%; max-width: 420px;
+    max-height: 82vh; overflow-y: auto; padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0)); }
+  /* 게임 선택 화면: 제목·닫기 고정, 게임 목록만 내부 스크롤 */
+  .rvwrite-card.picking { display: flex; flex-direction: column; overflow: hidden; }
+  .rvwrite-card.picking > #rvwrite-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .rvwrite-card.picking .rvw-pick-head { flex: 0 0 auto; }
+  .rvwrite-card.picking .rvw-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .rvw-list { display: flex; flex-direction: column; gap: 8px; }
+  .rvw-pick { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+  .rvw-pick:active { background: #f6f5fb; }
+  .rvw-pick.done { background: #eeeef2; border-color: #e2e2ea; }   /* 후기 쓴 게임 = 옅은 회색 */
+  .rvw-pick .thumb.rvw-thumb { width: 42px; height: 42px; border-radius: 10px; }
+  .rvw-pick-name { font-weight: 700; font-size: 14px; min-width: 0; }
+  .rvw-done-tag { font-size: 10px; font-weight: 700; color: var(--text-sub);
+    background: #dcdce4; border-radius: 6px; padding: 1px 6px; margin-left: 4px; white-space: nowrap; }
+  /* 후기 작성 팝업 닫기 버튼(작은 pill) */
+  .rvw-close { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--text-sub);
+    background: var(--main-light); border-radius: 999px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+  .rvw-close:active { background: #ddd7f7; }
+  .thumb.rvw-thumb-lg { width: 48px; height: 48px; border-radius: 12px; }
+  .lnk-clear { background: none; border: none; color: var(--text-sub); font-size: 12px; font-weight: 500;
+    padding: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; }
   /* 게임메모 편집 오버레이 (게임 상세 위) */
   #gd-memo-overlay, #gd-session-overlay { position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
     display: none; align-items: center; justify-content: center; padding: 20px; }

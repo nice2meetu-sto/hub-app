@@ -5017,7 +5017,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.59';
+const APP_VERSION = '1.0.60';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -6154,6 +6154,18 @@ try {
     if (event === 'SIGNED_OUT' && !state._signingOut && isPersonalHub(state.hub)) forceLogout();
   });
 } catch (e) {}
+
+// 이메일 로그인 유지 보강: 모바일(PWA)은 백그라운드에서 토큰 갱신 타이머가
+// 멈추므로, 앱이 다시 보일 때/네트워크 복귀 시 세션을 미리 갱신해 둔다.
+// (getSession은 만료된 토큰이면 저장된 갱신 토큰으로 즉시 재발급)
+function nudgeAuthSession() {
+  try { sb.auth.getSession().catch(() => {}); } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') nudgeAuthSession();
+});
+window.addEventListener('online', nudgeAuthSession);
+window.addEventListener('focus', nudgeAuthSession);
 
 // 상단 헤더(appbar) 높이를 CSS 변수로 → sticky 요소(MY 달력 칩 줄 등)가 정확히 그 아래에 붙게
 function syncAppbarHeight() {

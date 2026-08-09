@@ -190,6 +190,8 @@
   .rate-club { font-weight: 900; font-size: 16px; color: var(--main); }
   .rate-club .star { color: var(--win); }
   .rate-club small { font-size: 11px; color: var(--text-sub); font-weight: 500; }
+  /* 별점 옆 후기 개수(💬 (n))의 숫자도 평점 개수와 같은 크기·색으로 */
+  .gcard-ratings small { font-size: 11px; color: var(--text-sub); font-weight: 500; }
   .gcard-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: #444; white-space: pre-wrap; }
   .gcard.open .gcard-detail { display: block; }
   .gcard-editwrap { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }

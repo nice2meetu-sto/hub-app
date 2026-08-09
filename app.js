@@ -2032,9 +2032,11 @@ function myCategoryChartSvg() {
   // 큰 값들의 높이 차이는 그대로 유지(윗부분이 눌리지 않음).
   const BASE = 2;
   const unit = plotH / maxV;         // 1칸당 픽셀(기존 비율 유지)
-  const extra = BASE * unit;         // 바닥만큼 그래프를 아래로 확장
+  // 바닥 확장에 상한(20px): 판수가 적으면 칸이 커져 +2칸 바닥만으로
+  // 그래프 전체가 과하게 커지므로, 바닥은 최대 20px까지만 깐다.
+  const extra = Math.min(BASE * unit, 20);
   const H2 = H + extra, baseY2 = baseY + extra;
-  const ev = v => (v > 0 ? (v + BASE) * unit : 0);   // 값 → 막대/점 픽셀 높이(1 이상이면 +2칸)
+  const ev = v => (v > 0 ? v * unit + extra : 0);   // 값 → 막대/점 픽셀 높이(1 이상이면 +바닥)
   const yTop = v => baseY2 - ev(v);
   const cx = i => padX + slot * (i + 0.5);
   const bw = Math.min(slot * 0.56, 26);
@@ -4921,7 +4923,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.43';
+const APP_VERSION = '1.0.44';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

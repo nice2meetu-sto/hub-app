@@ -1260,7 +1260,11 @@ function renderCategoryFilter() {
     `<span class="chip ${!cur ? 'on' : ''}" onclick="setCatFilter(null)">전체</span>` +
     cats.map(c => `<span class="chip ${cur === c ? 'on' : ''}" onclick="setCatFilter('${esc(c)}')">${esc(c)}</span>`).join('');
 }
-function setCatFilter(c) { state.gameFilter.category = c; renderGames(); }
+function setCatFilter(c) {
+  state.gameFilter.category = c;
+  renderGames();
+  if (c) centerSelectedChip('cat-filter');   // 선택한 분류 칩을 줄 중앙으로(해제는 이동 없음)
+}
 
 function renderPlayerCountFilter() {
   const cur = state.gameFilter.playerCount;
@@ -4149,6 +4153,7 @@ function dogamPickCat(cat) {
   state._dogam.term = '';
   document.getElementById('dogam-page').scrollTop = 0;
   renderDogamFilters(); dogamLoad(true);
+  if (cat) centerSelectedChip('dogam-cat-filter');   // 선택한 분류 칩을 줄 중앙으로
 }
 function dogamPickPlayers(n) {
   if (!state._dogam) return;
@@ -4989,7 +4994,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.53';
+const APP_VERSION = '1.0.54';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -4402,12 +4402,8 @@ async function renderAdminRatings() {
     el.dataset.ready = '1';
   }
   if (!state._admRatings) {
-    const pin = await promptPin();
-    if (pin == null) {
-      document.getElementById('adm-rating-list').innerHTML = `<div class="empty">PIN 확인이 필요합니다.</div>`;
-      return;
-    }
-    try { state._admRatings = await api('getAllRatings', { playerId: state.user.player_id, pin }); }
+    // PIN 없이 조회 — 서버는 관리자 역할만 확인 (adminratings2 마이그레이션)
+    try { state._admRatings = await api('getAllRatings', { playerId: state.user.player_id, pin: localStorage.getItem('bg_pin') || '' }); }
     catch (e) {
       const l = document.getElementById('adm-rating-list');
       if (l) l.innerHTML = `<div class="empty">불러오지 못했어요.<br/>${esc(e.message)}</div>`;
@@ -4984,7 +4980,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.45';
+const APP_VERSION = '1.0.46';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

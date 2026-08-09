@@ -715,18 +715,18 @@ function gameChartSvg(sessions) {
     const x = cx(i);
     if (p.best != null) {
       const by = y(p.best);
-      bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY - by, 5)}" fill="var(--main)" style="cursor:pointer;" onclick="showBarSession('${esc(p.sid)}','${esc(p.hub)}')"/>`;
+      bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY - by, 5)}" fill="#d9d5f3" style="cursor:pointer;" onclick="showBarSession('${esc(p.sid)}','${esc(p.hub)}')"/>`;
       labels += `<text x="${x.toFixed(1)}" y="${(by - 8).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#8a86a8" style="pointer-events:none;">${p.best}</text>`;
     }
     if (p.mine != null) {
       const my = y(p.mine);
       line.push({ x, y: my });
-      labels += `<text x="${x.toFixed(1)}" y="${(my + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#d9d5f3" style="pointer-events:none;">${p.mine}</text>`;
+      labels += `<text x="${x.toFixed(1)}" y="${(my + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--main)" style="pointer-events:none;">${p.mine}</text>`;
     }
     labels += `<text x="${x.toFixed(1)}" y="${(H - 5).toFixed(1)}" text-anchor="middle" font-size="9" fill="#9a97a8" style="pointer-events:none;">${p.date}</text>`;
   });
   const curve = smoothPath(line);
-  const path = curve ? `<path d="${curve}" fill="none" stroke="#d9d5f3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"/>` : '';
+  const path = curve ? `<path d="${curve}" fill="none" stroke="var(--main)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;"/>` : '';
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px;margin:0 auto;">${bars}${path}${labels}</svg>`;
 }
 
@@ -897,7 +897,7 @@ function renderGameDetail() {
   const chart = `<div class="gd-sec">
     <div class="gd-sec-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
       <span>📈 최근 ${recent.length}판 점수 추이</span>
-      <span class="gd-legend" style="margin-top:0;gap:10px;"><span><i style="background:var(--main);"></i>최고 점수</span><span><i style="background:#d9d5f3;"></i>내 점수</span></span>
+      <span class="gd-legend" style="margin-top:0;gap:10px;"><span><i style="background:#d9d5f3;"></i>최고 점수</span><span><i style="background:var(--main);"></i>내 점수</span></span>
     </div>
     <div class="gd-chart">${gameChartSvg(recent)}</div>
   </div>`;
@@ -2039,8 +2039,8 @@ function myChartCardInner() {
       <div class="section-title" style="${titleStyle}">
         ${chartSegHtml('category')}
         <small class="legend-chips">
-          <small><i style="background:var(--main);"></i>플레이 횟수</small>
-          <small><i style="background:#d9d5f3;"></i>플레이 게임</small>
+          <small><i style="background:#d9d5f3;"></i>플레이 횟수</small>
+          <small><i style="background:var(--main);"></i>플레이 게임</small>
         </small>
       </div>
       <div onclick="toggleMyChart()" style="margin:0 -8px -10px;">${myCategoryChartSvg()}</div>`;
@@ -2102,9 +2102,9 @@ function myCategoryChartSvg() {
   // 큰 값들의 높이 차이는 그대로 유지(윗부분이 눌리지 않음).
   const BASE = 2;
   const unit = plotH / maxV;         // 1칸당 픽셀(기존 비율 유지)
-  // 바닥 확장에 상한(20px): 판수가 적으면 칸이 커져 +2칸 바닥만으로
-  // 그래프 전체가 과하게 커지므로, 바닥은 최대 20px까지만 깐다.
-  const extra = Math.min(BASE * unit, 20);
+  // 바닥 확장에 상한(10px): 판수가 적으면 칸이 커져 +2칸 바닥만으로
+  // 그래프 전체가 과하게 커지므로, 바닥은 최대 10px까지만 깐다.
+  const extra = Math.min(BASE * unit, 10);
   const H2 = H + extra, baseY2 = baseY + extra;
   const ev = v => (v > 0 ? v * unit + extra : 0);   // 값 → 막대/점 픽셀 높이(1 이상이면 +바닥)
   const yTop = v => baseY2 - ev(v);
@@ -2115,15 +2115,15 @@ function myCategoryChartSvg() {
   cats.forEach((c, i) => {
     const x = cx(i);
     const by = yTop(c.plays);   // 표시 숫자는 실제 값 유지
-    bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY2 - by, 5)}" fill="var(--main)"/>`;
+    bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY2 - by, 5)}" fill="#d9d5f3"/>`;
     labels += `<text x="${x.toFixed(1)}" y="${(by - 8).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#8a86a8">${c.plays}</text>`;
     const gy = yTop(c.games);
     line.push({ x, y: gy });
-    labels += `<text x="${x.toFixed(1)}" y="${(gy + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#d9d5f3">${c.games}</text>`;
+    labels += `<text x="${x.toFixed(1)}" y="${(gy + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--main)">${c.games}</text>`;
     labels += `<text x="${x.toFixed(1)}" y="${(H2 - 5).toFixed(1)}" text-anchor="middle" font-size="9" fill="#9a97a8">${esc(c.cat)}</text>`;
   });
   const curve = smoothPath(line);
-  const path = curve ? `<path d="${curve}" fill="none" stroke="#d9d5f3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : '';
+  const path = curve ? `<path d="${curve}" fill="none" stroke="var(--main)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : '';
   return `<svg viewBox="0 0 ${W} ${H2.toFixed(1)}" width="100%" style="display:block;">${bars}${path}${labels}</svg>`;
 }
 
@@ -4992,7 +4992,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.50';
+const APP_VERSION = '1.0.51';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -4921,7 +4921,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.42';
+const APP_VERSION = '1.0.43';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -6025,8 +6025,16 @@ function init() {
   else if (lastView === 'dogam') openDogamTab();   // 도감도 그대로 복원
   loadCore();
   refreshHubName();
+  syncAppbarHeight();
 }
 init();
+
+// 상단 헤더(appbar) 높이를 CSS 변수로 → sticky 요소(MY 달력 칩 줄 등)가 정확히 그 아래에 붙게
+function syncAppbarHeight() {
+  const ab = document.querySelector('.appbar');
+  if (ab) document.documentElement.style.setProperty('--appbar-h', ab.offsetHeight + 'px');
+}
+window.addEventListener('resize', syncAppbarHeight);
 
 // PWA: 서비스워커 등록(설치/오프라인 셸)
 if ('serviceWorker' in navigator) {

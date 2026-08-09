@@ -460,7 +460,8 @@
   .session.clickable:active { background: #f6f5fb; }
   /* 달력 게임 칩 줄: 앱바 아래에 sticky */
   #my-cal-chips { position: sticky; top: var(--appbar-h, 52px); z-index: 30;
-    background: var(--bg); padding-top: 5px; padding-bottom: 8px; margin-bottom: 4px; }
+    background: var(--bg); padding-top: 8px; padding-bottom: 8px; margin-bottom: 4px;
+    box-shadow: 0 6px 8px -6px rgba(0,0,0,.12); }
   /* 비회원→회원 연동 모달: 선택된 카드 강조 */
   .link-row { transition: border-color .12s, background .12s; }
   .link-row.sel { border-color: var(--main) !important; background: var(--main-light); }

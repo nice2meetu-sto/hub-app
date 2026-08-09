@@ -95,6 +95,7 @@ async function api(action, params = {}) {
     case 'getReviews': return sbrpc('get_reviews', { p_game_id: P.gameId, p_hub_id: hubId() });
     case 'getReviewsMates': return sbrpc('get_reviews_mates', { p_game_id: P.gameId });
     case 'getAllReviews': return sbrpc('get_all_reviews', { p_hub_id: hubId() });   // 후기 탭(허브 전체 후기)
+    case 'getAllReviewsMates': return sbrpc('get_all_reviews_mates', {});           // 후기 탭(기록장: 내 허브들 동료 후기)
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
@@ -4185,7 +4186,10 @@ async function renderReviews() {
   if (!state._allReviews) {
     list.innerHTML = `<div class="muted" style="text-align:center;padding:24px 0;font-size:13px;">불러오는 중…</div>`;
     try {
-      state._allReviews = await api('getAllReviews');
+      // 기록장: 내가 속한 모든 허브 구성원의 후기 통합(실패 시 기존 허브 범위로 폴백)
+      state._allReviews = isPersonalHub(state.hub)
+        ? await api('getAllReviewsMates').catch(() => api('getAllReviews'))
+        : await api('getAllReviews');
     } catch (e) {
       list.innerHTML = `<div class="empty"><div class="big">💬</div>후기를 불러오지 못했어요.<br/><span class="hint">supabase_migration_reviewtab.sql 적용이 필요할 수 있어요.</span></div>`;
       return;
@@ -4988,7 +4992,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.49';
+const APP_VERSION = '1.0.50';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

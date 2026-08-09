@@ -4623,9 +4623,14 @@ function adminGameSearch() {
     if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
   { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
     if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
+    // 이 허브에 추가한 사람 닉네임(added_by_name) — 썸네일 아래 회색 배지
+    const adder = g.added_by_name || (g.added_by ? playerNameById(g.added_by) : '');
     return `<div class="adm-gcard" onclick="openEditGame('${g.game_id}')">
       <div class="gcard-top">
-        ${thumb(g.image_url, 'gcard-img')}
+        <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;">
+          ${thumb(g.image_url, 'gcard-img')}
+          ${adder ? `<span class="adm-creator" style="margin-left:0;max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(adder)}</span>` : ''}
+        </div>
         <div class="gcard-body">
           <div class="gcard-name">${esc(g.name_kr || g.name_en)}
             ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}</div>
@@ -5012,7 +5017,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.56';
+const APP_VERSION = '1.0.57';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

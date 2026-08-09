@@ -1360,8 +1360,11 @@ function gameCardTopHtml(g, showMine, extra = {}) {
 
 // 게임 정보 수정 가능 여부: 관리자 또는 등록자 본인('사람' 단위 — 서버와 동일 규칙).
 // 여러 허브 공유 게임은 수정 화면에서 공용 정보가 잠기고 수정 요청으로 안내됨.
+// 이 허브 선반에 있는 게임만 — 기록장 통합 목록의 '다른 허브' 게임은 여기서
+// 수정 불가(서버 update_game도 자기 허브 선반에서만 찾음)라 버튼을 숨긴다.
 function canEditGame(g) {
-  return !!state.user && (state.user.role === 'admin' || (g.created_by && isMyPid(g.created_by)));
+  if (!state.user || !gameById(g.game_id)) return false;
+  return state.user.role === 'admin' || (g.created_by && isMyPid(g.created_by));
 }
 
 function gameCardHtml(g, opts = {}) {
@@ -4980,7 +4983,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.46';
+const APP_VERSION = '1.0.47';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

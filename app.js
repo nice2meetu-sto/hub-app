@@ -369,15 +369,16 @@ function renderPlay() {
     .sort((a, b) => b.count - a.count);
   const catEl = document.getElementById('play-catchart');
   if (catList.length) {
-    const maxCat = Math.max(...catList.map(c => c.count));
+    // 모든 분류를 각각 가로 막대로 표시
+    const maxRow = Math.max(...catList.map(c => c.count));
     catEl.innerHTML = `<div class="card">
       <div class="section-title" style="margin-top:0;">카테고리별 플레이 횟수 ${scope === 'month' ? '(이번 달)' : '(누적)'}</div>
-      <div class="barchart">${catList.map(c => {
-        const h = Math.max(4, Math.round(c.count / maxCat * 74));
-        return `<div class="bar-col">
-          <div class="bc">${c.count}</div>
-          <div class="bar" style="height:${h}px;"></div>
-          <div class="bm">${esc(c.cat)}</div>
+      <div class="hbarchart">${catList.map(c => {
+        const pct = Math.max(4, Math.round(c.count / maxRow * 100));
+        return `<div class="hbar-row">
+          <span class="hbar-name">${esc(c.cat)}</span>
+          <span class="hbar-track"><i style="width:${pct}%;"></i></span>
+          <span class="hbar-val">${c.count}</span>
         </div>`;
       }).join('')}</div>
     </div>`;
@@ -411,12 +412,11 @@ function renderPlay() {
   const ranks = competitionRanks(list, g => g.count);   // 동일 판수 = 공동 순위
   el.innerHTML = list.map((g, i) => `
     <div class="session" style="display:flex;align-items:center;gap:12px;position:relative;${g.id ? 'cursor:pointer;' : ''}" ${g.id ? `onclick="showGameInfo('${g.id}')"` : ''}>
-      ${g.id ? `<div class="gcard-actions br">${reviewPillHtml(g.id, g.review_count)}</div>` : ''}
       <div class="grow-rank">${ranks[i]}</div>
       ${thumb(g.image, 'session-thumb')}
       <div style="flex:1;min-width:0;">
         <div class="g-name" style="font-weight:700;">${esc(g.name)}</div>
-        <div class="g-meta">${g.count}판 · ${clubRatingMini(g.club_rating, g.rating_count)}</div>
+        <div class="g-meta">${g.count}판 · ${clubRatingMini(g.club_rating, g.rating_count)} · ${reviewCountInline(g.review_count)}</div>
       </div>
     </div>`).join('');
 }
@@ -452,6 +452,32 @@ function clubRatingMini(rating, count) {
     : `<span class="muted">★ 평가없음</span>`;
 }
 
+// 별점 옆에 붙는 후기 개수(💬 (n)) — 0이면 개수 생략
+function reviewCountInline(count) {
+  const n = Number(count) || 0;
+  return `<span style="font-size:.82em;">💬</span>${n > 0 ? ` <small class="muted">(${n})</small>` : ''}`;
+}
+
+// 내가 이 게임을 플레이한 적 있는지(후기 작성 자격) — 기록장 통합이면 전 허브 기준
+function hasPlayedGame(gid) {
+  if (!state.user) return false;
+  const src = hubIntegrated() ? (state._myAllPlays || []) : (state.plays || []);
+  return src.some(s => s.game_id === gid && (s.participants || []).some(p => isMyPid(p.player_id)));
+}
+
+// 게임정보 팝업의 [후기 작성/작성 완료/🔒] 버튼
+function reviewWriteBtnHtml(gameId) {
+  const canWrite = hasPlayedGame(gameId);
+  const done = !!(state._myRatings && state._myRatings[gameId] && (state._myRatings[gameId].review || '').trim());
+  if (!canWrite) {
+    return `<button class="rvw-write-btn locked" onclick="toast(${state.user ? "'플레이 후 후기를 작성해보세요'" : "'로그인 후 작성할 수 있어요', true"})">🔒 후기 작성</button>`;
+  } else if (done) {
+    // 작성 완료: 회색(잠금 디자인) — 단, 눌러서 수정 가능
+    return `<button class="rvw-write-btn locked" onclick="openReviewWriteFor('${esc(String(gameId))}')">작성 완료</button>`;
+  }
+  return `<button class="rvw-write-btn done" onclick="openReviewWriteFor('${esc(String(gameId))}')">후기 작성</button>`;
+}
+
 // 게임 기본 정보 블록(재사용): 썸네일 + 이름/분류 + 메타 + 전체 평점 + 요약
 function gameInfoInnerHtml(g) {
   const meta = [];
@@ -482,14 +508,58 @@ function gameInfoInnerHtml(g) {
     <div style="white-space:pre-wrap;font-size:13px;color:#444;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없습니다.</span>'}</div>`;
 }
 
-// 게임 정보 보기(읽기 전용 시트) — 기록장 통합이면 도감(전체 평점) 기준
-function showGameInfo(gameId) {
+// 게임 정보 팝업 — 기본 정보 + 후기 목록(내부 스크롤) + 후기 작성 버튼.
+// 기록장 통합이면 도감(전체 평점)·함께한 사람들 후기 기준
+async function showGameInfo(gameId) {
   const g = hubIntegrated()
     ? (myGameInfo(gameId, 'all') || gameById(gameId))
     : gameById(gameId);
   if (!g) { toast('게임 정보를 찾을 수 없습니다.', true); return; }
-  document.getElementById('detail-body').innerHTML = gameInfoInnerHtml(g);
+  const body = document.getElementById('detail-body');
+  // 게임 정보 + 후기 제목 줄은 고정, 후기 목록만 내부 스크롤(시트 최대 높이 초과 시)
+  const headHtml = () => `<div class="gi-review-head">
+      <div class="section-title" style="margin:0;font-size:14px;">💬 후기 <span id="gi-rvcount" class="muted" style="font-size:12px;font-weight:600;"></span></div>
+      <span id="gi-writebtn">${reviewWriteBtnHtml(gameId)}</span>
+    </div>`;
+  const shell = (inner) => gameInfoInnerHtml(g)
+    + headHtml()
+    + `<div id="gi-reviews" class="gi-reviews-scroll">${inner}</div>`;
+  body.innerHTML = shell(`<div class="empty" style="padding:14px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`);
   showDetailSheet();
+  if (state.user) {
+    try { await ensureMyRatings(); } catch (e) {}   // 작성 완료 여부 판별용
+    const wb = document.getElementById('gi-writebtn');
+    if (wb) wb.innerHTML = reviewWriteBtnHtml(gameId);   // 로그인 상태 반영
+  }
+  try {
+    const reviews = await api(hubIntegrated() ? 'getReviewsMates' : 'getReviews', { gameId });
+    const el = document.getElementById('gi-reviews');
+    if (!el) return;   // 그새 다른 시트로 이동했으면 무시
+    const cnt = document.getElementById('gi-rvcount');
+    if (cnt) cnt.textContent = (reviews && reviews.length) ? `(${reviews.length})` : '';
+    el.innerHTML = (reviews && reviews.length)
+      ? reviews.map(r => `<div class="rv-row">
+          <div class="rv-name">${esc(r.name)}<span class="rv-when">${esc(String(r.updated_at || '').substring(0, 10))}</span></div>
+          <div class="rv-text">${esc(r.review)}</div>
+        </div>`).join('')
+      : `<div class="muted" style="font-size:12px;padding:6px 2px;">아직 남긴 후기가 없어요.</div>`;
+  } catch (e) {
+    const el = document.getElementById('gi-reviews');
+    if (el) el.innerHTML = `<div class="muted" style="font-size:12px;padding:6px 2px;">후기를 불러오지 못했어요.</div>`;
+  }
+}
+
+// 특정 게임의 후기 작성 에디터를 바로 연다(게임정보 팝업의 후기 작성 버튼)
+async function openReviewWriteFor(gid) {
+  if (!state.user) { toast('로그인 후 이용하세요.', true); return; }
+  const ov = document.getElementById('rvwrite-overlay');
+  ov.classList.add('show');
+  openOverlay(() => ov.classList.remove('show'));
+  state._rvwGid = gid;
+  document.getElementById('rvwrite-body').innerHTML =
+    `<div class="empty" style="padding:20px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`;
+  try { await ensureMyRatings(); } catch (e) {}
+  renderReviewWrite();
 }
 
 // MY-게임기록 펼침: 게임 기본 정보 + 일자별 플레이 요약(일자·승패·내점수·최고점수)
@@ -1220,8 +1290,10 @@ function gameCardTopHtml(g, showMine, extra = {}) {
         <div class="gcard-name">${esc(g.name_kr || g.name_en)}
           ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}</div>
         ${(g.name_en && g.name_kr && !extra.hideEn) ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
-        <div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
-        <div class="gcard-ratings">${club}${mine}</div>
+        ${extra.hideMeta ? '' : `<div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>`}
+        <div class="gcard-ratings" style="${extra.hideMeta ? 'margin-top:8px;' : ''}">${extra.reviewCount != null
+          ? `<span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">${club}<span class="muted" style="font-size:16px;font-weight:500;">· ${reviewCountInline(extra.reviewCount)}</span></span>`
+          : club}${mine}</div>
       </div>`;
 }
 
@@ -1232,6 +1304,20 @@ function canEditGame(g) {
 }
 
 function gameCardHtml(g, opts = {}) {
+  const editBtn = (opts.adminEdit || canEditGame(g))
+    ? `<button class="gcard-pill edit" title="정보 수정" onclick="event.stopPropagation(); openEditGame('${g.game_id}')">✏️</button>` : '';
+
+  // 통합-게임 탭: 카드 전체 탭 → 게임 정보 팝업(showGameInfo — 후기·작성 버튼 포함).
+  // 후기 개수는 평점 옆으로, 수정(연필)은 우측 하단(긴 게임명과 안 겹치게).
+  if (opts.review && !opts.ratingEditor) {
+    return `<div class="gcard" data-gid="${g.game_id}" style="cursor:pointer;" onclick="showGameInfo('${g.game_id}')">
+      <div class="gcard-top">
+        ${gameCardTopHtml(g, false, { reviewCount: g.review_count })}
+        ${editBtn ? `<div class="gcard-actions br">${editBtn}</div>` : ''}
+      </div>
+    </div>`;
+  }
+
   // 펼침 영역: 내 게임기록은 '평점 에디터', 그 외는 '게임 요약'
   const detail = opts.ratingEditor
     ? `<div class="gcard-editwrap">${ratingEditorHtml(g)}</div>`
@@ -1240,8 +1326,7 @@ function gameCardHtml(g, opts = {}) {
         : `<div class="gcard-detail muted">등록된 요약이 없습니다.</div>`);
 
   const acts = [];
-  if (opts.adminEdit || canEditGame(g))
-    acts.push(`<button class="gcard-pill edit" title="정보 수정" onclick="event.stopPropagation(); openEditGame('${g.game_id}')">✏️</button>`);
+  if (editBtn) acts.push(editBtn);
   const actsHtml = acts.length ? `<div class="gcard-actions">${acts.join('')}</div>` : '';
   // 상세·후기 버튼은 평점 줄 오른쪽 끝(우측 하단)에 배치
   const br = [];
@@ -4732,7 +4817,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.39';
+const APP_VERSION = '1.0.40';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

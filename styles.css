@@ -263,7 +263,7 @@
   .rvm.mine .rvm-bubble-row { flex-direction: row-reverse; }
   .rvm-date { font-size: 10px; color: var(--text-sub); white-space: nowrap; flex: 0 0 auto; padding-bottom: 2px; }
   /* 후기 작성 중앙 팝업 */
-  #rvwrite-overlay { position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
+  #rvwrite-overlay { position: fixed; inset: 0; z-index: 252; background: rgba(20,20,30,.45);   /* 게임정보 시트(245) 위 */
     display: none; align-items: center; justify-content: center; padding: 20px; }
   #rvwrite-overlay.show { display: flex; }
   .rvwrite-card { background: var(--bg); border-radius: 18px; width: 100%; max-width: 420px;
@@ -391,6 +391,24 @@
   .bar-col .bm { font-size: 10px; color: var(--text-sub); }
   .legend-chips { display: flex; gap: 10px; font-size: 11px; font-weight: 700; color: var(--text-sub); }
   .legend-chips i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+  /* 플레이 탭: 카테고리별 가로 막대그래프 */
+  .hbarchart { display: flex; flex-direction: column; gap: 1px; padding: 2px 0; }
+  .hbar-row { display: flex; align-items: center; gap: 8px; }
+  .hbar-name { flex: 0 0 66px; font-size: 11px; color: var(--text); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+  .hbar-track { flex: 1; height: 9px; background: var(--main-light); border-radius: 5px; overflow: hidden; }
+  .hbar-track > i { display: block; height: 100%; background: var(--main); border-radius: 5px; min-width: 3px; transition: width .3s; }
+  .hbar-val { flex: 0 0 auto; min-width: 16px; font-size: 11px; font-weight: 800; color: var(--text-sub); }
+  /* 게임정보 팝업: 후기 제목 줄(고정) + 후기 목록(내부 스크롤) */
+  .gi-review-head { display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin: 18px 2px 8px; }
+  .gi-reviews-scroll { max-height: 42vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* 팝업 제목 옆 '후기 작성' 버튼 */
+  .rvw-write-btn { flex: 0 0 auto; font-size: 12px; font-weight: 800; color: #fff;
+    background: var(--main); border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap; }
+  .rvw-write-btn:active { background: var(--main-dark); }
+  .rvw-write-btn.locked { background: #e6e6ec; color: var(--text-sub); font-weight: 700; opacity: .75; }
+  .rvw-write-btn.done { background: var(--main-light); color: var(--main); font-weight: 800; }
   /* 그래프 카드 상단 세그먼트 탭(월별/카테고리별) */
   .chart-seg { display: inline-flex; gap: 3px; background: var(--main-light); border-radius: 999px; padding: 3px; }
   .chart-seg .seg { font-size: 12px; font-weight: 500; color: var(--text-sub); padding: 4px 12px;

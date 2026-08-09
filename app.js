@@ -4063,6 +4063,8 @@ function openDogam() {
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
   state._dogam = { cat: null, term: '', players: null, weight: null, guest, offset: 0, loading: false, done: false, byId: {} };
+  const si = document.getElementById('dogam-search');
+  if (si) si.value = '';
   renderDogamFilters();
   // 무한 스크롤 감시(최초 1회만 생성)
   if (!state._dogamObs && 'IntersectionObserver' in window) {
@@ -4130,6 +4132,20 @@ function dogamCardHtml(g) {
   </div>`;
 }
 
+// 도감 검색: 입력이 멈추면(300ms) 한글·영문 이름으로 전체 도감에서 검색
+// (검색 중에는 분류 칩 무시 — 인원·난이도 필터는 함께 적용)
+document.getElementById('dogam-search').addEventListener('input', e => {
+  const d = state._dogam; if (!d) return;
+  clearTimeout(state._dgSearchT);
+  state._dgSearchT = setTimeout(() => {
+    const v = e.target.value.trim();
+    if (v === d.term) return;
+    d.term = v;
+    document.getElementById('dogam-page').scrollTop = 0;
+    dogamLoad(true);
+  }, 300);
+});
+
 // 도감 필터: 카테고리·인원·난이도 칩(게임 탭과 동일 스타일) — 한 줄씩
 function renderDogamFilters() {
   const d = state._dogam || {};
@@ -4151,6 +4167,8 @@ function dogamPickCat(cat) {
   if (!state._dogam) return;
   state._dogam.cat = cat || null;
   state._dogam.term = '';
+  const si = document.getElementById('dogam-search');
+  if (si) si.value = '';
   document.getElementById('dogam-page').scrollTop = 0;
   renderDogamFilters(); dogamLoad(true);
   if (cat) centerSelectedChip('dogam-cat-filter');   // 선택한 분류 칩을 줄 중앙으로
@@ -4994,7 +5012,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.55';
+const APP_VERSION = '1.0.56';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

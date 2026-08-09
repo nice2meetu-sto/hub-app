@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.55">
+<link rel="stylesheet" href="styles.css?v=1.0.56">
 </head>
 <body>
 <div id="app">
@@ -182,6 +182,10 @@
       <span style="white-space:nowrap;"><span class="dice">📚</span> 게임 도감</span>
       <span class="who" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:400;">다른 hub에서 등록한 게임을 구경하세요</span>
     </h1>
+  </div>
+  <div class="searchbox" style="margin-bottom:10px;">
+    <span>🔍</span>
+    <input id="dogam-search" placeholder="게임 이름 검색 (한글/영문)" autocomplete="off" />
   </div>
   <div class="chip-row" id="dogam-cat-filter"></div>
   <div class="chip-row" id="dogam-pc-filter"></div>
@@ -356,6 +360,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.55"></script>
+<script src="app.js?v=1.0.56"></script>
 </body>
 </html>

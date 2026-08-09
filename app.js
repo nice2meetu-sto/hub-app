@@ -843,13 +843,6 @@ function renderSessionList(containerId, sessions, opts = {}) {
       ? `<span class="adm-creator">작성 ${esc(playerNameById(s.created_by))}</span>` : '';
 
     if (editing) {
-      const eparts = s.participants.map(p => `
-        <div class="prow" data-rid="${esc(p.record_id)}" style="gap:8px;">
-          <span class="pname" style="flex:1;min-width:0;">${esc(p.name)}</span>
-          <input type="number" inputmode="numeric" class="edit-score" placeholder="점수" value="${p.score == null ? '' : esc(p.score)}"
-                 style="width:64px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;" />
-          <button type="button" class="wintoggle edit-win ${p.is_win ? 'on' : ''}" data-win="${p.is_win ? '1' : '0'}" onclick="toggleEditWin(this)" style="padding:6px 10px;">${p.is_win ? '승 👑' : '패 🥈'}</button>
-        </div>`).join('');
       return `<div class="session" data-sid="${esc(s.session_id)}">
         <div class="session-head">
           ${thumb(s.game_image, 'session-thumb')}
@@ -860,7 +853,13 @@ function renderSessionList(containerId, sessions, opts = {}) {
           <div class="field" style="margin:0;"><label>날짜</label><input class="input edit-date" type="date" value="${esc(String(s.play_date).substring(0,10))}" /></div>
           <div class="field" style="margin:0;"><label>시간(분)</label><input class="input edit-duration" type="number" inputmode="numeric" value="${s.duration_min || ''}" /></div>
         </div>
-        <div class="participants">${eparts}</div>
+        <div class="field" style="margin:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+            <label style="margin:0;">참가자 (비회원은 체크)</label>
+            <button type="button" class="btn ghost sm" style="padding:5px 12px;font-size:12px;" onclick="editAddPart()">+ 참가자 추가</button>
+          </div>
+          <div id="ep-participants"></div>
+        </div>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn danger sm" style="flex:1;" onclick="deleteSession('${esc(s.session_id)}')">🗑 삭제</button>
           <button class="btn sm" style="flex:1;" onclick="saveEditSession('${esc(s.session_id)}')">저장</button>
@@ -890,6 +889,7 @@ function renderSessionList(containerId, sessions, opts = {}) {
       <div class="participants">${parts}</div>
     </div>`;
   }).join('');
+  if (state._editSid) renderEditParts();   // 수정 중이면 참가자 편집기 채우기
 }
 
 function playerNameById(pid) {
@@ -934,14 +934,82 @@ function refreshSessionsView() {
   if (adm && adm.classList.contains('show')) adminPlaySearch();
   else refreshMySessions();
 }
-function startEditSession(sid) { state._editSid = sid; rerenderSessList(); }
-function cancelEditSession() { state._editSid = null; rerenderSessList(); }
-function toggleEditWin(btn) {
-  const on = btn.getAttribute('data-win') === '1';
-  btn.setAttribute('data-win', on ? '0' : '1');
-  btn.classList.toggle('on', !on);
-  btn.textContent = on ? '패 🥈' : '승 👑';
+function startEditSession(sid) {
+  const s = (_sessCtx && _sessCtx.sessions.find(x => x.session_id === sid))
+         || (state.plays || []).find(x => x.session_id === sid);
+  state._editSid = sid;
+  // 편집 상태: 원본 player_id·이름을 기억(이름을 안 바꾸면 그대로 유지 —
+  // 통합 화면에서 다른 허브 기록을 수정해도 회원 연결이 안 깨지게)
+  state._editParts = s ? (s.participants || []).map(p => ({
+    pid: p.player_id || '',
+    origName: p.name || '',
+    name: p.name || '',
+    score: p.score == null ? '' : p.score,
+    is_win: !!p.is_win,
+    is_guest: p.is_guest != null ? !!p.is_guest : !p.player_id
+  })) : [];
+  rerenderSessList();
 }
+function cancelEditSession() { state._editSid = null; state._editParts = null; rerenderSessList(); }
+
+// ===== 수정 폼: 참가자 편집기(이름/추가/삭제/게스트↔회원) =====
+// 플레이 추가 화면의 참가자 UI와 동일한 규칙. state._editParts에 담아 편집한다.
+function renderEditParts() {
+  const el = document.getElementById('ep-participants');
+  if (!el) return;
+  el.innerHTML = (state._editParts || []).map((pt, i) => `
+    <div style="margin-bottom:8px;">
+      <div class="ppart" style="margin-bottom:4px;gap:8px;">
+        ${pt.is_guest
+          ? `<input class="input" placeholder="게스트 닉네임" autocomplete="off" style="flex:2;min-width:0;"
+               value="${esc(pt.name)}" oninput="editUpdatePart(${i},'name',this.value)" />`
+          : `<div class="ac-wrap" style="flex:2;min-width:0;">
+               <input class="input" placeholder="회원 이름 입력" autocomplete="off"
+                 value="${esc(pt.name)}" oninput="editPartNameInput(this, ${i})" onblur="acHide(this)" />
+               <div class="ac-menu"></div>
+             </div>`}
+        <input class="input" type="number" inputmode="numeric" placeholder="점수" value="${esc(pt.score)}" oninput="editUpdatePart(${i},'score',this.value)" style="flex:1;min-width:0;" />
+        <button type="button" class="wintoggle ${pt.is_win ? 'on' : ''}" onclick="editToggleWin(${i})">${pt.is_win ? '승 👑' : '패 🥈'}</button>
+        ${(state._editParts || []).length > 1 ? `<button type="button" class="rm-btn" onclick="editRemovePart(${i})">×</button>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:2px;">
+        ${editMemberBadgeHtml(i, pt)}
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-sub);cursor:pointer;margin-left:auto;">
+          <input type="checkbox" ${pt.is_guest ? 'checked' : ''} onchange="editToggleGuest(${i}, this.checked)" style="width:15px;height:15px;margin:0;" />
+          비회원(게스트)
+        </label>
+      </div>
+    </div>`).join('');
+}
+// 회원 판정: 이름을 안 바꿨고 원래 연결(pid)이 있으면 그대로 회원,
+// 바꿨으면 현재 허브 명단에서 정확 일치 조회
+function editPartMemberOk(pt) {
+  const nm = (pt.name || '').trim();
+  if (pt.pid && nm === (pt.origName || '').trim()) return true;
+  return !!playerByExactName(nm);
+}
+function editMemberBadgeHtml(i, pt) {
+  if (pt.is_guest) return '';
+  const ok = editPartMemberOk(pt);
+  return `<span class="mchk ${ok ? 'ok' : 'no'}" id="emchk-${i}">${ok ? '✓ 회원이에요' : '일치하는 회원이 없어요'}</span>`;
+}
+function editUpdateMemberBadge(i) {
+  const el = document.getElementById('emchk-' + i);
+  if (!el) return;
+  const ok = editPartMemberOk(state._editParts[i]);
+  el.textContent = ok ? '✓ 회원이에요' : '일치하는 회원이 없어요';
+  el.className = 'mchk ' + (ok ? 'ok' : 'no');
+}
+function editPartNameInput(inp, i) {
+  state._editParts[i].name = inp.value;
+  editUpdateMemberBadge(i);     // 실시간 회원 조회
+  acRender(inp, 'player');      // 실시간 자동완성 드롭다운
+}
+function editUpdatePart(i, field, val) { state._editParts[i][field] = val; }
+function editToggleWin(i) { state._editParts[i].is_win = !state._editParts[i].is_win; renderEditParts(); }
+function editToggleGuest(i, checked) { state._editParts[i].is_guest = checked; renderEditParts(); }
+function editAddPart() { state._editParts.push({ pid: '', origName: '', name: '', score: '', is_win: false, is_guest: false }); renderEditParts(); }
+function editRemovePart(i) { state._editParts.splice(i, 1); renderEditParts(); }
 
 async function saveEditSession(sid) {
   if (!state.user) return;
@@ -949,21 +1017,41 @@ async function saveEditSession(sid) {
   if (!card) return;
   const play_date = card.querySelector('.edit-date').value;
   const duration_min = card.querySelector('.edit-duration').value;
-  const rows = Array.from(card.querySelectorAll('.prow[data-rid]')).map(row => ({
-    record_id: row.getAttribute('data-rid'),
-    score: row.querySelector('.edit-score').value,
-    is_win: row.querySelector('.edit-win').getAttribute('data-win') === '1'
-  }));
+
+  // 참가자 정보(이름/게스트↔회원/점수/승패) 전체를 재구성 — 추가 화면과 동일한 검증
+  const rawParts = (state._editParts || []).filter(p => (p.name || '').trim());
+  if (!rawParts.length) { toast('참가자를 최소 1명 입력하세요.', true); return; }
+  const participants = [];
+  const seen = new Set();
+  for (const p of rawParts) {
+    const nm = (p.name || '').trim();
+    let player_id = '', player_name = nm;
+    if (!p.is_guest) {
+      if (p.pid && nm === (p.origName || '').trim()) {
+        player_id = p.pid;                 // 이름 그대로 → 기존 회원 연결 유지
+      } else {
+        const pl = playerByExactName(nm);
+        if (!pl) { toast(`"${nm}"은(는) 회원 명단에 없어요. 비회원이면 '비회원(게스트)'를 체크하세요.`, true); return; }
+        player_id = pl.player_id; player_name = pl.name;
+      }
+    }
+    const key = player_id ? ('m:' + player_id) : ('g:' + player_name);
+    if (seen.has(key)) { toast('참가자가 중복되었습니다.', true); return; }
+    seen.add(key);
+    participants.push({ player_id, player_name, score: p.score, is_win: !!p.is_win });
+  }
+
   const pin = await promptPin();
   if (pin == null) return;
   showLoader('저장 중…');
   try {
-    await api('updatePlay', { playerId: state.user.player_id, pin, payload: JSON.stringify({ session_id: sid, play_date, duration_min, rows }) });
+    const res = await api('updatePlay', { playerId: state.user.player_id, pin, payload: JSON.stringify({ session_id: sid, play_date, duration_min, participants }) });
     state.plays = await api('getPlays');
     state._myStats = null;
-    state._editSid = null;
-    toast('수정되었습니다.');
+    state._editSid = null; state._editParts = null;
     refreshSessionsView();
+    if (res && res.mode === 'replace') toast('수정되었습니다.');
+    else toast('참가자 변경은 DB 업데이트 후 적용돼요 (supabase_migration_editparts.sql 실행 필요).', true);
   } catch (e) {
     toast(e.message, true);
   } finally {
@@ -4117,7 +4205,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.33';
+const APP_VERSION = '1.0.34';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

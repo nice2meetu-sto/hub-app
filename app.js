@@ -4324,7 +4324,7 @@ function dogamDetail(gid) {
   const g = state._dogam && state._dogam.byId[gid];
   if (!g) return;
   const guest = !!(state._dogam && state._dogam.guest);
-  const where = isPersonalHub(state.hub) ? '기록장' : '허브';
+  const where = isPersonalHub(state.hub) ? '내 개인Hub' : '우리 허브';
   const meta = [];
   if (g.min_players || g.max_players) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
@@ -4347,8 +4347,8 @@ function dogamDetail(gid) {
         ${guest
           ? ''
           : (g.on_shelf
-            ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 우리 ${where}에 있어요</div>`
-            : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 우리 ${where}에 추가</button>`)}
+            ? `<div class="hint" style="text-align:center;color:var(--ok);font-weight:700;">✓ 이미 ${where}에 있어요</div>`
+            : `<button class="btn" style="width:100%;padding:9px;" onclick="dogamAddToHub('${esc(gid)}')">🎲 ${where}에 추가</button>`)}
       </div>
       <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="closeMiniPopup()">닫기</button>
     </div>`);
@@ -4389,8 +4389,8 @@ async function dogamConfirmAdd(gid) {
     }) });
     state.games = await api('getGames');
     g.on_shelf = true;
-    const where = isPersonalHub(state.hub) ? '기록장' : '허브';
-    toast(`우리 ${where}에 추가했어요! 🎉`);
+    const where = isPersonalHub(state.hub) ? '내 개인Hub' : '우리 허브';
+    toast(`${where}에 추가했어요! 🎉`);
     closeMiniPopup();
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
@@ -4994,7 +4994,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.54';
+const APP_VERSION = '1.0.55';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

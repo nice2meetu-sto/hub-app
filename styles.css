@@ -391,6 +391,33 @@
   .bar-col .bm { font-size: 10px; color: var(--text-sub); }
   .legend-chips { display: flex; gap: 10px; font-size: 11px; font-weight: 700; color: var(--text-sub); }
   .legend-chips i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 4px; }
+  /* MY-플레이 달력 */
+  .cal-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; margin-bottom: 2px; }
+  .cal-head { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 8px; }
+  .cal-nav { background: none; border: none; font-size: 20px; color: var(--text-sub); padding: 2px 12px; cursor: pointer; line-height: 1; }
+  .cal-title { font-weight: 800; font-size: 15px; min-width: 74px; text-align: center; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 0; }
+  .cal-wd { text-align: center; font-size: 11px; color: var(--text-sub); font-weight: 700; padding-bottom: 2px; }
+  .cal-wd.sun { color: #d9534f; } .cal-wd.sat { color: #4a7bd9; }
+  .cal-cell { position: relative; aspect-ratio: 1; border-radius: 9px; background: var(--card);
+    border: 1px solid var(--border); overflow: hidden; }
+  .cal-cell.has { cursor: pointer; }
+  .cal-cell.has:not(.img) { background: var(--main-light); }   /* 플레이 있으나 이미지 없는 날 */
+  .cal-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cal-d { position: absolute; top: 3px; left: 5px; font-size: 11px; font-weight: 600; color: var(--text-sub); z-index: 1; }
+  .cal-cell.has:not(.img) .cal-d { color: var(--main); font-weight: 800; }
+  .cal-cell.img .cal-d { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.75); }
+  .cal-cell.sel { outline: 2px solid var(--main); outline-offset: -2px; }
+  .cal-cell.sel::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--main); border-radius: 9px; }
+  .session.clickable { cursor: pointer; }
+  .session.clickable:active { background: #f6f5fb; }
+  /* 달력 게임 칩 줄: 앱바 아래에 sticky */
+  #my-cal-chips { position: sticky; top: var(--appbar-h, 52px); z-index: 30;
+    background: var(--bg); padding-top: 5px; padding-bottom: 8px; margin-bottom: 4px; }
+  /* 비회원→회원 연동 모달: 선택된 카드 강조 */
+  .link-row { transition: border-color .12s, background .12s; }
+  .link-row.sel { border-color: var(--main) !important; background: var(--main-light); }
 
   /* game-stat list rows (MY 플레이) */
   .grow {

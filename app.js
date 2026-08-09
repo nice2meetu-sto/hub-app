@@ -888,7 +888,11 @@ function renderSessionList(containerId, sessions, opts = {}) {
         <span class="pname">${esc(p.name)}${p.is_win ? '<span class="crown">👑</span>' : ''}</span>
         <span class="pscore">${p.score == null ? '' : esc(p.score) + '점'}</span>
       </div>`).join('');
-    return `<div class="session">
+    // linkGame: 카드(수정/작성자 버튼 제외) 클릭 → 그 게임 상세로 이동
+    const cardOpen = opts.linkGame
+      ? `<div class="session clickable" onclick="openGameDetail('${esc(String(s.game_id))}')">`
+      : `<div class="session">`;
+    return `${cardOpen}
       <div class="session-head">
         ${thumb(s.game_image, 'session-thumb')}
         <div style="flex:1;min-width:0;">
@@ -898,9 +902,9 @@ function renderSessionList(containerId, sessions, opts = {}) {
               ? ` · <span style="color:var(--main);">${esc(s.hub_name)}</span>` : ''}${creator}</div>
         </div>
         ${canEdit
-          ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="startEditSession('${esc(s.session_id)}')">수정</button>`
+          ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;" onclick="event.stopPropagation(); startEditSession('${esc(s.session_id)}')">수정</button>`
           : (s.created_by
-              ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;background:#f0f0f4;color:var(--text-sub);" onclick="sessAuthorToast('${esc(s.session_id)}')">${esc(sessAuthorName(s))}</button>` : '')}
+              ? `<button class="btn ghost sm" style="padding:5px 12px;font-size:12px;flex:0 0 auto;background:#f0f0f4;color:var(--text-sub);" onclick="event.stopPropagation(); sessAuthorToast('${esc(s.session_id)}')">${esc(sessAuthorName(s))}</button>` : '')}
       </div>
       <div class="participants">${parts}</div>
     </div>`;
@@ -1542,8 +1546,17 @@ function renderMy() {
   else renderMyGames();
 }
 
+// 하단 MY 탭: MY가 아니면 MY로, 이미 MY면 세부탭(전체→플레이→게임) 순환
+function onMyTabClick() {
+  const onMy = document.getElementById('view-my').classList.contains('active');
+  if (!onMy || !state.user) { switchView('my'); return; }
+  const order = ['overview', 'plays', 'games'];
+  const cur = state.myTab || 'overview';
+  switchMyTab(order[(order.indexOf(cur) + 1) % order.length]);
+}
 function switchMyTab(tab) {
   state.myTab = tab;
+  try { localStorage.setItem('bg_mytab', tab); } catch (e) {}   // 새로고침 후 세부 탭 복원용
   ['overview', 'plays', 'games'].forEach(t => {
     document.getElementById('mytab-' + t).classList.toggle('on', t === tab);
     document.getElementById('my-' + t).style.display = t === tab ? 'block' : 'none';
@@ -1958,11 +1971,15 @@ function renderMyGameStatList() {
     const scoreText = sc.has ? `평균 ${sc.avg}점 · 최고 ${sc.max}점` : '점수 없음';
     const rightNum = sort === 'plays' ? `${g.plays}` : `${g.win_rate}%`;
     const rightLbl = sort === 'plays' ? '판수' : '승률';
+    // 정렬 모드별 부제(옆 큰 숫자와 중복되는 항목은 빼고 배치)
+    const sub = sort === 'plays'
+      ? `${scoreText} · ${g.wins}승 · ${g.win_rate}%`   // 판수순: 평균·최고·승·승률
+      : `${g.plays}판 · ${g.wins}승 · ${scoreText}`;    // 승률순: 판·승·평균·최고
     return `<div class="grow" style="cursor:pointer;" onclick="showMyGameStat('${esc(g.game_id)}')">
       <div class="grow-rank">${ranks[i]}</div>
       <div class="grow-body">
         <div class="grow-name">${esc(g.game)}</div>
-        <div class="grow-sub">${g.plays}판 · ${g.wins}승 · ${scoreText}</div>
+        <div class="grow-sub">${sub}</div>
         <div class="winbar"><i style="width:${g.win_rate}%"></i></div>
       </div>
       <div class="grow-rate"><div class="r">${rightNum}</div><div class="rl">${rightLbl}</div></div>
@@ -1976,33 +1993,174 @@ async function renderMyPlaysTab() {
   const el = document.getElementById('my-plays');
   state._editSid = null;   // 탭 진입 시 수정 모드 해제
   const scope = myScope();
-  const shell = `
-    <div class="searchbox" style="margin-top:2px;">
-      <span>🔍</span>
-      <input id="my-play-search" placeholder="일자 · 게임명 · 참가자 검색 (쉼표로 여러 조건)" oninput="filterMyPlays()" />
-    </div>
-    <div id="my-sessions"></div>`;
   if (scope === 'hub') {
     state._mySessions = state.plays.filter(s =>
       s.participants.some(p => p.player_id === state.user.player_id));
-    el.innerHTML = shell;
-    filterMyPlays();
-    return;
-  }
-  if (!state._myAllPlays) {
-    el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
-    try {
-      state._myAllPlays = await api('getMyPlaysAll') || [];
-    } catch (e) {
-      el.innerHTML = `<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
-      return;
+  } else {
+    if (!state._myAllPlays) {
+      el.innerHTML = `<div class="empty"><div class="spinner" style="margin:0 auto;"></div></div>`;
+      try {
+        state._myAllPlays = await api('getMyPlaysAll') || [];
+      } catch (e) {
+        el.innerHTML = `<div class="empty">통합 기록을 불러오지 못했습니다.<br/>${esc(e.message)}</div>`;
+        return;
+      }
     }
+    state._mySessions = scope === 'all'
+      ? state._myAllPlays
+      : state._myAllPlays.filter(s => s.hub_id === scope);
   }
-  state._mySessions = scope === 'all'
-    ? state._myAllPlays
-    : state._myAllPlays.filter(s => s.hub_id === scope);
-  el.innerHTML = shell;
+  // 첫 방문에만 기본값(가장 최근 플레이의 달) 설정 → 이후엔 마지막으로 본 달/일자 기억
+  if (state._calMonth == null) {
+    const dates = state._mySessions.map(s => String(s.play_date).substring(0, 10)).filter(Boolean).sort();
+    const recent = dates.length ? dates[dates.length - 1] : new Date().toISOString().substring(0, 10);
+    state._calMonth = recent.substring(0, 7);
+    state._calDay = null;
+  }
+  el.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-top:2px;margin-bottom:12px;">
+      <div class="searchbox" style="flex:1;margin:0;">
+        <span>🔍</span>
+        <input id="my-play-search" placeholder="일자 · 게임명 · 참가자 검색 (쉼표로 여러 조건)" oninput="filterMyPlays()" />
+      </div>
+      <button class="btn ghost sm" style="flex:0 0 auto;align-self:stretch;display:flex;align-items:center;padding:0 14px;font-size:12px;white-space:nowrap;" onclick="openLinkGuestModal()">🔗 연동</button>
+    </div>
+    <div id="my-cal" class="cal-wrap"></div>
+    <div id="my-cal-chips" class="chip-row" style="display:none;"></div>
+    <div id="my-sessions"></div>`;
+  renderMyCalendar();
   filterMyPlays();
+}
+
+// ===== 플레이 달력 =====
+// 내 세션을 날짜별로 묶기
+function myPlaysByDate() {
+  const map = {};
+  (state._mySessions || []).forEach(s => {
+    const d = String(s.play_date).substring(0, 10);
+    (map[d] = map[d] || []).push(s);
+  });
+  return map;
+}
+// 그날 가장 많이 플레이한 게임의 이미지
+function topGameImageForDay(sessions) {
+  const cnt = {}; let best = 0, img = '';
+  sessions.forEach(s => {
+    const k = s.game_id;
+    cnt[k] = (cnt[k] || 0) + 1;
+    if (cnt[k] > best) { best = cnt[k]; img = s.game_image || ''; }
+  });
+  return img;
+}
+function calMonthShift(delta) {
+  const [Y, M] = state._calMonth.split('-').map(Number);
+  const d = new Date(Y, M - 1 + delta, 1);
+  state._calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  state._calDay = null;     // 월 이동 시 선택 해제
+  state._calGameFilter = null;
+  renderMyCalendar();
+  filterMyPlays();
+}
+function selectCalDay(ds) {
+  state._calDay = (state._calDay === ds) ? null : ds;   // 다시 누르면 해제
+  state._calGameFilter = null;   // 날짜 바뀌면 게임 칩 선택 초기화
+  renderMyCalendar();
+  filterMyPlays();
+  const chips = document.getElementById('my-cal-chips');   // 기본 '전체' 칩(맨 왼쪽)이 보이게
+  if (chips) chips.scrollLeft = 0;
+}
+// 선택한 날의 게임별 칩(이름 + 판수). 여러 게임 플레이 시 분류용.
+function renderCalChips(dayList) {
+  const el = document.getElementById('my-cal-chips');
+  if (!el) return;
+  const order = [], cnt = {}, name = {};
+  dayList.forEach(s => {
+    if (cnt[s.game_id] == null) { cnt[s.game_id] = 0; order.push(s.game_id); name[s.game_id] = s.game_name; }
+    cnt[s.game_id]++;
+  });
+  if (!order.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const sel = state._calGameFilter || new Set();
+  el.style.display = '';
+  // 맨 앞 '전체' 칩(총 판수). 아무 게임도 선택 안 됐을 때 활성.
+  const allChip = `<span class="chip ${sel.size ? '' : 'on'}" onclick="selectAllCalChips()">전체 <b style="margin-left:4px;">${dayList.length}</b></span>`;
+  el.innerHTML = allChip + order.map(gid =>
+    `<span class="chip ${sel.has(gid) ? 'on' : ''}" onclick="toggleCalChip('${esc(String(gid))}')">${esc(name[gid])} <b style="margin-left:4px;">${cnt[gid]}</b></span>`
+  ).join('');
+}
+function toggleCalChip(gid) {
+  if (!state._calGameFilter) state._calGameFilter = new Set();
+  const s = state._calGameFilter;
+  let added;
+  // 단일 선택: 같은 칩 다시 누르면 해제, 다른 칩 누르면 기존 선택은 자동 해제
+  if (s.has(gid)) { s.clear(); added = false; }
+  else { s.clear(); s.add(gid); added = true; }
+  filterMyPlays();
+  if (added) {   // 선택할 때만: 첫 카드로 스크롤 + 선택 칩을 가로 중앙으로
+    scrollChipsToTop();
+    centerSelectedChip('my-cal-chips');
+  }
+}
+// '전체' 칩 → 게임 필터 해제(전체 보기). 해제 성격이라 스크롤 이동 없음.
+function selectAllCalChips() {
+  if (!state._calGameFilter || !state._calGameFilter.size) return;
+  state._calGameFilter = null;
+  filterMyPlays();
+}
+// 선택한 칩의 '첫 카드'가 (헤더+칩 줄) 바로 아래에 오도록 스크롤.
+// 카드가 모자라면 브라우저가 최대 스크롤(=하단)로 clamp → 자연스러운 하단 폴백.
+function scrollChipsToTop() {
+  const chip = document.getElementById('my-cal-chips');
+  const sessions = document.getElementById('my-sessions');
+  if (!chip || chip.style.display === 'none' || !sessions) return;
+  const abH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--appbar-h')) || 52;
+  const first = sessions.querySelector('.session') || sessions;
+  const desiredTop = abH + chip.offsetHeight;   // 칩 줄 바로 아래
+  const delta = first.getBoundingClientRect().top - desiredTop;
+  if (Math.abs(delta) > 1) window.scrollBy({ top: delta, behavior: 'smooth' });
+}
+// 선택한 칩을 가로 스크롤 행의 중앙쯤으로 이동
+function centerChipInRow(chipEl) {
+  const row = chipEl && chipEl.closest('.chip-row');
+  if (!row) return;
+  const rowRect = row.getBoundingClientRect();
+  const chipRect = chipEl.getBoundingClientRect();
+  const delta = (chipRect.left + chipRect.width / 2) - (rowRect.left + rowRect.width / 2);
+  row.scrollTo({ left: row.scrollLeft + delta, behavior: 'smooth' });
+}
+// 지정한 chip-row의 선택(.on) 칩을 중앙으로
+function centerSelectedChip(rowId) {
+  const on = document.querySelector('#' + rowId + ' .chip.on');
+  if (on) centerChipInRow(on);
+}
+function renderMyCalendar() {
+  const el = document.getElementById('my-cal');
+  if (!el) return;
+  const [Y, M] = state._calMonth.split('-').map(Number);
+  const byDate = myPlaysByDate();
+  const daysInMonth = new Date(Y, M, 0).getDate();
+  const firstDow = new Date(Y, M - 1, 1).getDay();   // 0=일
+  const wd = ['일', '월', '화', '수', '목', '금', '토']
+    .map((w, i) => `<div class="cal-wd${i === 0 ? ' sun' : (i === 6 ? ' sat' : '')}">${w}</div>`).join('');
+  const cells = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${Y}-${String(M).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const sess = byDate[ds] || [];
+    const img = sess.length ? topGameImageForDay(sess) : '';
+    const sel = state._calDay === ds;
+    // 1일은 해당 요일 칸에서 시작(빈 셀 없이 → 모든 주 간격 균일)
+    const colStart = d === 1 ? `style="grid-column-start:${firstDow + 1};"` : '';
+    cells.push(`<div class="cal-cell ${sess.length ? 'has' : ''} ${img ? 'img' : ''} ${sel ? 'sel' : ''}" ${colStart} ${sess.length ? `onclick="selectCalDay('${ds}')"` : ''}>
+      ${img ? `<img class="cal-img" src="${esc(img)}" loading="lazy" referrerpolicy="no-referrer" alt="" onerror="this.remove()" />` : ''}
+      <span class="cal-d">${d}</span>
+    </div>`);
+  }
+  el.innerHTML = `
+    <div class="cal-head">
+      <button class="cal-nav" onclick="calMonthShift(-1)">‹</button>
+      <span class="cal-title">${Y}.${M}</span>
+      <button class="cal-nav" onclick="calMonthShift(1)">›</button>
+    </div>
+    <div class="cal-grid">${wd}${cells.join('')}</div>`;
 }
 
 // 로그인한 본인이 특정 게임에서 낸 점수들의 평균/최고 (점수 없으면 has=false)
@@ -2030,17 +2188,225 @@ function filterMyPlays() {
   const all = state._mySessions || [];
   const input = document.getElementById('my-play-search');
   const raw = input ? input.value : '';
+  // 검색어(또는 날짜)가 바뀌면 게임 칩 선택 초기화 — 칩 클릭 시엔 검색어가 그대로라 유지됨
+  if (raw !== state._lastSearch) { state._calGameFilter = null; state._lastSearch = raw; }
   const terms = raw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
-  const list = !terms.length ? all : all.filter(s => {
-    const hay = [
-      String(s.play_date || ''),
-      String(s.game_name || ''),
-      String(s.hub_name || ''),
-      ...s.participants.map(p => String(p.name || ''))
-    ].join(' ').toLowerCase();
-    return terms.every(t => hay.includes(t));
+  const cal = document.getElementById('my-cal');
+  const chipsEl = document.getElementById('my-cal-chips');
+
+  // 검색 중 → 달력 숨기고, 검색 결과 + 게임별 칩 표시(칩으로 게임 필터)
+  if (terms.length) {
+    if (cal) cal.style.display = 'none';
+    const matched = all.filter(s => {
+      const hay = [
+        String(s.play_date || ''),
+        String(s.game_name || ''),
+        String(s.hub_name || ''),
+        ...s.participants.map(p => String(p.name || ''))
+      ].join(' ').toLowerCase();
+      return terms.every(t => hay.includes(t));
+    });
+    renderCalChips(matched);   // 검색 결과의 게임별 칩(이름+판수)
+    const sel = state._calGameFilter;
+    const list = (sel && sel.size) ? matched.filter(s => sel.has(s.game_id)) : matched;
+    renderSessionList('my-sessions', list, { linkGame: true });
+    return;
+  }
+
+  // 검색 없음 → 달력 표시, 선택한 날짜의 기록만(없으면 안내)
+  if (cal) cal.style.display = '';
+  if (state._calDay) {
+    const dayList = all.filter(s => String(s.play_date).substring(0, 10) === state._calDay);
+    renderCalChips(dayList);   // 그날 게임별 칩(이름+판수)
+    const sel = state._calGameFilter;
+    const list = (sel && sel.size) ? dayList.filter(s => sel.has(s.game_id)) : dayList;
+    renderSessionList('my-sessions', list, { linkGame: true });
+  } else {
+    if (chipsEl) { chipsEl.style.display = 'none'; chipsEl.innerHTML = ''; }
+    const el = document.getElementById('my-sessions');
+    if (el) el.innerHTML = all.length
+      ? `<div class="empty" style="padding:18px 0;">달력에서 날짜를 선택하면<br/>그날의 플레이 기록이 표시돼요.</div>`
+      : `<div class="empty"><div class="big">🎲</div>아직 플레이 기록이 없어요.<br/>+ 버튼으로 결과를 추가해보세요.</div>`;
+  }
+}
+
+// ===== 비회원(게스트) → 회원 연동 =====
+// 내가 수정권한 있는(작성자 본인·사람 단위, 관리자는 전체) 기록의 게스트 참가자를
+// 실제 회원 계정으로 연결한다. 내부적으로 update_play(참가자 교체)를 사용.
+function canEditSession(s) {
+  return !!(state.user && (state.user.role === 'admin' || (s.created_by && isMyPid(s.created_by))));
+}
+// scope: 'admin' → 관리자면 전체 기록, 'mine'(기본) → 본인이 작성한 기록만.
+function guestLinkTargets(scope) {
+  const out = [];
+  (state.plays || []).forEach(s => {
+    const allowed = (scope === 'admin')
+      ? canEditSession(s)
+      : !!(s.created_by && isMyPid(s.created_by));
+    if (!allowed) return;
+    s.participants.forEach(p => {
+      if (p.is_guest && (p.name || '').trim()) {
+        out.push({
+          session_id: s.session_id, record_id: p.record_id, guest_name: p.name,
+          play_date: String(s.play_date).substring(0, 10), game_name: s.game_name
+        });
+      }
+    });
   });
-  renderSessionList('my-sessions', list);
+  return out;
+}
+function openLinkGuestModal(scope) {
+  if (!state.user) { toast('로그인 후 이용하세요.', true); return; }
+  if (scope === 'admin' && state.user.role !== 'admin') { toast('관리자만 사용할 수 있습니다.', true); return; }
+  state._linkScope = scope === 'admin' ? 'admin' : 'mine';
+  const body = document.getElementById('detail-body');
+  body.innerHTML = `
+    <h2 style="font-size:17px;font-weight:800;margin:2px 0 4px;">🔗 비회원 → 회원 연동</h2>
+    <div class="muted" style="font-size:12px;margin-bottom:10px;line-height:1.5;">
+      비회원 이름으로 검색 → 연동할 플레이기록을 체크 → 아래에서 회원을 한 번만
+      지정하면 선택한 기록이 한꺼번에 연동돼요.
+      ${state._linkScope === 'admin' ? '(관리자: 전체 기록)' : '(내가 작성한 기록만)'}
+    </div>
+    <div class="searchbox" style="margin:0 0 10px;">
+      <span>🔍</span>
+      <input id="link-search" placeholder="비회원 이름 검색 (게임·일자도 가능)" oninput="renderLinkList()" />
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-sub);cursor:pointer;">
+        <input type="checkbox" id="link-all" onchange="toggleLinkAll(this.checked)" style="width:16px;height:16px;margin:0;" />
+        전체 선택
+      </label>
+      <span id="link-count" style="font-size:12px;color:var(--text-sub);">0건 선택</span>
+    </div>
+    <div id="link-list" style="max-height:42vh;overflow-y:auto;"></div>
+    <div style="position:sticky;bottom:0;background:var(--bg);padding:10px 0 2px;margin-top:8px;border-top:1px solid var(--border);">
+      <div class="ac-wrap">
+        <input class="input" id="link-member" placeholder="연결할 회원 이름" autocomplete="off"
+          oninput="linkNameInput(this)" onblur="acHide(this)" />
+        <div class="ac-menu"></div>
+      </div>
+      <div class="mchk no" id="link-mchk" style="margin-top:6px;display:none;"></div>
+      <button class="btn" id="link-submit" style="margin-top:8px;" onclick="submitLinkBatch()">선택한 기록 연동</button>
+    </div>`;
+  showDetailSheet();
+  renderLinkList();
+}
+function linkNameInput(inp) {
+  updateLinkMemberBadge(inp);          // 실시간 회원 조회(배지) — 플레이 추가와 동일
+  acRender(inp, 'player');             // 실시간 자동완성 드롭다운
+}
+function updateLinkMemberBadge(inp) {
+  const el = document.getElementById('link-mchk');
+  if (!el) return;
+  const name = (inp.value || '').trim();
+  if (!name) { el.style.display = 'none'; return; }
+  const ok = !!playerByExactName(name);
+  el.style.display = '';
+  el.textContent = ok ? '✓ 회원이에요' : '일치하는 회원이 없어요';
+  el.className = 'mchk ' + (ok ? 'ok' : 'no');
+}
+function renderLinkList() {
+  const el = document.getElementById('link-list');
+  if (!el) return;
+  const q = (document.getElementById('link-search')?.value || '').trim().toLowerCase();
+  let items = guestLinkTargets(state._linkScope);
+  if (q) {
+    const terms = q.split(',').map(t => t.trim()).filter(Boolean);
+    items = items.filter(it => {
+      const hay = `${it.guest_name} ${it.game_name} ${it.play_date}`.toLowerCase();
+      return terms.every(t => hay.includes(t));
+    });
+  }
+  if (!items.length) {
+    el.innerHTML = `<div class="empty" style="padding:24px 0;"><div class="big">🙌</div>연동할 게스트 기록이 없어요.</div>`;
+    const all = document.getElementById('link-all'); if (all) all.checked = false;
+    updateLinkCount();
+    return;
+  }
+  el.innerHTML = items.map(it => `
+    <label class="link-row" style="display:block;border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer;">
+      <input type="checkbox" class="link-check" data-sid="${esc(it.session_id)}" data-rid="${esc(it.record_id)}" onchange="updateLinkCount()" style="display:none;" />
+      <div style="font-size:12px;color:var(--text-sub);">${esc(it.play_date)} · ${esc(it.game_name)}</div>
+      <div style="font-weight:800;">게스트: ${esc(it.guest_name)}</div>
+    </label>`).join('');
+  const all = document.getElementById('link-all'); if (all) all.checked = false;
+  updateLinkCount();
+}
+function toggleLinkAll(checked) {
+  document.querySelectorAll('#link-list .link-check').forEach(c => { c.checked = checked; });
+  updateLinkCount();
+}
+function updateLinkCount() {
+  // 선택된 카드에 .sel(보라 테두리) 반영
+  document.querySelectorAll('#link-list .link-row').forEach(row => {
+    const cb = row.querySelector('.link-check');
+    row.classList.toggle('sel', !!(cb && cb.checked));
+  });
+  const n = document.querySelectorAll('#link-list .link-check:checked').length;
+  const cnt = document.getElementById('link-count');
+  const btn = document.getElementById('link-submit');
+  if (cnt) cnt.textContent = `${n}건 선택`;
+  if (btn) btn.textContent = n ? `선택한 ${n}건 연동` : '선택한 기록 연동';
+}
+async function submitLinkBatch() {
+  const checks = Array.from(document.querySelectorAll('#link-list .link-check:checked'));
+  if (!checks.length) { toast('연동할 플레이기록을 선택하세요.', true); return; }
+  const inp = document.getElementById('link-member');
+  const nm = (inp ? inp.value : '').trim();
+  if (!nm) { toast('연결할 회원 이름을 입력하세요.', true); return; }
+  const pl = playerByExactName(nm);
+  if (!pl) { toast(`"${nm}"은(는) 회원 명단에 없어요. 정확한 회원 이름을 선택하세요.`, true); return; }
+
+  const targets = checks.map(c => ({ sid: c.getAttribute('data-sid'), rid: c.getAttribute('data-rid') }));
+  if (!confirm(`선택한 ${targets.length}건을 "${pl.name}" 회원으로 연동할까요?`)) return;
+
+  const pin = await promptPin();
+  if (pin == null) return;
+
+  let ok = 0; const skipped = [];
+  showLoader('연동 중…');
+  try {
+    for (const t of targets) {
+      const s = (state.plays || []).find(x => x.session_id === t.sid);
+      if (!s) { skipped.push('기록없음'); continue; }
+      const target = s.participants.find(p => p.record_id === t.rid);
+      if (!target) { skipped.push('게스트없음'); continue; }
+      // 이미 그 회원이 이 판에 있으면 건너뜀
+      if (s.participants.some(p => !p.is_guest && String(p.player_id) === String(pl.player_id))) {
+        skipped.push(`${s.game_name}(중복)`); continue;
+      }
+      const participants = s.participants.map(p => {
+        if (p.record_id === t.rid) {
+          return { player_id: pl.player_id, player_name: pl.name, score: p.score, is_win: !!p.is_win };
+        }
+        return p.is_guest
+          ? { player_id: '', player_name: p.name, score: p.score, is_win: !!p.is_win }
+          : { player_id: p.player_id, player_name: p.name, score: p.score, is_win: !!p.is_win };
+      });
+      const res = await api('updatePlay', { playerId: state.user.player_id, pin,
+        payload: JSON.stringify({ session_id: t.sid, play_date: s.play_date, duration_min: s.duration_min, participants }) });
+      if (!res || res.mode !== 'replace') {
+        toast('연동은 DB 업데이트 후 가능해요 (supabase_migration_editparts.sql 실행 필요).', true);
+        return;
+      }
+      ok++;
+    }
+    state.plays = await api('getPlays');
+    state._myStats = null;
+    let msg = `${ok}건 "${pl.name}" 연동 완료!`;
+    if (skipped.length) msg += ` (건너뜀 ${skipped.length}건)`;
+    toast(msg, skipped.length > 0);
+    if (inp) inp.value = '';
+    renderLinkList();                        // 연동된 게스트는 목록에서 사라짐
+    // 뒤에 깔린 목록 갱신(관리자 탭 / MY 탭 각각)
+    const adm = document.getElementById('admin-page');
+    if (adm && adm.classList.contains('show')) adminPlaySearch();
+    else if (document.getElementById('my-sessions')) refreshMySessions();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    hideLoader();
+  }
 }
 
 // 내 평점을 (중복 없이) 한 번만 불러오는 공용 로더.
@@ -2209,7 +2575,7 @@ function ratingEditorHtml(g) {
     </div>
     <label style="font-size:12px;font-weight:700;color:var(--text-sub);display:block;margin-top:10px;margin-bottom:5px;">한줄 후기 <span class="muted" style="font-weight:500;">(게임 탭에 공개돼요)</span></label>
     <textarea class="input" id="review-${g.game_id}" placeholder="이 게임 어땠나요? 후기를 공유해 주세요!">${esc(review)}</textarea>
-    <button class="btn" style="margin-top:5px;width:100%;padding:9px;" onclick="saveRating('${g.game_id}')">평점·후기 저장</button>
+    <button class="btn" style="margin-top:5px;width:100%;padding:9px;" onclick="saveRating(event, '${g.game_id}')">평점·후기 저장</button>
   </div>`;
 }
 
@@ -2232,20 +2598,31 @@ function pickStar(e, starIndex) {
   const rect = e.target.getBoundingClientRect();
   const isLeft = (e.clientX - rect.left) < rect.width / 2;
   const val = starIndex - (isLeft ? 0.5 : 0);
-  const gid = e.target.closest('.rate-edit').dataset.gid;
-  const container = document.getElementById('stars-' + gid);
+  // 같은 게임의 평점 에디터가 MY-게임 탭과 후기 팝업에 동시에 존재할 수 있어(id 중복)
+  // 전역 getElementById 대신 클릭된 에디터(.rate-edit) 범위 안에서만 찾는다.
+  const wrap = e.target.closest('.rate-edit');
+  if (!wrap) return;
+  const container = wrap.querySelector('.stars');
   container.innerHTML = starsHtml(val);
   container.dataset.val = val;
-  document.getElementById('rateval-' + gid).textContent = (val / 1).toFixed(1) + ' 점';
+  const rv = wrap.querySelector('.rate-val');
+  if (rv) rv.textContent = (val / 1).toFixed(1) + ' 점';
 }
 
-async function saveRating(gameId) {
+async function saveRating(ev, gameId) {
   if (!state.user) { toast('로그인이 필요합니다.', true); return; }
-  const container = document.getElementById('stars-' + gameId);
-  const val = Number(container.dataset.val || 0);
-  const review = document.getElementById('review-' + gameId).value;
+  // 클릭된 저장 버튼이 속한 에디터(.rate-edit) 범위에서만 값을 읽는다
+  // (같은 게임 에디터가 MY-게임 탭과 후기 팝업에 동시에 있을 수 있는 id 중복 대비)
+  const wrap = ev && ev.target ? ev.target.closest('.rate-edit') : null;
+  const container = wrap ? wrap.querySelector('.stars') : document.getElementById('stars-' + gameId);
+  const val = Number((container && container.dataset.val) || 0);
+  const reviewEl = wrap ? wrap.querySelector('textarea') : document.getElementById('review-' + gameId);
+  const review = reviewEl ? reviewEl.value : '';
   const hasRating = val > 0;
   const hasReview = review.trim() !== '';
+  // 후기가 실제로 바뀐 경우에만 저장 → 별점만 저장할 땐 후기 작성시간 유지
+  const existingReview = ((state._myRatings && state._myRatings[gameId] && state._myRatings[gameId].review) || '');
+  const reviewChanged = hasReview && review.trim() !== existingReview.trim();
   // 둘 중 하나만 입력해도 저장(빈 칸은 기존 값 그대로 유지)
   if (!hasRating && !hasReview) { toast('평점이나 후기 중 하나 이상 입력하세요.', true); return; }
   const pin = await promptPin();
@@ -2253,7 +2630,7 @@ async function saveRating(gameId) {
   showLoader('저장 중…');
   try {
     if (hasRating) await api('saveRating', { playerId: state.user.player_id, pin, gameId, rating: val });
-    if (hasReview) await api('saveReview', { playerId: state.user.player_id, pin, gameId, review });
+    if (reviewChanged) await api('saveReview', { playerId: state.user.player_id, pin, gameId, review });
     if (!state._myRatings) state._myRatings = {};
     const upd = { game_id: gameId };
     if (hasRating) upd.rating = val;
@@ -4322,7 +4699,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.37';
+const APP_VERSION = '1.0.38';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5411,6 +5788,15 @@ function init() {
   }
   // 허브나 로그인 기록이 없으면 빈 앱 대신 시작(메인) 화면부터
   if (!state.hub || !state.user) { openStartPage(false); return; }
+  // MY 세부 탭 복원(전체/플레이/게임) — 버튼 강조·패널 표시까지 맞춰둠
+  const mt = localStorage.getItem('bg_mytab');
+  if (['overview', 'plays', 'games'].includes(mt)) {
+    state.myTab = mt;
+    ['overview', 'plays', 'games'].forEach(t => {
+      const b = document.getElementById('mytab-' + t); if (b) b.classList.toggle('on', t === mt);
+      const p = document.getElementById('my-' + t); if (p) p.style.display = t === mt ? 'block' : 'none';
+    });
+  }
   // 새로고침(당겨서 새로고침 포함) 후 직전에 보던 탭으로 복귀(기본은 게임)
   const lastView = localStorage.getItem('bg_view');
   if (lastView === 'play' || lastView === 'my' || lastView === 'reviews') switchView(lastView);

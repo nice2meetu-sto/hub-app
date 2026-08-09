@@ -213,6 +213,18 @@ function thumb(url, cls) {
 }
 function gameById(id) { return state.games.find(g => g.game_id === id); }
 
+// 플레이타임 표시: 범위(min~max)면 "30-60분", 아니면 단일 "60분"
+// (max_playtime 없으면 레거시 playtime_min 값으로 폴백)
+function playtimeText(g) {
+  const mn = g.min_playtime;
+  const mx = (g.max_playtime != null && g.max_playtime !== '') ? g.max_playtime : g.playtime_min;
+  const hasMn = mn != null && mn !== '';
+  const hasMx = mx != null && mx !== '';
+  if (hasMn && hasMx && String(mn) !== String(mx)) return `${mn}-${mx}분`;
+  const one = hasMx ? mx : (hasMn ? mn : null);
+  return one != null ? `${one}분` : '';
+}
+
 // ===== 네비게이션 =====
 function switchView(name) {
   // 도감(전체 화면)이 떠 있으면 닫고 일반 탭으로 전환
@@ -444,7 +456,8 @@ function gameInfoInnerHtml(g) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
     meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
   }
-  if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+  if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
+  { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
 
   const ratingLbl = hubIntegrated() ? '함께한 사람들 평점' : '우리Hub평점';
@@ -1177,7 +1190,8 @@ function gameCardTopHtml(g, showMine) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
     meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
   }
-  if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+  if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
+  { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
 
   const club = g.club_rating != null
@@ -1447,7 +1461,9 @@ function myGameInfo(gid, scopeOverride) {
     game_id: gid, name_kr: r.name_kr, name_en: r.name_en || '',
     category: r.category || '', image_url: r.image_url || '',
     min_players: r.min_players, max_players: r.max_players,
-    playtime_min: r.playtime_min, weight: r.weight, summary_kr: r.summary_kr || '',
+    best_players: r.best_players,
+    playtime_min: r.playtime_min, min_playtime: r.min_playtime, max_playtime: r.max_playtime,
+    weight: r.weight, summary_kr: r.summary_kr || '',
     club_rating: r.all_rating != null ? Number(r.all_rating) : null,
     rating_count: r.all_rating_count || 0, review_count: r.all_review_count || 0,
     _my_rating: myRatings.length
@@ -2333,13 +2349,15 @@ function renderAddGameForm() {
       </div>
       <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;text-align:right;">❗️Hub 카테고리를 선택해주세요</div>
       <div class="row2">
-        <div class="field"><label>최소 인원 *</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
-        <div class="field"><label>최대 인원 *</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
+        <div class="field" style="flex:3;"><label>최소 인원 *</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
+        <div class="field" style="flex:3;"><label>최대 인원 *</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
+        <div class="field" style="flex:4;"><label>베스트 인원</label><input class="input" id="ag-best" type="text" placeholder="예: 4 또는 4-5" /></div>
       </div>
       <div class="row2">
-        <div class="field"><label>플레이타임(분) *</label><input class="input" id="ag-time" type="number" inputmode="numeric" /></div>
-        <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
+        <div class="field"><label>최소 플레이타임(분)</label><input class="input" id="ag-time-min" type="number" inputmode="numeric" placeholder="예: 30" /></div>
+        <div class="field"><label>최대 플레이타임(분) *</label><input class="input" id="ag-time-max" type="number" inputmode="numeric" placeholder="예: 60" /></div>
       </div>
+      <div class="field"><label>난이도(weight)</label><input class="input" id="ag-weight" type="number" step="0.01" inputmode="decimal" /></div>
       <div class="field"><label>이미지 URL (사진과 둘 중 하나 필수)</label>
         <div style="display:flex;gap:8px;">
           <input class="input" id="ag-image" placeholder="https://..." style="flex:1;min-width:0;" />
@@ -2369,7 +2387,8 @@ function agShowDetail(mode) {
   if (box) box.style.display = 'block';
   const catalog = mode === 'catalog';
   // 도감에서 가져온 경우: Hub 분류만 고르면 됨 — 나머지는 도감 정보 그대로(잠금)
-  ['ag-nameen', 'ag-category', 'ag-min', 'ag-max', 'ag-time', 'ag-weight',
+  ['ag-nameen', 'ag-category', 'ag-min', 'ag-max', 'ag-best',
+   'ag-time-min', 'ag-time-max', 'ag-weight',
    'ag-image', 'ag-summary', 'ag-photo'].forEach(id => {
     const e = document.getElementById(id);
     if (e) e.disabled = catalog;
@@ -2443,7 +2462,8 @@ function agResultCardHtml(g) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
     meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
   }
-  if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+  if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
+  { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
   if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
   const title = esc(g.name_kr || g.name_en);
   return `<div class="adm-gcard" onclick="agPickCatalog('${esc(g.game_id)}')">
@@ -2546,7 +2566,7 @@ function agPickCatalog(gid) {
   if (g._bgg) {
     set('ag-nameen', g.name_en);
     set('ag-min', g.min_players); set('ag-max', g.max_players);
-    set('ag-time', g.playtime_min); set('ag-image', g.image_url);
+    set('ag-time-max', g.playtime_min); set('ag-image', g.image_url);
     document.getElementById('ag-cat-hub').value = '';
     agHubCatWarn();
     state.agPick = null;
@@ -2563,7 +2583,10 @@ function agPickCatalog(gid) {
   }
   if (g.category) catSel.value = g.category;
   set('ag-min', g.min_players); set('ag-max', g.max_players);
-  set('ag-time', g.playtime_min); set('ag-weight', g.weight);
+  set('ag-best', g.best_players);
+  set('ag-time-min', g.min_playtime);
+  set('ag-time-max', g.max_playtime != null && g.max_playtime !== '' ? g.max_playtime : g.playtime_min);
+  set('ag-weight', g.weight);
   set('ag-image', g.image_url); set('ag-summary', g.summary_kr);
   // Hub 분류: 같은 이름이 우리 허브에 있으면 그대로, 없으면 재설정 유도
   const hubSel = document.getElementById('ag-cat-hub');
@@ -2754,8 +2777,8 @@ async function submitAddGame() {
       // 완전 새 게임 → 필수 정보 검증
       if (!document.getElementById('ag-min').value.trim() ||
           !document.getElementById('ag-max').value.trim() ||
-          !document.getElementById('ag-time').value.trim()) {
-        toast('인원수와 플레이타임은 꼭 입력해주세요.', true); return;
+          !document.getElementById('ag-time-max').value.trim()) {
+        toast('인원수와 최대 플레이타임은 꼭 입력해주세요.', true); return;
       }
       if (!imageUrl) {
         toast('이미지 URL 또는 게임 사진 중 하나는 꼭 등록해주세요.', true); return;
@@ -2775,7 +2798,9 @@ async function submitAddGame() {
     hub_category: hubCat,     // 우리 허브 분류
     min_players: document.getElementById('ag-min').value,
     max_players: document.getElementById('ag-max').value,
-    playtime_min: document.getElementById('ag-time').value,
+    best_players: document.getElementById('ag-best').value.trim(),
+    min_playtime: document.getElementById('ag-time-min').value,
+    max_playtime: document.getElementById('ag-time-max').value,
     weight: document.getElementById('ag-weight').value,
     image_url: imageUrl,
     summary_kr: document.getElementById('ag-summary').value
@@ -3156,7 +3181,8 @@ function openEditGame(gameId) {
         ${ro('영문명', g.name_en)}
         ${ro('도감 분류', g.catalog_category)}
         ${ro('인원', (g.min_players ?? '-') + ' ~ ' + (g.max_players ?? '-') + '명')}
-        ${ro('플레이타임', g.playtime_min ? g.playtime_min + '분' : '-')}
+        ${ro('베스트 인원', g.best_players ? g.best_players + '명' : '-')}
+        ${ro('플레이타임', playtimeText(g) || '-')}
         ${ro('난이도', g.weight ?? '-')}
         ${ro('게임 요약', g.summary_kr)}
       </div>
@@ -3195,13 +3221,15 @@ function openEditGame(gameId) {
       </div>
     </div>
     <div class="row2">
-      <div class="field"><label>최소 인원</label><input class="input" id="eg-min" type="number" value="${g.min_players ?? ''}" /></div>
-      <div class="field"><label>최대 인원</label><input class="input" id="eg-max" type="number" value="${g.max_players ?? ''}" /></div>
+      <div class="field" style="flex:3;"><label>최소 인원</label><input class="input" id="eg-min" type="number" value="${g.min_players ?? ''}" /></div>
+      <div class="field" style="flex:3;"><label>최대 인원</label><input class="input" id="eg-max" type="number" value="${g.max_players ?? ''}" /></div>
+      <div class="field" style="flex:4;"><label>베스트 인원</label><input class="input" id="eg-best" type="text" value="${esc(g.best_players ?? '')}" placeholder="예: 4 또는 4-5" /></div>
     </div>
     <div class="row2">
-      <div class="field"><label>플레이타임(분)</label><input class="input" id="eg-time" type="number" value="${g.playtime_min ?? ''}" /></div>
-      <div class="field"><label>난이도(weight)</label><input class="input" id="eg-weight" type="number" step="0.01" value="${g.weight ?? ''}" /></div>
+      <div class="field"><label>최소 플레이타임(분)</label><input class="input" id="eg-time-min" type="number" value="${g.min_playtime ?? ''}" /></div>
+      <div class="field"><label>최대 플레이타임(분)</label><input class="input" id="eg-time-max" type="number" value="${g.max_playtime != null ? g.max_playtime : (g.playtime_min ?? '')}" /></div>
     </div>
+    <div class="field"><label>난이도(weight)</label><input class="input" id="eg-weight" type="number" step="0.01" value="${g.weight ?? ''}" /></div>
     <div class="field"><label>이미지 URL</label><input class="input" id="eg-image" value="${esc(g.image_url)}" /></div>
     <div class="field"><label>게임 요약</label><textarea class="input" id="eg-summary">${esc(g.summary_kr)}</textarea></div>
     <div class="field">
@@ -3285,7 +3313,9 @@ async function submitEditGame(gameId) {
     hub_category: document.getElementById('eg-cat-hub').value,     // 우리 허브 분류
     min_players: document.getElementById('eg-min').value,
     max_players: document.getElementById('eg-max').value,
-    playtime_min: document.getElementById('eg-time').value,
+    best_players: document.getElementById('eg-best').value.trim(),
+    min_playtime: document.getElementById('eg-time-min').value,
+    max_playtime: document.getElementById('eg-time-max').value,
     weight: document.getElementById('eg-weight').value,
     image_url: photoState.eg || document.getElementById('eg-image').value,
     summary_kr: document.getElementById('eg-summary').value
@@ -3613,7 +3643,8 @@ function dogamDetail(gid) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
     meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
   }
-  if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+  if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
+  { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
   if (g.weight) meta.push(`🧠 난이도 ${Number(g.weight).toFixed(2)}`);
   openMiniPopup(`
     <div class="dg-detail">
@@ -3814,7 +3845,8 @@ function adminGameSearch() {
       const mn = g.min_players || '?', mx = g.max_players || '?';
       meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
     }
-    if (g.playtime_min) meta.push(`⏱ ${g.playtime_min}분`);
+    if (g.best_players) meta.push(`🤩 ${g.best_players}명`);
+  { const _pt = playtimeText(g); if (_pt) meta.push(`⏱ ${_pt}`); }
     if (g.weight) meta.push(`🧠 ${Number(g.weight).toFixed(2)}`);
     return `<div class="adm-gcard" onclick="openEditGame('${g.game_id}')">
       <div class="gcard-top">
@@ -4205,7 +4237,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.34';
+const APP_VERSION = '1.0.35';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

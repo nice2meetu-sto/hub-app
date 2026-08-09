@@ -1218,6 +1218,12 @@ function gameCardTopHtml(g, showMine) {
       </div>`;
 }
 
+// 게임 정보 수정 가능 여부: 관리자 또는 등록자 본인('사람' 단위 — 서버와 동일 규칙).
+// 여러 허브 공유 게임은 수정 화면에서 공용 정보가 잠기고 수정 요청으로 안내됨.
+function canEditGame(g) {
+  return !!state.user && (state.user.role === 'admin' || (g.created_by && isMyPid(g.created_by)));
+}
+
 function gameCardHtml(g, opts = {}) {
   // 펼침 영역: 내 게임기록은 '평점 에디터', 그 외는 '게임 요약'
   const detail = opts.ratingEditor
@@ -1227,7 +1233,8 @@ function gameCardHtml(g, opts = {}) {
         : `<div class="gcard-detail muted">등록된 요약이 없습니다.</div>`);
 
   const acts = [];
-  if (opts.adminEdit) acts.push(`<button class="gcard-pill edit" title="정보 수정 (admin)" onclick="event.stopPropagation(); openEditGame('${g.game_id}')">✏️</button>`);
+  if (opts.adminEdit || canEditGame(g))
+    acts.push(`<button class="gcard-pill edit" title="정보 수정" onclick="event.stopPropagation(); openEditGame('${g.game_id}')">✏️</button>`);
   const actsHtml = acts.length ? `<div class="gcard-actions">${acts.join('')}</div>` : '';
   // 상세·후기 버튼은 평점 줄 오른쪽 끝(우측 하단)에 배치
   const br = [];
@@ -3198,7 +3205,7 @@ function openEditGame(gameId) {
         <textarea class="input" id="eg-suggest" placeholder="예: 플레이타임을 45분으로 바꿔주세요"></textarea>
       </div>
       <div class="sheet-save" style="display:flex;gap:8px;">
-        <button class="btn danger" style="flex:1;" onclick="deleteGameAdmin('${g.game_id}')">🗑 삭제</button>
+        ${state.user && state.user.role === 'admin' ? `<button class="btn danger" style="flex:1;" onclick="deleteGameAdmin('${g.game_id}')">🗑 삭제</button>` : ''}
         <button class="btn" style="flex:1;" onclick="submitSuggestion('${g.game_id}')">✏️ 수정 요청</button>
       </div>`;
     showDetailSheet();
@@ -3238,7 +3245,7 @@ function openEditGame(gameId) {
   			<div id="eg-photo-preview"></div>
     </div>
     <div class="sheet-save" style="display:flex;gap:8px;">
-      <button class="btn danger" style="flex:1;" onclick="deleteGameAdmin('${g.game_id}')">🗑 삭제</button>
+      ${state.user && state.user.role === 'admin' ? `<button class="btn danger" style="flex:1;" onclick="deleteGameAdmin('${g.game_id}')">🗑 삭제</button>` : ''}
       <button class="btn" style="flex:1;" onclick="submitEditGame('${g.game_id}')">수정 저장</button>
     </div>`;
   photoState.eg = '';
@@ -4237,7 +4244,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.35';
+const APP_VERSION = '1.0.36';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -289,6 +289,24 @@
   .thumb.rvw-thumb-lg { width: 48px; height: 48px; border-radius: 12px; }
   .lnk-clear { background: none; border: none; color: var(--text-sub); font-size: 12px; font-weight: 500;
     padding: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+  /* 영문 게임명 제목 옆 BGG 검색 링크(참고용) */
+  .lnk-bgg { background: none; border: none; color: var(--main); font-size: 11px; font-weight: 700;
+    padding: 0; cursor: pointer; white-space: nowrap; }
+  /* 참가자 이력 불러오기 팝업 (추가 시트(240) 위) */
+  #parthist-overlay { position: fixed; inset: 0; z-index: 252; background: rgba(20,20,30,.45);
+    display: none; align-items: center; justify-content: center; padding: 20px; }
+  #parthist-overlay.show { display: flex; }
+  .parthist-card { background: var(--bg); border-radius: 18px; width: 100%; max-width: 420px;
+    max-height: 72vh; display: flex; flex-direction: column; overflow: hidden;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0)); }
+  .parthist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex: 0 0 auto; }
+  .parthist-head h3 { font-size: 16px; font-weight: 800; margin: 0; }
+  #parthist-list { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .parthist-row { display: block; width: 100%; text-align: left; border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--card); cursor: pointer; }
+  .parthist-row:active { background: #f6f5fb; }
+  .parthist-names { font-weight: 700; font-size: 14px; line-height: 1.45; word-break: break-word; }
+  .parthist-meta { font-size: 11px; color: var(--text-sub); margin-top: 3px; }
   /* 게임메모 편집 오버레이 (게임 상세 위) */
   #gd-memo-overlay, #gd-session-overlay { position: fixed; inset: 0; z-index: 150; background: rgba(20,20,30,.45);
     display: none; align-items: center; justify-content: center; padding: 20px; }

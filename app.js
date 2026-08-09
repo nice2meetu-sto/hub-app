@@ -2837,7 +2837,10 @@ function renderAddGameForm() {
     </div>
     <div id="ag-detail" style="display:none;">
       <div class="field">
-        <label>영문 게임명 (선택)</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+          <label style="margin:0;">영문 게임명 (선택)</label>
+          <button type="button" class="lnk-bgg" onclick="openBgg('ag-nameen','ag-namekr')">🎲 BGG↗</button>
+        </div>
         <input class="input" id="ag-nameen" placeholder="예: Skull King" />
       </div>
       <div class="row2">
@@ -2905,6 +2908,16 @@ function agShowDetail(mode) {
   if (photoField) photoField.style.display = catalog ? 'none' : '';
   const btn = document.getElementById('ag-submit');
   if (btn) btn.textContent = catalog ? '게임 추가' : '도감 추가';
+}
+
+// 게임명(영문 우선, 없으면 한글)으로 BGG 검색을 새 탭에서 열기(난이도 등 참고용)
+function openBgg(enId, krId) {
+  const en = (document.getElementById(enId) && document.getElementById(enId).value || '').trim();
+  const kr = (document.getElementById(krId) && document.getElementById(krId).value || '').trim();
+  const nm = en || kr;
+  // &B1=Go : BGG 검색 폼의 실제 제출 파라미터(없으면 빈 고급검색 폼만 뜨는 경우가 있음)
+  window.open('https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q='
+    + encodeURIComponent(nm) + '&B1=Go', '_blank');
 }
 
 function agHubCatWarn() {
@@ -3455,7 +3468,8 @@ function renderAddPlayForm() {
         <label style="margin:0;">참가자 (비회원은 체크)</label>
         <span style="display:flex;gap:6px;flex:0 0 auto;">
           <button class="btn ghost sm" id="ap-scroll-btn" style="padding:5px 12px;font-size:12px;" onclick="apScrollToggle()">↓ 아래로</button>
-          <button class="btn ghost sm" style="padding:5px 12px;font-size:12px;" onclick="addParticipant()">+ 참가자 추가</button>
+          <button class="btn ghost sm" style="padding:5px 12px;font-size:12px;" onclick="openPartHistory()">이력</button>
+          <button class="btn ghost sm" style="padding:5px 12px;font-size:12px;" onclick="addParticipant()">추가</button>
         </span>
       </div>
       <div id="ap-participants" onscroll="apScrollBtnUpdate()"></div>
@@ -3558,7 +3572,7 @@ function renderParticipants() {
              </div>`}
         <input class="input" type="number" inputmode="numeric" placeholder="점수" value="${esc(pt.score)}" oninput="updatePart(${i}, 'score', this.value)" style="flex:1;min-width:0;" />
         <button class="wintoggle ${pt.is_win ? 'on' : ''}" onclick="toggleWin(${i})">${pt.is_win ? '승 👑' : '패 🥈'}</button>
-        ${addPlayState.participants.length > 1 ? `<button class="rm-btn" onclick="removePart(${i})">×</button>` : ''}
+        <button class="rm-btn" onclick="removePart(${i})">×</button>
       </div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding-left:2px;">
         ${memberBadgeHtml(i, pt)}
@@ -3591,7 +3605,80 @@ function apScrollBtnUpdate() {
   if (!el || !b) return;
   b.textContent = el.scrollTop < 10 ? '↓ 아래로' : '↑ 위로';
 }
-function removePart(i) { addPlayState.participants.splice(i, 1); renderParticipants(); }
+function removePart(i) {
+  // 마지막 1명일 때는 줄을 없애지 않고 입력 내용만 초기화
+  if (addPlayState.participants.length <= 1) {
+    addPlayState.participants[i] = { name: '', score: '', is_win: false, is_guest: false };
+  } else {
+    addPlayState.participants.splice(i, 1);
+  }
+  renderParticipants();
+}
+
+// ===== 참가자 이력(지난 참가자 묶음) 불러오기 =====
+// 내가 참여한 세션들의 참가자 구성을 같은 구성끼리 합쳐(횟수+최근일자) 최근순으로 반환
+function participantHistory() {
+  if (!state.user) return [];
+  const map = new Map();
+  (state.plays || []).forEach(s => {
+    const parts = s.participants || [];
+    if (!parts.some(p => isMyPid(p.player_id))) return;   // 내가 참여한 세션만
+    const roster = [], keyParts = [];
+    parts.forEach(p => {
+      const isGuest = !!p.is_guest || !p.player_id;
+      const name = (!isGuest && p.player_id) ? (playerNameById(p.player_id) || p.name || '') : (p.name || '');
+      if (!String(name).trim()) return;
+      roster.push({ name, is_guest: isGuest });
+      keyParts.push(isGuest ? ('g:' + String(name).trim().toLowerCase()) : ('m:' + p.player_id));
+    });
+    if (!roster.length) return;
+    const setKey = keyParts.slice().sort().join('|');
+    const d = String(s.play_date).substring(0, 10);
+    let e = map.get(setKey);
+    if (!e) { e = { count: 0, lastDate: '', roster }; map.set(setKey, e); }
+    e.count++;
+    if (d > e.lastDate) { e.lastDate = d; e.roster = roster; }   // 최근 구성으로 이름 최신화
+  });
+  return Array.from(map.values()).sort((a, b) => String(b.lastDate).localeCompare(String(a.lastDate))).slice(0, 8);
+}
+function guestTag(isGuest) {
+  return isGuest ? `<span style="color:var(--main);font-size:10px;">비</span> ` : '';
+}
+function openPartHistory() {
+  const hist = participantHistory();
+  if (!hist.length) { toast('불러올 참가자 이력이 없어요.', true); return; }
+  state._partHist = hist;
+  document.getElementById('parthist-list').innerHTML = hist.map((e, idx) => {
+    const names = e.roster.map(r => `${guestTag(r.is_guest)}${esc(r.name)}`).join(' · ');
+    const p = String(e.lastDate).split('-');
+    const dateTxt = (p.length === 3) ? `${+p[1]}/${+p[2]}` : e.lastDate;
+    return `<button type="button" class="parthist-row" onclick="applyPartHistory(${idx})">
+      <div class="parthist-names">${names}</div>
+      <div class="parthist-meta">${e.count}번 · 최근 ${dateTxt}</div>
+    </button>`;
+  }).join('');
+  const ov = document.getElementById('parthist-overlay');
+  ov.classList.add('show');
+  openOverlay(() => ov.classList.remove('show'));
+}
+function applyPartHistory(idx) {
+  const e = (state._partHist || [])[idx];
+  if (!e) return;
+  const cur = addPlayState.participants;
+  const loaded = e.roster.map(r => ({ name: r.name, score: '', is_win: false, is_guest: r.is_guest }));
+  // 기본 빈 1줄이면 통째로 교체, 이미 입력했으면 중복(이름) 제외하고 이어붙이기
+  const isDefaultBlank = cur.length === 1 && !String(cur[0].name || '').trim() && !String(cur[0].score || '').trim();
+  if (isDefaultBlank) {
+    addPlayState.participants = loaded;
+  } else {
+    const keyOf = p => (p.is_guest ? 'g:' : 'm:') + String(p.name || '').trim().toLowerCase();
+    const seen = new Set(cur.map(keyOf));
+    loaded.forEach(p => { const k = keyOf(p); if (!seen.has(k)) { cur.push(p); seen.add(k); } });
+  }
+  closeOverlay();   // 이력 팝업 닫기
+  renderParticipants();
+  toast('참가자를 불러왔어요!');
+}
 function updatePart(i, field, val) {
   addPlayState.participants[i][field] = val;
   if (field === 'name') updateMemberBadge(i);   // 회원 일치 배지 실시간 갱신
@@ -3713,7 +3800,13 @@ function openEditGame(gameId) {
   el.innerHTML = `
     <h2>게임 정보 수정</h2>
     <div class="field"><label>한글명</label><input class="input" id="eg-namekr" value="${esc(g.name_kr)}" /></div>
-    <div class="field"><label>영문명</label><input class="input" id="eg-nameen" value="${esc(g.name_en)}" /></div>
+    <div class="field">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <label style="margin:0;">영문명</label>
+        <button type="button" class="lnk-bgg" onclick="openBgg('eg-nameen','eg-namekr')">🎲 BGG↗</button>
+      </div>
+      <input class="input" id="eg-nameen" value="${esc(g.name_en)}" />
+    </div>
     <div class="row2">
       <div class="field"><label>도감 분류</label>
         <select class="input" id="eg-category">
@@ -4817,7 +4910,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.40';
+const APP_VERSION = '1.0.41';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

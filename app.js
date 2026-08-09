@@ -1191,7 +1191,7 @@ function filteredGames() {
 
 // 게임 카드 헤더(사진 옆 정보 정렬): 이름·분류·메타·Hub평점(+내 평점)
 // showMine=true 이면 Hub 평점 옆에 '나 ★ X.X' 표시(게임 기록 카드와 동일)
-function gameCardTopHtml(g, showMine) {
+function gameCardTopHtml(g, showMine, extra = {}) {
   const meta = [];
   if (g.min_players || g.max_players) {
     const mn = g.min_players || '?', mx = g.max_players || '?';
@@ -1219,7 +1219,7 @@ function gameCardTopHtml(g, showMine) {
       <div class="gcard-body">
         <div class="gcard-name">${esc(g.name_kr || g.name_en)}
           ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}</div>
-        ${g.name_en && g.name_kr ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
+        ${(g.name_en && g.name_kr && !extra.hideEn) ? `<div class="gcard-en">${esc(g.name_en)}</div>` : ''}
         <div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
         <div class="gcard-ratings">${club}${mine}</div>
       </div>`;
@@ -1249,12 +1249,23 @@ function gameCardHtml(g, opts = {}) {
   if (opts.review) br.push(reviewPillHtml(g.game_id, g.review_count));
   const reviewHtml = br.length ? `<div class="gcard-actions br">${br.join('')}</div>` : '';
 
+  // MY-게임기록: 영문명 대신 사진 아래 내가 쓴 후기(없으면 작성 유도 문구)
+  let myReviewBlock = '';
+  if (opts.ratingEditor) {
+    const myR = (state._myRatings && state._myRatings[g.game_id]) || null;
+    const myReview = myR && (myR.review || '').trim();
+    myReviewBlock = myReview
+      ? `<div class="gcard-myreview" onclick="toggleCard(this)">💬 ${esc(myReview)}</div>`
+      : `<div class="gcard-myreview noreview" onclick="toggleCard(this)">💬 클릭 후 후기를 남겨보세요</div>`;
+  }
+
   return `<div class="gcard" data-gid="${g.game_id}">
     ${actsHtml}
     <div class="gcard-top" onclick="toggleCard(this)">
-      ${gameCardTopHtml(g, opts.ratingEditor || opts.showMine)}
+      ${gameCardTopHtml(g, opts.ratingEditor || opts.showMine, { hideEn: !!opts.ratingEditor })}
       ${reviewHtml}
     </div>
+    ${myReviewBlock}
     ${detail}
   </div>`;
 }
@@ -1845,11 +1856,24 @@ function toggleMyWinStat() {
   if (el) el.innerHTML = myWinStatInner();
 }
 
-// 그래프 카드: 누를 때마다 '월별 플레이 결과' ↔ '카테고리별 플레이' 전환
+// 그래프 카드: 세그먼트 탭(월별/카테고리별)으로 전환 — 눌러 바뀐다는 걸 티냄
 function toggleMyChart() {
   state.myChartMode = state.myChartMode === 'category' ? 'monthly' : 'category';
   const el = document.getElementById('my-chart-card');
   if (el) el.innerHTML = myChartCardInner();
+}
+function setMyChart(mode) {
+  if (state.myChartMode === mode) return;
+  state.myChartMode = mode;
+  const el = document.getElementById('my-chart-card');
+  if (el) el.innerHTML = myChartCardInner();
+}
+// 상단 세그먼트 탭 HTML (현재 보는 것만 채워짐)
+function chartSegHtml(active) {
+  return `<div class="chart-seg">
+    <button type="button" class="seg ${active === 'monthly' ? 'on' : ''}" onclick="setMyChart('monthly')">월별</button>
+    <button type="button" class="seg ${active === 'category' ? 'on' : ''}" onclick="setMyChart('category')">카테고리별</button>
+  </div>`;
 }
 
 function myChartCardInner() {
@@ -1857,8 +1881,8 @@ function myChartCardInner() {
   const titleStyle = 'margin-top:0;margin-bottom: 10px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;';
   if (state.myChartMode === 'category') {
     return `
-      <div class="section-title" style="${titleStyle}" onclick="toggleMyChart()">
-        <span>카테고리별 플레이</span>
+      <div class="section-title" style="${titleStyle}">
+        ${chartSegHtml('category')}
         <small class="legend-chips">
           <small><i style="background:var(--main);"></i>플레이 횟수</small>
           <small><i style="background:#d9d5f3;"></i>플레이 게임</small>
@@ -1886,8 +1910,8 @@ function myChartCardInner() {
     </div>`;
   }).join('');
   return `
-    <div class="section-title" style="${titleStyle}" onclick="toggleMyChart()">
-      <span>월별 플레이 결과</span>
+    <div class="section-title" style="${titleStyle}">
+      ${chartSegHtml('monthly')}
       <small class="legend-chips">
         <small><i style="background:var(--main-soft);"></i>승률</small>
         <small><i style="background:var(--main);"></i>판수</small>
@@ -1918,23 +1942,32 @@ function myCategoryChartSvg() {
   const plotH = H - padT - padB, baseY = padT + plotH;
   const n = cats.length, slot = (W - padX * 2) / n;
   const maxV = Math.max(1, ...cats.map(c => c.plays));
-  const y = v => padT + plotH * (1 - v / maxV);
+  // 모든 막대·꺾은선에 공통 바닥(+2칸)을 깔아 작은 값도 잘 보이게 한다.
+  // 칸 크기(unit)는 기존 비율 그대로 두고, 그래프 최대 높이를 딱 +2칸만큼 키워
+  // 큰 값들의 높이 차이는 그대로 유지(윗부분이 눌리지 않음).
+  const BASE = 2;
+  const unit = plotH / maxV;         // 1칸당 픽셀(기존 비율 유지)
+  const extra = BASE * unit;         // 바닥만큼 그래프를 아래로 확장
+  const H2 = H + extra, baseY2 = baseY + extra;
+  const ev = v => (v > 0 ? (v + BASE) * unit : 0);   // 값 → 막대/점 픽셀 높이(1 이상이면 +2칸)
+  const yTop = v => baseY2 - ev(v);
   const cx = i => padX + slot * (i + 0.5);
   const bw = Math.min(slot * 0.56, 26);
   let bars = '', labels = '';
   const line = [];
   cats.forEach((c, i) => {
-    const x = cx(i), by = y(c.plays);
-    bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY - by, 5)}" fill="var(--main)"/>`;
+    const x = cx(i);
+    const by = yTop(c.plays);   // 표시 숫자는 실제 값 유지
+    bars += `<path d="${topRoundRect(x - bw / 2, by, bw, baseY2 - by, 5)}" fill="var(--main)"/>`;
     labels += `<text x="${x.toFixed(1)}" y="${(by - 8).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="#8a86a8">${c.plays}</text>`;
-    const gy = y(c.games);
+    const gy = yTop(c.games);
     line.push({ x, y: gy });
     labels += `<text x="${x.toFixed(1)}" y="${(gy + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#d9d5f3">${c.games}</text>`;
-    labels += `<text x="${x.toFixed(1)}" y="${(H - 5).toFixed(1)}" text-anchor="middle" font-size="9" fill="#9a97a8">${esc(c.cat)}</text>`;
+    labels += `<text x="${x.toFixed(1)}" y="${(H2 - 5).toFixed(1)}" text-anchor="middle" font-size="9" fill="#9a97a8">${esc(c.cat)}</text>`;
   });
   const curve = smoothPath(line);
   const path = curve ? `<path d="${curve}" fill="none" stroke="#d9d5f3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : '';
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;max-height:${H}px;margin:0 auto;">${bars}${path}${labels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H2.toFixed(1)}" width="100%" style="display:block;">${bars}${path}${labels}</svg>`;
 }
 
 function setMyGameSort(sort) {
@@ -4699,7 +4732,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.38';
+const APP_VERSION = '1.0.39';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -98,6 +98,8 @@ async function api(action, params = {}) {
     // ===== 관리자 페이지 전용 =====
     case 'adminGetPlayers':
       return sbrpc('admin_get_players', { p_player_id: P.playerId, p_pin: P.pin });
+    case 'getAllRatings':
+      return sbrpc('get_all_ratings', { p_player_id: P.playerId, p_pin: P.pin });
     case 'adminUpdatePin':
       return sbrpc('admin_update_pin', { p_player_id: P.playerId, p_pin: P.pin, p_target_id: P.targetId, p_new_pin: P.newPin });
     case 'adminDeleteGame':
@@ -267,6 +269,7 @@ async function loadCore(manual) {
     state._myRatings = null;
     state._myRatingsPromise = null;
     state._allReviews = null;   // 후기 탭 캐시(허브 범위)도 새로
+    state._admRatings = null;   // 관리자 평점 탭 캐시도 새로
     if (document.getElementById('view-reviews').classList.contains('active')) renderReviews();
     // 기록장: 플레이·게임 탭도 전 허브 통합으로 — 렌더 전에 통합 데이터 준비
     state._myAllPlays = null; state._myAllGames = null;
@@ -2261,8 +2264,9 @@ async function saveRating(gameId) {
     toast('저장되었습니다!');
     if (state.myTab === 'games' && document.getElementById('my-games-cards')) filterMyGames();
     if (state.myTab === 'games' && document.getElementById('my-gamesall-cards')) filterMyGamesAll();
-    // 후기 탭 연동: 캐시 무효화 + 후기쓰기 팝업 닫기 + 탭이 열려있으면 갱신
+    // 후기 탭·관리자 평점 탭 캐시 무효화 + 후기쓰기 팝업 닫기 + 탭이 열려있으면 갱신
     state._allReviews = null;
+    state._admRatings = null;
     if (document.getElementById('rvwrite-overlay').classList.contains('show')) closeReviewWrite();
     if (document.getElementById('view-reviews').classList.contains('active')) renderReviews();
   } catch (e) {
@@ -3716,13 +3720,87 @@ async function dogamConfirmAdd(gid) {
 }
 
 function switchAdminTab(tab) {
-  ['games', 'plays', 'players'].forEach(t => {
+  ['games', 'plays', 'players', 'ratings'].forEach(t => {
     document.getElementById('admtab-' + t).classList.toggle('on', t === tab);
     document.getElementById('adm-' + t).style.display = t === tab ? 'block' : 'none';
   });
   if (tab === 'games') renderAdminGames();
   else if (tab === 'plays') renderAdminPlays();
+  else if (tab === 'ratings') renderAdminRatings();
   else renderAdminPlayers();
+}
+
+// ----- 평점 탭 (관리자 전용): 게임별 회원 평점 + 후기 -----
+async function renderAdminRatings() {
+  const el = document.getElementById('adm-ratings');
+  if (!el.dataset.ready) {
+    el.innerHTML = `
+      <div class="searchbox" style="margin-bottom:12px;"><span>🔍</span><input id="adm-rating-search" placeholder="게임 이름 검색" oninput="adminRatingsRender()" /></div>
+      <div id="adm-rating-list"><div class="empty"><div class="spinner" style="margin:0 auto;"></div></div></div>`;
+    el.dataset.ready = '1';
+  }
+  if (!state._admRatings) {
+    const pin = await promptPin();
+    if (pin == null) {
+      document.getElementById('adm-rating-list').innerHTML = `<div class="empty">PIN 확인이 필요합니다.</div>`;
+      return;
+    }
+    try { state._admRatings = await api('getAllRatings', { playerId: state.user.player_id, pin }); }
+    catch (e) {
+      const l = document.getElementById('adm-rating-list');
+      if (l) l.innerHTML = `<div class="empty">불러오지 못했어요.<br/>${esc(e.message)}</div>`;
+      return;
+    }
+  }
+  adminRatingsRender();
+}
+// 게임별로 묶고 평균·인원 계산(평점 높은 순 정렬), 게임은 최근 추가순
+function adminRatingsGroups() {
+  const map = new Map();
+  (state._admRatings || []).forEach(r => {
+    let e = map.get(r.game_id);
+    if (!e) { e = { game_id: r.game_id, name: r.game_name, image: r.game_image, rows: [] }; map.set(r.game_id, e); }
+    e.rows.push(r);
+  });
+  const groups = Array.from(map.values());
+  groups.forEach(g => {
+    const rated = g.rows.filter(x => x.rating != null).map(x => Number(x.rating));
+    g.avg = rated.length ? Math.round(rated.reduce((a, b) => a + b, 0) / rated.length * 10) / 10 : null;
+    g.count = g.rows.length;
+    g.rows.sort((a, b) => (b.rating == null ? -1 : b.rating) - (a.rating == null ? -1 : a.rating));
+  });
+  const gidNum = x => parseInt(String(x.game_id).replace(/\D/g, ''), 10) || 0;
+  return groups.sort((a, b) => gidNum(b) - gidNum(a));
+}
+function adminRatingsRender() {
+  const listEl = document.getElementById('adm-rating-list');
+  if (!listEl) return;
+  const term = (document.getElementById('adm-rating-search') || {}).value || '';
+  const t = term.trim().toLowerCase();
+  let groups = adminRatingsGroups();
+  if (t) groups = groups.filter(g => (g.name || '').toLowerCase().includes(t));
+  if (!groups.length) { listEl.innerHTML = `<div class="empty">${t ? '검색 결과가 없어요.' : '평점 기록이 없어요.'}</div>`; return; }
+  listEl.innerHTML = groups.map(g => {
+    const rows = g.rows.map(r => `<div class="adm-rate-row">
+      <div class="adm-rate-head">
+        <span class="adm-rate-name">${esc(r.player_name)}</span>
+        <span class="adm-rate-score">${r.rating != null ? `<span class="star">★</span> ${Number(r.rating).toFixed(1)}` : '<span class="muted" style="font-weight:500;">평점 없음</span>'}</span>
+      </div>
+      ${(r.review && r.review.trim()) ? `<div class="adm-rate-review">💬 ${esc(r.review)}</div>` : ''}
+    </div>`).join('');
+    return `<div class="gcard" data-gid="${esc(g.game_id)}">
+      <div class="gcard-top" onclick="toggleCard(this)" style="align-items:center;cursor:pointer;">
+        ${thumb(g.image, 'gcard-img')}
+        <div class="gcard-body">
+          <div class="gcard-name">${esc(g.name)}</div>
+          <div class="gcard-ratings">${g.avg != null
+            ? `<span class="rate-club"><span class="star">★</span> ${g.avg.toFixed(1)} <small>(${g.count}명)</small></span>`
+            : `<span class="muted">평가 ${g.count}명</span>`}</div>
+        </div>
+      </div>
+      <div class="gcard-detail" style="white-space:normal;">${rows}</div>
+    </div>`;
+  }).join('');
 }
 
 // ----- 게임 탭 -----
@@ -4244,7 +4322,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.36';
+const APP_VERSION = '1.0.37';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

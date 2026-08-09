@@ -235,7 +235,6 @@ function switchView(name) {
   if (dg && dg.classList.contains('show') && state._dogam && !state._dogam.guest) {
     dg.classList.remove('show'); closeDogamCat();
   }
-  document.querySelector('.tabbar').classList.remove('over-dogam');
   ['play', 'games', 'reviews', 'my'].forEach(v => {
     document.getElementById('view-' + v).classList.toggle('active', v === name);
     document.getElementById('tab-' + v).classList.toggle('on', v === name);
@@ -4055,8 +4054,7 @@ function openDogam() {
   if (guest) {
     openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
   } else {
-    // 도감은 상단 📚 버튼으로 여는 전체 화면 — 하단 탭 하이라이트는 그대로 둠
-    document.querySelector('.tabbar').classList.add('over-dogam');   // 튀어나온 추가 버튼이 안 잘리게
+    // 도감은 상단 📚 버튼으로 여는 전체 화면(하단 탭바까지 덮음, ‹로 복귀)
     // 당겨서 새로고침(전체 리로드) 후에도 도감으로 복귀하도록 기억
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
@@ -4078,7 +4076,6 @@ function closeDogamTab() {
   if (state._dogam && state._dogam.guest) { closeDogam(); return; }
   const page = document.getElementById('dogam-page');
   page.classList.remove('show'); closeDogamCat();
-  document.querySelector('.tabbar').classList.remove('over-dogam');
   const cur = ['play', 'games', 'reviews', 'my']
     .find(v => document.getElementById('view-' + v).classList.contains('active')) || 'games';
   try { localStorage.setItem('bg_view', cur); } catch (e) {}
@@ -4992,7 +4989,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.51';
+const APP_VERSION = '1.0.52';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -511,7 +511,6 @@
   .tab-add .add-label { font-size: 12px; font-weight: 500; line-height: 1; margin-top: 5px; }
   .tab-add:active .add-circle { background: var(--main-dark); }
   /* 도감 탭이 열려 있을 땐 탭바(+튀어나온 추가 버튼)를 도감(220) 위로 */
-  .tabbar.over-dogam { z-index: 230; }
   .tab.on { color: var(--main); font-weight: 700; }
 
   /* ===== Modal / sheet ===== */
@@ -699,9 +698,7 @@ a[x-apple-data-detectors] {
 #mini-overlay textarea { width: 100%; min-height: 180px; margin-top: 10px; }
 
 /* ===== 게임 도감 (전체 화면) ===== */
-#dogam-page.as-tab {   /* 허브 안: 하단 탭바는 남기고, 상단은 다른 탭과 같은 흰 앱바 */
-  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0));
-}
+/* 허브 안(as-tab): 게임 상세처럼 하단 탭바까지 덮는 전체 화면 — 상단 ‹로 복귀 */
 #dogam-page.as-tab .gd-header { display: none; }
 #dogam-page {
   position: fixed; inset: 0; z-index: 220; background: #f6f4fc; overflow-y: auto; display: none;

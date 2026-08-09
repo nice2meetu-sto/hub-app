@@ -501,9 +501,9 @@ function gameInfoInnerHtml(g) {
         <div style="font-weight:800;font-size:17px;">${esc(g.name_kr || g.name_en)}
           ${g.category ? `<span class="badge" style="margin-left:6px;">${esc(g.category)}</span>` : ''}</div>
         ${g.name_en && g.name_kr ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(g.name_en)}</div>` : ''}
+        <div class="gcard-meta" style="margin-top:6px;">${meta.map(m => `<span>${m}</span>`).join('')}</div>
       </div>
     </div>
-    <div class="gcard-meta" style="margin-bottom:5px;">${meta.map(m => `<span>${m}</span>`).join('')}</div>
     <div style="margin-bottom:12px;">${club}</div>
     <div style="white-space:pre-wrap;font-size:13px;color:#444;">${g.summary_kr ? esc(g.summary_kr) : '<span class="muted">등록된 요약이 없습니다.</span>'}</div>`;
 }
@@ -4989,7 +4989,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.52';
+const APP_VERSION = '1.0.53';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

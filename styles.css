@@ -385,6 +385,8 @@
   .gd-table th.act { color: var(--main); }
   .gd-table tbody tr.me { background: var(--main-light); }
   .gd-table td:first-child { font-weight: 600; }
+  /* 플레이 기준 표: 일자 칸은 내용(날짜)에 딱 맞게 축소(불필요한 여백 제거) */
+  .gd-table th.gd-date, .gd-table td.gd-date { width: 1%; white-space: nowrap; padding-left: 4px; padding-right: 4px; }
 
   /* rating editor (MY 게임기록) */
   .rate-edit { }

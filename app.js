@@ -613,7 +613,7 @@ function showSessionDetail(sid, hub) {
   const dur = s.duration_min ? ` · ${s.duration_min}분` : '';
   const parts = s.participants.map(p => `
     <div class="prow ${p.is_win ? 'win' : ''}">
-      <span class="pname">${esc(p.name)}${p.is_win ? '<span class="crown">👑</span>' : ''}</span>
+      <span class="pname">${guestTag(!!p.is_guest || !p.player_id)}${esc(p.name)}${p.is_win ? '<span class="crown">👑</span>' : ''}</span>
       <span class="pscore">${p.score == null || p.score === '' ? '' : esc(p.score) + '점'}</span>
     </div>`).join('');
   document.getElementById('detail-body').innerHTML = `
@@ -664,7 +664,7 @@ function gamePlayerStats(gid) {
       const key = isMyPid(p.player_id) ? 'me'
         : (p.player_id ? ('m:' + p.player_id) : ('g:' + (p.name || '')));
       let r = map.get(key);
-      if (!r) { r = { name: p.name || '(이름없음)', wins: 0, games: 0, scores: [], isMe: key === 'me' }; map.set(key, r); }
+      if (!r) { r = { name: p.name || '(이름없음)', wins: 0, games: 0, scores: [], isMe: key === 'me', isGuest: !!p.is_guest || !p.player_id }; map.set(key, r); }
       r.games += 1;
       if (p.is_win) r.wins += 1;
       const sc = (p.score == null || p.score === '') ? null : Number(p.score);
@@ -672,7 +672,7 @@ function gamePlayerStats(gid) {
     });
   });
   return Array.from(map.values()).map(r => ({
-    name: r.name, isMe: r.isMe, wins: r.wins, games: r.games,
+    name: r.name, isMe: r.isMe, isGuest: r.isGuest, wins: r.wins, games: r.games,
     winrate: r.games ? Math.round(r.wins / r.games * 1000) / 10 : 0,
     avg: r.scores.length ? Math.round(r.scores.reduce((a, b) => a + b, 0) / r.scores.length * 10) / 10 : null,
     best: r.scores.length ? Math.max(...r.scores) : null
@@ -734,7 +734,7 @@ async function openGameDetail(gameId) {
   const el = document.getElementById('detail-overlay');
   const fromSheet = el.classList.contains('show');   // 공용 시트에서 열렸는지
   el.classList.remove('show');
-  state._gd = { gid: gameId, col: 'winrate', dir: 'desc' };
+  state._gd = { gid: gameId, view: 'player', col: 'winrate', dir: 'desc', pcol: 'ord', pdir: 'desc' };
   renderGameDetail();
   const hideFn = () => document.getElementById('gd-page').classList.remove('show');
   // 시트→상세는 같은 depth로 교체, 카드에서 바로 열면 새 항목 push
@@ -757,7 +757,7 @@ function showBarSession(sid, hub) {
   }).map(p => {
     const isMe = !!isMyPid(p.player_id);
     return `<tr class="${isMe ? 'me' : ''}">
-      <td>${esc(p.name)}${p.is_win ? ' 👑' : ''}${isMe ? ' <span style="color:var(--main);font-size:10px;">나</span>' : ''}</td>
+      <td>${guestTag(!!p.is_guest || !p.player_id)}${esc(p.name)}${p.is_win ? ' 👑' : ''}${isMe ? ' <span style="color:var(--main);font-size:10px;">나</span>' : ''}</td>
       <td style="text-align:right;">${p.score == null || p.score === '' ? '-' : esc(p.score) + '점'}</td>
     </tr>`;
   }).join('');
@@ -828,9 +828,35 @@ async function saveMemo() {
 
 function sortGameDetail(col) {
   const gd = state._gd; if (!gd) return;
-  if (gd.col === col) gd.dir = gd.dir === 'desc' ? 'asc' : 'desc';
-  else { gd.col = col; gd.dir = col === 'name' ? 'asc' : 'desc'; }
+  if (gd.view === 'play') {
+    if (gd.pcol === col) gd.pdir = gd.pdir === 'desc' ? 'asc' : 'desc';
+    else { gd.pcol = col; gd.pdir = 'desc'; }
+  } else {
+    if (gd.col === col) gd.dir = gd.dir === 'desc' ? 'asc' : 'desc';
+    else { gd.col = col; gd.dir = col === 'name' ? 'asc' : 'desc'; }
+  }
   renderGameDetail();
+}
+function switchGdView(view) {
+  const gd = state._gd; if (!gd) return;
+  gd.view = view;
+  renderGameDetail();
+}
+// 플레이 기준 행: 내가 참가한 그 게임의 각 세션(1판)별 판수·일자·내점수·평균·최고
+// (통합 범위면 전 허브 — 막대 클릭용 hub_id도 함께 담음)
+function gamePlayRows(gid) {
+  const mine = myScopeSessions()
+    .filter(s => s.game_id === gid && s.participants.some(p => isMyPid(p.player_id)))
+    .slice()
+    .sort((a, b) => String(a.play_date).localeCompare(String(b.play_date)) || String(a.session_id).localeCompare(String(b.session_id)));
+  return mine.map((s, i) => {
+    const scores = s.participants.map(p => (p.score == null || p.score === '') ? null : Number(p.score)).filter(v => v != null && !isNaN(v));
+    const me = s.participants.find(p => isMyPid(p.player_id)) || {};
+    const mineScore = (me.score == null || me.score === '') ? null : Number(me.score);
+    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : null;
+    const best = scores.length ? Math.max(...scores) : null;
+    return { ord: i + 1, sid: s.session_id, hub: s.hub_id || '', date: String(s.play_date).substring(0, 10), mine: mineScore, win: !!me.is_win, avg, best };
+  });
 }
 
 function renderGameDetail() {
@@ -875,29 +901,64 @@ function renderGameDetail() {
     <div class="gd-chart">${gameChartSvg(recent)}</div>
   </div>`;
 
-  // 3) 플레이어 통계 표(정렬 가능)
-  const players = gamePlayerStats(gd.gid);
-  const dir = gd.dir === 'asc' ? 1 : -1;
-  players.sort((a, b) => {
-    if (gd.col === 'name') return a.name.localeCompare(b.name) * dir;
-    const av = a[gd.col], bv = b[gd.col];
-    const an = av == null, bn = bv == null;
-    if (an && bn) return 0; if (an) return 1; if (bn) return -1;  // 값 없으면 항상 아래
-    return (av - bv) * dir;
-  });
-  const arrow = c => gd.col === c ? (gd.dir === 'asc' ? ' ▲' : ' ▼') : '';
-  const th = (c, label) => `<th class="${gd.col === c ? 'act' : ''}" onclick="sortGameDetail('${c}')">${label}${arrow(c)}</th>`;
-  const rows = players.map(p => `<tr class="${p.isMe ? 'me' : ''}">
-    <td>${esc(p.name)}${p.isMe ? ' <span style="color:var(--main);font-size:10px;">나</span>' : ''}</td>
-    <td>${p.wins}</td><td>${p.winrate}%</td><td>${p.games}</td>
-    <td>${p.avg == null ? '-' : p.avg}</td><td>${p.best == null ? '-' : p.best}</td>
-  </tr>`).join('');
+  // 3) 함께 플레이한 기록: 플레이 기준(각 판) / 플레이어 기준 전환
+  const isPlay = gd.view === 'play';
+  const seg = `<span class="chart-seg">
+    <button type="button" class="seg ${!isPlay ? 'on' : ''}" onclick="switchGdView('player')">플레이어</button>
+    <button type="button" class="seg ${isPlay ? 'on' : ''}" onclick="switchGdView('play')">플레이</button>
+  </span>`;
+
+  let tableInner, countLabel;
+  if (isPlay) {
+    // 플레이 기준: 각 판(내가 참가한 세션)별 판수·일자·내점수·평균·최고
+    const plays = gamePlayRows(gd.gid);
+    const pdir = gd.pdir === 'asc' ? 1 : -1;
+    plays.sort((a, b) => {
+      if (gd.pcol === 'date') return String(a.date).localeCompare(String(b.date)) * pdir;
+      const av = a[gd.pcol], bv = b[gd.pcol];
+      const an = av == null, bn = bv == null;
+      if (an && bn) return 0; if (an) return 1; if (bn) return -1;
+      return (av - bv) * pdir;
+    });
+    const parrow = c => gd.pcol === c ? (gd.pdir === 'asc' ? ' ▲' : ' ▼') : '';
+    const pth = (c, label, cls) => `<th class="${cls || ''}${gd.pcol === c ? ' act' : ''}" onclick="sortGameDetail('${c}')">${label}${parrow(c)}</th>`;
+    const prows = plays.length ? plays.map(p => `<tr style="cursor:pointer;" onclick="showBarSession('${esc(p.sid)}','${esc(p.hub)}')">
+      <td style="font-weight:400;">${p.ord}</td>
+      <td class="gd-date">${esc(p.date)}</td>
+      <td style="font-weight:700;">${p.mine == null ? '-' : p.mine}</td>
+      <td>${p.win ? '👑' : '🥈'}</td>
+      <td>${p.avg == null ? '-' : p.avg}</td>
+      <td>${p.best == null ? '-' : p.best}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="muted" style="text-align:center;padding:16px 0;">플레이 기록이 없어요.</td></tr>`;
+    tableInner = `<thead><tr>${pth('ord', '판수')}${pth('date', '일자', 'gd-date')}${pth('mine', '나')}${pth('win', '승패')}${pth('avg', '평균')}${pth('best', '최고')}</tr></thead><tbody>${prows}</tbody>`;
+    countLabel = `${plays.length}판`;
+  } else {
+    // 플레이어 기준(기존): 함께한 사람별 승수·승률·게임수·평균·최고
+    const players = gamePlayerStats(gd.gid);
+    const dir = gd.dir === 'asc' ? 1 : -1;
+    players.sort((a, b) => {
+      if (gd.col === 'name') return a.name.localeCompare(b.name) * dir;
+      const av = a[gd.col], bv = b[gd.col];
+      const an = av == null, bn = bv == null;
+      if (an && bn) return 0; if (an) return 1; if (bn) return -1;  // 값 없으면 항상 아래
+      return (av - bv) * dir;
+    });
+    const arrow = c => gd.col === c ? (gd.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    const th = (c, label) => `<th class="${gd.col === c ? 'act' : ''}" onclick="sortGameDetail('${c}')">${label}${arrow(c)}</th>`;
+    const rows = players.map(p => `<tr class="${p.isMe ? 'me' : ''}">
+      <td>${guestTag(p.isGuest)}${esc(p.name)}${p.isMe ? ' <span style="color:var(--main);font-size:10px;">나</span>' : ''}</td>
+      <td>${p.wins}</td><td>${p.winrate}%</td><td>${p.games}</td>
+      <td>${p.avg == null ? '-' : p.avg}</td><td>${p.best == null ? '-' : p.best}</td>
+    </tr>`).join('');
+    tableInner = `<thead><tr>${th('name', '플레이어')}${th('wins', '승수')}${th('winrate', '승률')}${th('games', '게임수')}${th('avg', '평균')}${th('best', '최고')}</tr></thead><tbody>${rows}</tbody>`;
+    countLabel = `${players.length}명`;
+  }
   const table = `<div class="gd-sec">
-    <div class="gd-sec-title">👥 함께 플레이한 기록 (${players.length}명)</div>
-    <div class="gd-table-wrap"><table class="gd-table">
-      <thead><tr>${th('name', '플레이어')}${th('wins', '승수')}${th('winrate', '승률')}${th('games', '게임수')}${th('avg', '평균')}${th('best', '최고')}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
+    <div class="gd-sec-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span>👥 함께 플레이한 기록 (${countLabel})</span>
+      ${seg}
+    </div>
+    <div class="gd-table-wrap"><table class="gd-table">${tableInner}</table></div>
   </div>`;
 
   document.getElementById('gd-body').innerHTML = top + chart + table;
@@ -955,7 +1016,7 @@ function renderSessionList(containerId, sessions, opts = {}) {
 
     const parts = s.participants.map(p => `
       <div class="prow ${p.is_win ? 'win' : ''}">
-        <span class="pname">${esc(p.name)}${p.is_win ? '<span class="crown">👑</span>' : ''}</span>
+        <span class="pname">${guestTag(!!p.is_guest || !p.player_id)}${esc(p.name)}${p.is_win ? '<span class="crown">👑</span>' : ''}</span>
         <span class="pscore">${p.score == null ? '' : esc(p.score) + '점'}</span>
       </div>`).join('');
     // linkGame: 카드(수정/작성자 버튼 제외) 클릭 → 그 게임 상세로 이동
@@ -4923,7 +4984,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.44';
+const APP_VERSION = '1.0.45';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

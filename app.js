@@ -1241,11 +1241,11 @@ const WEIGHT_BUCKETS = [
 ];
 
 function renderGames() {
-  // 상단 안내 문구: 기록장(개인 허브)은 '내가', 일반 허브는 '우리 Hub에서'
+  // 상단 안내 문구: 기록장(개인 허브)은 '내가', 일반 허브는 '우리 Hub가'
   const hint = document.getElementById('games-hint');
   if (hint) hint.textContent = isPersonalHub(state.hub)
     ? '🎯 내가 플레이한 게임을 확인하세요'
-    : '🎯 우리 Hub에서 플레이한 게임을 확인하세요';
+    : '🎯 우리 Hub가 플레이한 게임을 확인하세요';
   renderCategoryFilter();
   renderPlayerCountFilter();
   renderWeightFilter();
@@ -5017,7 +5017,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.62';
+const APP_VERSION = '1.0.63';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

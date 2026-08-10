@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=1.0.60">
+<link rel="stylesheet" href="styles.css?v=1.0.61">
 </head>
 <body>
 <div id="app">
@@ -46,7 +46,11 @@
 
   <!-- ===== VIEW: 게임 ===== -->
   <div class="view active" id="view-games">
-    <div class="hint" id="games-hint" style="margin:2px 2px 12px;text-align:center;">🎯 우리 Hub에서 플레이한 게임을 확인하세요</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:2px 2px 12px;">
+      <div class="hint" id="games-hint" style="margin:0;flex:1;min-width:0;text-align:center;">🎯 우리 Hub에서 플레이한 게임을 확인하세요</div>
+      <button onclick="openDogamTab()" title="게임 도감 구경"
+              style="flex:0 0 auto;background:var(--main-light);color:var(--main);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;white-space:nowrap;">📚 겜구경</button>
+    </div>
     <div class="searchrow">
       <div class="searchbox">
         <span>🔍</span>
@@ -360,6 +364,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Google Identity Services (구글 로그인 팝업 — 내 도메인에서 실행) -->
 <script src="https://accounts.google.com/gsi/client" async></script>
-<script src="app.js?v=1.0.60"></script>
+<script src="app.js?v=1.0.61"></script>
 </body>
 </html>

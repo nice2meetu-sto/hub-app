@@ -4053,12 +4053,20 @@ function openDogam() {
   // 허브 안이면 탭 모드(하단바 유지·뒤로가기 없음·상단 '게임 도감')
   const guest = !state.hub;
   const page = document.getElementById('dogam-page');
+  const already = page.classList.contains('show');   // 재호출 시 히스토리 중복 등록 방지
   page.classList.toggle('as-tab', !guest);
   page.classList.add('show'); page.scrollTop = 0;
   if (guest) {
-    openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
+    if (!already) openOverlay(() => { page.classList.remove('show'); closeDogamCat(); });
   } else {
-    // 도감은 상단 📚 버튼으로 여는 전체 화면(하단 탭바까지 덮음, ‹로 복귀)
+    // 도감은 상단 📚 버튼으로 여는 전체 화면(하단 탭바까지 덮음) —
+    // 하드웨어/브라우저 뒤로가기와 ‹ 버튼 모두로 닫히게 히스토리에 등록
+    if (!already) openOverlay(() => {
+      page.classList.remove('show'); closeDogamCat();
+      const cur = ['play', 'games', 'reviews', 'my']
+        .find(v => document.getElementById('view-' + v).classList.contains('active')) || 'games';
+      try { localStorage.setItem('bg_view', cur); } catch (e) {}
+    });
     // 당겨서 새로고침(전체 리로드) 후에도 도감으로 복귀하도록 기억
     try { localStorage.setItem('bg_view', 'dogam'); } catch (e) {}
   }
@@ -4077,15 +4085,8 @@ function openDogam() {
 }
 function closeDogam() { closeOverlay(); }
 
-// 도감 앱바 ‹ 뒤로가기: 탭 모드면 밑에 열려 있던 탭으로 복귀, 미리보기(guest)면 오버레이 닫기
-function closeDogamTab() {
-  if (state._dogam && state._dogam.guest) { closeDogam(); return; }
-  const page = document.getElementById('dogam-page');
-  page.classList.remove('show'); closeDogamCat();
-  const cur = ['play', 'games', 'reviews', 'my']
-    .find(v => document.getElementById('view-' + v).classList.contains('active')) || 'games';
-  try { localStorage.setItem('bg_view', cur); } catch (e) {}
-}
+// 도감 앱바 ‹ 뒤로가기: 히스토리와 함께 닫기(탭 모드는 밑에 열려 있던 탭으로 복귀)
+function closeDogamTab() { closeOverlay(); }
 
 // 도감 한 페이지(50개) 로드. reset=true면 조건 바뀜(카테고리/검색) → 처음부터.
 async function dogamLoad(reset) {
@@ -5017,7 +5018,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.63';
+const APP_VERSION = '1.0.64';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

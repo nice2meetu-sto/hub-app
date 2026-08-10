@@ -58,7 +58,7 @@
   .appbar .who b { color: var(--main); }
 
   /* ===== Content ===== */
-  .view { flex: 1; padding: 16px 16px calc(var(--tabbar-h) + 84px); display: none; }
+  .view { flex: 1; padding: 8px 16px calc(var(--tabbar-h) + 84px); display: none; }   /* 앱바~콘텐츠 간격 16→8px */
   .view.active { display: block; }
 
   /* ===== Cards / common ===== */

@@ -182,8 +182,25 @@ function replaceTopOverlay(hideFn) {  // 시트→상세 등 같은 depth로 화
   if (_overlays.length) _overlays[_overlays.length - 1] = hideFn;
   else openOverlay(hideFn);
 }
+// 종료 가드: 앱 시작 시 히스토리에 항목을 하나 깔아 두어, 탭 화면(열린
+// 오버레이 없음)에서 뒤로가기 첫 번째는 안내만 하고 되돌리고,
+// 2초 안에 한 번 더 누르면 정말 종료되게 한다.
+let _exitGuardAt = 0;
+function pushExitGuard() { try { history.pushState({ guard: 1 }, ''); } catch (e) {} }
+pushExitGuard();
+
 window.addEventListener('popstate', () => {
-  if (!_overlays.length) return;
+  if (!_overlays.length) {
+    const now = Date.now();
+    if (now - _exitGuardAt > 2000) {
+      _exitGuardAt = now;
+      pushExitGuard();               // 가드를 다시 깔아 아직 종료되지 않게
+      toast('한 번 더 누르면 앱이 종료돼요.');
+    } else {
+      try { history.back(); } catch (e) {}   // 2초 안에 또 누름 → 정말 종료
+    }
+    return;
+  }
   const h = _overlays.pop();
   if (!h) return;
   // 시작 화면이 이미 닫힌 뒤 남은 화면 이동 기록은 건너뛰고 이어서 뒤로
@@ -5018,7 +5035,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.65';
+const APP_VERSION = '1.0.66';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

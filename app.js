@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.94';
+const APP_VERSION = '1.0.95';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5450,6 +5450,35 @@ function extractInvite(text) {
 function inviteAutoExtract(inp) {
   const v = inp.value;
   if (v.length > 8 || /초대코드/.test(v)) inp.value = extractInvite(v);
+}
+
+// 메인 초대코드 입력: 6자리가 되면 그 허브 이름을 라벨 오른쪽에 표시
+// (지우면 '최근 입장 허브' 표시로 복귀)
+function startCodeLookup() {
+  const inp = document.getElementById('start-invite');
+  const tag = document.getElementById('last-hub-tag');
+  if (!inp || !tag) return;
+  const code = extractInvite(inp.value.trim());
+  clearTimeout(state._startCodeTimer);
+  tag.style.color = '';
+  if (!code || code.length !== 6) {
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem('bg_last_invite') || 'null'); } catch (e) {}
+    tag.textContent = (last && last.name) ? '최근 입장 허브 · ' + last.name : '';
+    return;
+  }
+  state._startCodeTimer = setTimeout(async () => {
+    try {
+      const h = await api('hubByInvite', { code });
+      const cur = document.getElementById('start-invite');
+      if (!cur || extractInvite(cur.value.trim()) !== code) return;   // 입력이 바뀜
+      tag.textContent = hubIcon(h) + ' ' + h.name;
+      tag.style.color = '';
+    } catch (e) {
+      tag.textContent = '코드를 찾을 수 없어요';
+      tag.style.color = 'var(--danger)';
+    }
+  }, 350);
 }
 
 // ----- 이메일로 시작 -----

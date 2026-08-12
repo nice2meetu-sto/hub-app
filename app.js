@@ -3321,7 +3321,7 @@ function apBggForm(g) {
     <h2>게임 추가</h2>
     <div class="hint" style="margin-bottom:12px;">BGG의 "${esc(g.name_en)}" 정보(인원·시간·난이도·사진)로 등록할게요.<br/>이름과 분류만 확인해주세요.</div>
     <div class="field"><label>게임명 *</label><input class="input" id="ap-bgg-kr" value="${esc(typed)}" placeholder="한글 게임명" /></div>
-    <div class="field"><label>영문 게임명</label><input class="input" id="ap-bgg-en" value="${esc(g.name_en || '')}" /></div>
+    <div class="field"><label>영문 게임명 *</label><input class="input" id="ap-bgg-en" value="${esc(g.name_en || '')}" /></div>
     <div class="row2">
       <div class="field"><label>도감 분류 *</label>
         <select class="input" id="ap-bgg-cat" onchange="apBggSyncHub()">
@@ -3332,6 +3332,13 @@ function apBggForm(g) {
           <option value="">선택해주세요</option>
           ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
         </select></div>
+    </div>
+    <div class="field">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <label style="margin:0;">게임 요약</label>
+        <span class="hint" style="margin:0;">필수 아님</span>
+      </div>
+      <textarea class="input" id="ap-bgg-summary" placeholder="게임 설명 (비워둬도 돼요)"></textarea>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;">
       <button class="btn ghost sm" style="flex:1;" onclick="apSearchCatalog()">‹ 목록</button>
@@ -3352,7 +3359,10 @@ async function apAddBggGame() {
   const nameEn = document.getElementById('ap-bgg-en').value.trim();
   const cat = document.getElementById('ap-bgg-cat').value;
   const hubCat = document.getElementById('ap-bgg-hub').value;
+  const summary = ((document.getElementById('ap-bgg-summary') || {}).value || '').trim();   // 필수 아님
   if (!nameKr) { toast('게임명을 입력하세요.', true); return; }
+  if (!nameEn) { toast('영문 게임명을 입력하세요.', true); return; }
+  if (!cat) { toast('❗️도감 분류를 선택해주세요.', true); return; }
   if (!hubCat) { toast('❗️Hub 분류를 선택해주세요.', true); return; }
   const nk = normGameName(nameKr);
   if (state.games.some(x => normGameName(x.name_kr) === nk)) {
@@ -3369,7 +3379,7 @@ async function apAddBggGame() {
       min_players: g.min_players, max_players: g.max_players,
       best_players: g.best_players || '',
       max_playtime: g.playtime_min, playtime_min: g.playtime_min,
-      weight: g.weight, image_url: g.image_url || '', summary_kr: ''
+      weight: g.weight, image_url: g.image_url || '', summary_kr: summary
     }) });
     state.games = await api('getGames');
     toast('게임을 추가했어요! 이어서 플레이 기록을 남겨보세요.');
@@ -5152,7 +5162,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.74';
+const APP_VERSION = '1.0.75';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

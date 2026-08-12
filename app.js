@@ -2782,10 +2782,22 @@ function ratingEditorHtml(g) {
       <div class="stars" id="stars-${g.game_id}" data-val="${val || ''}">${starsHtml(val)}</div>
       <div class="rate-val" id="rateval-${g.game_id}" style="margin:0;white-space:nowrap;">${val ? val.toFixed(1) + ' 점' : '평점 선택'}</div>
     </div>
-    <label style="font-size:12px;font-weight:700;color:var(--text-sub);display:block;margin-top:10px;margin-bottom:5px;">한줄 후기 <span class="muted" style="font-weight:500;">(게임 탭에 공개돼요)</span></label>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;margin-bottom:5px;">
+      <label style="font-size:12px;font-weight:700;color:var(--text-sub);">한줄 후기 <span class="muted" style="font-weight:500;">(게임 탭에 공개돼요)</span></label>
+      <button type="button" class="lnk-clear" onclick="clearReview(event)">후기 삭제</button>
+    </div>
     <textarea class="input" id="review-${g.game_id}" placeholder="이 게임 어땠나요? 후기를 공유해 주세요!">${esc(review)}</textarea>
     <button class="btn" style="margin-top:5px;width:100%;padding:9px;" onclick="saveRating(event, '${g.game_id}')">평점·후기 저장</button>
   </div>`;
+}
+
+// [후기 삭제] 링크: 이 에디터의 후기 칸만 비움 — 비운 채 저장하면 후기가 지워짐
+function clearReview(e) {
+  const wrap = e.target.closest('.rate-edit');
+  const ta = wrap && wrap.querySelector('textarea');
+  if (!ta) return;
+  ta.value = '';
+  toast('후기 칸을 비웠어요. 저장을 누르면 후기가 삭제돼요.');
 }
 
 function starsHtml(val) {
@@ -2832,22 +2844,26 @@ async function saveRating(ev, gameId) {
   // 후기가 실제로 바뀐 경우에만 저장 → 별점만 저장할 땐 후기 작성시간 유지
   const existingReview = ((state._myRatings && state._myRatings[gameId] && state._myRatings[gameId].review) || '');
   const reviewChanged = hasReview && review.trim() !== existingReview.trim();
+  // 기존 후기가 있는데 칸을 비우고 저장 → 후기 삭제로 처리
+  const reviewDeleted = !hasReview && existingReview.trim() !== '';
   // 둘 중 하나만 입력해도 저장(빈 칸은 기존 값 그대로 유지)
-  if (!hasRating && !hasReview) { toast('평점이나 후기 중 하나 이상 입력하세요.', true); return; }
+  if (!hasRating && !hasReview && !reviewDeleted) { toast('평점이나 후기 중 하나 이상 입력하세요.', true); return; }
   const pin = await promptPin();
   if (pin == null) return;
   showLoader('저장 중…');
   try {
     if (hasRating) await api('saveRating', { playerId: state.user.player_id, pin, gameId, rating: val });
-    if (reviewChanged) await api('saveReview', { playerId: state.user.player_id, pin, gameId, review });
+    if (reviewChanged || reviewDeleted)
+      await api('saveReview', { playerId: state.user.player_id, pin, gameId,
+                                review: reviewDeleted ? '' : review });
     if (!state._myRatings) state._myRatings = {};
     const upd = { game_id: gameId };
     if (hasRating) upd.rating = val;
-    if (hasReview) upd.review = review;
+    if (hasReview || reviewDeleted) upd.review = reviewDeleted ? '' : review;
     state._myRatings[gameId] = Object.assign({}, state._myRatings[gameId], upd);
     // 평점이 바뀌었으면 Hub 평점 갱신 위해 게임 목록 재로드
     if (hasRating) state.games = await api('getGames');
-    toast('저장되었습니다!');
+    toast(reviewDeleted ? '후기가 삭제되었습니다!' : '저장되었습니다!');
     if (state.myTab === 'games' && document.getElementById('my-games-cards')) filterMyGames();
     if (state.myTab === 'games' && document.getElementById('my-gamesall-cards')) filterMyGamesAll();
     // 후기 탭·관리자 평점 탭 캐시 무효화 + 후기쓰기 팝업 닫기 + 탭이 열려있으면 갱신
@@ -5230,7 +5246,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.98';
+const APP_VERSION = '1.0.99';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

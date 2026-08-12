@@ -3121,7 +3121,7 @@ function agRenderCatalogResults(list, term) {
        <div class="hint" style="margin-bottom:10px;">"${esc(term)}" — 게임을 누르면 정보를 그대로 가져와요.</div>
        ${list.map(agResultCardHtml).join('')}
        ${bggSlot}
-       <div class="hint" style="margin:12px 0 18px;text-align:center;">찾는 게임이 없나요? 직접 등록해주세요.</div>
+       <div class="hint" style="margin:12px 0 22px;text-align:center;">찾는 게임이 없나요? 직접 등록해주세요.</div>
        <div class="sheet-save" style="display:flex;gap:8px;">
          <button class="btn ghost" style="flex:1;" onclick="closeOverlay()">닫기</button>
          <button class="btn" style="flex:1;" onclick="agRegisterNew()">직접 등록하기</button>
@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.90';
+const APP_VERSION = '1.0.91';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

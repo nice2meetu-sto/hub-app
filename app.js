@@ -570,7 +570,7 @@ async function openReviewWriteFor(gid) {
   if (!state.user) { toast('로그인 후 이용하세요.', true); return; }
   const ov = document.getElementById('rvwrite-overlay');
   ov.classList.add('show');
-  openOverlay(() => ov.classList.remove('show'));
+  openOverlay(() => { ov.classList.remove('show'); fitRvwriteToViewport(); });
   state._rvwGid = gid;
   document.getElementById('rvwrite-body').innerHTML =
     `<div class="empty" style="padding:20px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`;
@@ -4477,11 +4477,30 @@ function recentlyPlayedGames() {
     .sort((a, b) => firstIdx[a.game_id] - firstIdx[b.game_id]);
 }
 
+// 키보드가 올라와 화면(visualViewport)이 줄면 후기 작성 팝업을 남은 영역
+// 가운데로 다시 정렬 — 저장 버튼이 키보드에 가려지지 않게(게임메모 팝업과 동일 체감)
+function fitRvwriteToViewport() {
+  const ov = document.getElementById('rvwrite-overlay');
+  if (!ov) return;
+  const card = ov.querySelector('.rvwrite-card');
+  const vv = window.visualViewport;
+  // 키보드로 줄어든 상태가 아니면(닫힘 포함) 인라인 조정 제거 → CSS 기본값
+  const shrunk = vv && ov.classList.contains('show') &&
+                 vv.height < window.innerHeight - 60;
+  ov.style.top = shrunk ? vv.offsetTop + 'px' : '';
+  ov.style.height = shrunk ? vv.height + 'px' : '';
+  if (card) card.style.maxHeight = shrunk ? Math.max(200, vv.height - 40) + 'px' : '';
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitRvwriteToViewport);
+  window.visualViewport.addEventListener('scroll', fitRvwriteToViewport);
+}
+
 async function openReviewWrite() {
   if (!state.user) { toast('후기를 쓰려면 MY에서 로그인하세요.', true); switchView('my'); return; }
   const ov = document.getElementById('rvwrite-overlay');
   ov.classList.add('show');
-  openOverlay(() => ov.classList.remove('show'));
+  openOverlay(() => { ov.classList.remove('show'); fitRvwriteToViewport(); });
   state._rvwGid = null;
   document.getElementById('rvwrite-body').innerHTML =
     `<div class="empty" style="padding:20px 0;"><div class="spinner" style="margin:0 auto;"></div></div>`;
@@ -5211,7 +5230,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.97';
+const APP_VERSION = '1.0.98';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -52,15 +52,17 @@ export default {
         let desc = (xml.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '';
         desc = decodeEntities(desc).replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ').trim();
         const short = firstSentences(desc, 3, 400);   // 요약 용도: 앞 3문장/400자
-        let kr = '';
-        if (short && env && env.AI) {
+        let kr = '', trErr = '';
+        const aiBound = !!(env && env.AI);
+        if (short && aiBound) {
           try {
             const out = await env.AI.run('@cf/meta/m2m100-1.2b',
               { text: short, source_lang: 'english', target_lang: 'korean' });
             kr = (out && out.translated_text || '').trim();
-          } catch (e) { /* 번역 실패 → 영문만 */ }
+          } catch (e) { trErr = String((e && e.message) || e); }   // 번역 실패 → 영문만
         }
-        return json({ description_kr: kr, description_en: short });
+        // ai / tr_error: 진단용 — AI 바인딩이 배포에 포함됐는지, 번역 에러가 뭔지
+        return json({ description_kr: kr, description_en: short, ai: aiBound, tr_error: trErr });
       } catch (e) {
         return json({ description_kr: '', description_en: '', error: String((e && e.message) || e) });
       }

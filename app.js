@@ -3730,6 +3730,8 @@ function acPick(e, item) {
   const menu = wrap.querySelector('.ac-menu');
   menu.classList.remove('show'); menu.innerHTML = '';
   inp.dispatchEvent(new Event('input', { bubbles: true }));  // 상태 갱신(updatePart 등)
+  // 게임명 칸은 선택하면 입력 끝 → 포커스 해제로 키보드 내림(참가자 이름은 유지)
+  if (inp.id === 'ap-game' || inp.id === 'ag-namekr') inp.blur();
 }
 function acHide(inp) {
   const wrap = inp.closest('.ac-wrap');
@@ -5158,7 +5160,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.77';
+const APP_VERSION = '1.0.78';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

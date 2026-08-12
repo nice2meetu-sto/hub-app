@@ -2986,17 +2986,23 @@ function agShowDetail(mode) {
   const box = document.getElementById('ag-detail');
   if (box) box.style.display = 'block';
   const catalog = mode === 'catalog';
+  const bgg = mode === 'bgg';
   // 도감에서 가져온 경우: Hub 분류만 고르면 됨 — 나머지는 도감 정보 그대로(잠금)
+  // BGG에서 가져온 경우: BGG가 채워준 칸만 잠금(한글명·분류·요약은 직접)
+  const bggLock = ['ag-nameen', 'ag-min', 'ag-max', 'ag-best',
+                   'ag-time-min', 'ag-time-max', 'ag-weight', 'ag-image'];
   ['ag-nameen', 'ag-category', 'ag-min', 'ag-max', 'ag-best',
    'ag-time-min', 'ag-time-max', 'ag-weight',
    'ag-image', 'ag-summary', 'ag-photo'].forEach(id => {
     const e = document.getElementById(id);
-    if (e) e.disabled = catalog;
+    if (!e) return;
+    // BGG 값이 비어 있는 칸(예: 베스트 인원 투표 없음)은 직접 입력할 수 있게 열어둠
+    e.disabled = catalog || (bgg && bggLock.includes(id) && String(e.value || '').trim() !== '');
   });
   const nameInp = document.getElementById('ag-namekr');
   if (nameInp) nameInp.readOnly = catalog;
   const photoField = document.getElementById('ag-photo-field');
-  if (photoField) photoField.style.display = catalog ? 'none' : '';
+  if (photoField) photoField.style.display = (catalog || bgg) ? 'none' : '';
   const btn = document.getElementById('ag-submit');
   if (btn) btn.textContent = catalog ? '게임 추가' : '도감 추가';
 }
@@ -3191,7 +3197,7 @@ function agPickCatalog(gid) {
     document.getElementById('ag-cat-hub').value = '';
     agSyncHubCat();   // 도감 분류와 같은 이름의 Hub 분류가 있으면 자동 선택
     state.agPick = null;
-    agShowDetail('manual');
+    agShowDetail('bgg');   // BGG가 채워준 칸은 잠금(도감 가져오기와 동일한 UX)
     closeOverlay();          // 검색 팝업 닫기(추가 시트로 복귀)
     toast('BGG 정보를 가져왔어요. 한글명·분류를 확인하고 등록해주세요.');
     checkNewGameName();
@@ -5146,7 +5152,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.73';
+const APP_VERSION = '1.0.74';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

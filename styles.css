@@ -107,6 +107,14 @@
     border-radius: 12px; background: #fafafc; color: var(--text); outline: none;
   }
   .input:focus { border-color: var(--main); background: #fff; }
+  /* 게임 추가: 도감·BGG에서 끌어와 수정할 수 없는 칸은 입력칸처럼 안 보이게
+     (테두리·배경 제거, 값만 라벨 아래 텍스트로 표시) */
+  #add-game-form .input:disabled, #add-game-form .input[readonly] {
+    background: transparent; border-color: transparent; box-shadow: none;
+    padding-left: 2px; opacity: 1; color: var(--text);
+    -webkit-text-fill-color: var(--text);
+    -webkit-appearance: none; appearance: none;   /* select 화살표도 제거 */
+  }
   textarea.input { resize: vertical; min-height: 72px; }
   .btn {
     width: 100%; padding: 14px; border-radius: 12px; background: var(--main);

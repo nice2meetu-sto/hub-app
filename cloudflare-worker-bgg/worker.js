@@ -55,11 +55,8 @@ export default {
         let kr = '', trErr = '';
         const aiBound = !!(env && env.AI);
         if (short && aiBound) {
-          try {
-            const out = await env.AI.run('@cf/meta/m2m100-1.2b',
-              { text: short, source_lang: 'english', target_lang: 'korean' });
-            kr = (out && out.translated_text || '').trim();
-          } catch (e) { trErr = String((e && e.message) || e); }   // 번역 실패 → 영문만
+          const r = await translateKo(env, short);
+          kr = r.kr; trErr = r.err;
         }
         // ai / tr_error: 진단용 — AI 바인딩이 배포에 포함됐는지, 번역 에러가 뭔지
         return json({ description_kr: kr, description_en: short, ai: aiBound, tr_error: trErr });
@@ -126,6 +123,37 @@ function json(obj, status = 200) {
   });
 }
 function num(v) { return v ? Number(v) : null; }
+// 영→한 번역: ① 전용 번역 모델(m2m100) — 혼잡(3040)이면 잠깐 쉬고 재시도
+//            ② 그래도 안 되면 범용 LLM(llama)에게 번역 지시로 폴백
+async function translateKo(env, text) {
+  let lastErr = '';
+  for (let i = 0; i < 2; i++) {
+    try {
+      const out = await env.AI.run('@cf/meta/m2m100-1.2b',
+        { text, source_lang: 'english', target_lang: 'korean' });
+      const kr = (out && out.translated_text || '').trim();
+      if (kr) return { kr, err: '' };
+    } catch (e) {
+      lastErr = String((e && e.message) || e);
+      if (!/3040|capacity/i.test(lastErr)) break;      // 혼잡 외 에러는 재시도 무의미
+      await new Promise((r) => setTimeout(r, 700));
+    }
+  }
+  try {
+    const out = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages: [
+        { role: 'system', content: 'Translate the user\'s text into natural Korean. Output ONLY the Korean translation, no explanations.' },
+        { role: 'user', content: text },
+      ],
+      max_tokens: 512,
+    });
+    const kr = (out && out.response || '').trim();
+    if (kr) return { kr, err: '' };
+  } catch (e2) {
+    lastErr += ' / llama: ' + String((e2 && e2.message) || e2);
+  }
+  return { kr: '', err: lastErr };
+}
 // 앞 n문장(최대 maxLen자)만 — 요약칸에 넣을 만큼만 자른다
 function firstSentences(text, n, maxLen) {
   const parts = String(text).split(/(?<=[.!?])\s+/).slice(0, n);

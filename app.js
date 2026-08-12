@@ -3321,7 +3321,7 @@ function apBggForm(g) {
     <h2>게임 추가</h2>
     <div class="hint" style="margin-bottom:12px;">BGG의 "${esc(g.name_en)}" 정보(인원·시간·난이도·사진)로 등록할게요.<br/>이름과 분류만 확인해주세요.</div>
     <div class="field"><label>게임명 *</label><input class="input" id="ap-bgg-kr" value="${esc(typed)}" placeholder="한글 게임명" /></div>
-    <div class="field"><label>영문 게임명 *</label><input class="input" id="ap-bgg-en" value="${esc(g.name_en || '')}" /></div>
+    <div class="field"><label>영문 게임명</label><input class="input" id="ap-bgg-en" value="${esc(g.name_en || '')}" /></div>
     <div class="row2">
       <div class="field"><label>도감 분류 *</label>
         <select class="input" id="ap-bgg-cat" onchange="apBggSyncHub()">
@@ -3361,7 +3361,6 @@ async function apAddBggGame() {
   const hubCat = document.getElementById('ap-bgg-hub').value;
   const summary = ((document.getElementById('ap-bgg-summary') || {}).value || '').trim();   // 필수 아님
   if (!nameKr) { toast('게임명을 입력하세요.', true); return; }
-  if (!nameEn) { toast('영문 게임명을 입력하세요.', true); return; }
   if (!cat) { toast('❗️도감 분류를 선택해주세요.', true); return; }
   if (!hubCat) { toast('❗️Hub 분류를 선택해주세요.', true); return; }
   const nk = normGameName(nameKr);
@@ -5162,7 +5161,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.75';
+const APP_VERSION = '1.0.76';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

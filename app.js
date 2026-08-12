@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.96';
+const APP_VERSION = '1.0.97';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -6049,8 +6049,17 @@ async function startInviteNext() {
     invField.style.display = '';
     return;
   }
-  const code = extractInvite(document.getElementById('start-invite').value.trim());
-  if (!code) { toast('초대코드를 입력하세요.', true); return; }
+  const raw = document.getElementById('start-invite').value.trim();
+  const code = extractInvite(raw);
+  if (!code) {
+    // 아무것도 안 넣고 다시 누르면 입력칸을 도로 접음(최근 허브가 있어
+    // 접힌 상태가 기본인 경우만 — 첫 방문 화면에선 접을 이유가 없음)
+    if (!raw && invField && getRecentHubs().length) {
+      invField.style.display = 'none';
+      return;
+    }
+    toast('초대코드를 입력하세요.', true); return;
+  }
   showLoader('허브 찾는 중…');
   try {
     const hh = await api('hubByInvite', { code });

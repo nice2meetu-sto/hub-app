@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.95';
+const APP_VERSION = '1.0.96';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우
@@ -5458,6 +5458,12 @@ function startCodeLookup() {
   const inp = document.getElementById('start-invite');
   const tag = document.getElementById('last-hub-tag');
   if (!inp || !tag) return;
+  // 입장 버튼 문구: 코드가 입력되면 '입장하기'로 바뀌어 다음 행동을 안내
+  const setGoBtn = (title, sub) => {
+    const b = document.getElementById('start-invite-go');
+    if (b) b.innerHTML = `${title}<div class="hint" style="margin:3px 0 0;font-weight:500;color:#e9e7f8;">${sub}</div>`;
+  };
+  const resetGoBtn = () => setGoBtn('🔑 기존 허브 이용', '받은 초대 문구를 붙여 넣고 간편하게 시작하세요');
   const code = extractInvite(inp.value.trim());
   clearTimeout(state._startCodeTimer);
   tag.style.color = '';
@@ -5465,8 +5471,10 @@ function startCodeLookup() {
     let last = null;
     try { last = JSON.parse(localStorage.getItem('bg_last_invite') || 'null'); } catch (e) {}
     tag.textContent = (last && last.name) ? '최근 입장 허브 · ' + last.name : '';
+    resetGoBtn();
     return;
   }
+  setGoBtn('🔑 Hub 입장하기', '입력한 초대코드의 허브로 들어가요');
   state._startCodeTimer = setTimeout(async () => {
     try {
       const h = await api('hubByInvite', { code });
@@ -5474,9 +5482,11 @@ function startCodeLookup() {
       if (!cur || extractInvite(cur.value.trim()) !== code) return;   // 입력이 바뀜
       tag.textContent = hubIcon(h) + ' ' + h.name;
       tag.style.color = '';
+      setGoBtn(`🔑 ${esc(h.name)} Hub 입장하기`, '입력한 초대코드의 허브로 들어가요');
     } catch (e) {
       tag.textContent = '코드를 찾을 수 없어요';
       tag.style.color = 'var(--danger)';
+      resetGoBtn();
     }
   }, 350);
 }

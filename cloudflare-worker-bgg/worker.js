@@ -16,6 +16,11 @@
 //  반환: { results: [{ bgg_id, name_en, min_players, max_players,
 //                      playtime_min, image_url, weight, best_players }] }
 //  (weight = BGG 평균 난이도, best_players = 커뮤니티 투표 '베스트 인원')
+//
+//  게임 설명: GET https://<worker>/?desc=<bgg_id>
+//  반환: { description_kr, description_en }  — 앞 몇 문장만 잘라 반환.
+//  한글은 Workers AI 번역(m2m100) — 대시보드에서 이 Worker의 Bindings에
+//  'AI' 이름으로 Workers AI 바인딩을 추가해야 동작(없으면 영문만 반환).
 // ============================================================
 
 // 정책상 요청 도메인은 boardgamegeek.com (www 없이)
@@ -39,6 +44,27 @@ export default {
       : BASE_HEADERS;
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     const url = new URL(req.url);
+    // ---- 게임 설명(+한글 번역) ----
+    const descId = (url.searchParams.get('desc') || '').replace(/\D/g, '');
+    if (descId) {
+      try {
+        const xml = await bggFetch('/xmlapi2/thing?id=' + descId);
+        let desc = (xml.match(/<description>([\s\S]*?)<\/description>/) || [])[1] || '';
+        desc = decodeEntities(desc).replace(/<[^>]+>/g, ' ').replace(/[ \t]+/g, ' ').trim();
+        const short = firstSentences(desc, 3, 400);   // 요약 용도: 앞 3문장/400자
+        let kr = '';
+        if (short && env && env.AI) {
+          try {
+            const out = await env.AI.run('@cf/meta/m2m100-1.2b',
+              { text: short, source_lang: 'english', target_lang: 'korean' });
+            kr = (out && out.translated_text || '').trim();
+          } catch (e) { /* 번역 실패 → 영문만 */ }
+        }
+        return json({ description_kr: kr, description_en: short });
+      } catch (e) {
+        return json({ description_kr: '', description_en: '', error: String((e && e.message) || e) });
+      }
+    }
     let q = url.searchParams.get('q') || '';
     if (!q && req.method === 'POST') {
       try { const b = await req.json(); q = (b && b.q) || ''; } catch (e) {}
@@ -98,6 +124,13 @@ function json(obj, status = 200) {
   });
 }
 function num(v) { return v ? Number(v) : null; }
+// 앞 n문장(최대 maxLen자)만 — 요약칸에 넣을 만큼만 자른다
+function firstSentences(text, n, maxLen) {
+  const parts = String(text).split(/(?<=[.!?])\s+/).slice(0, n);
+  let out = parts.join(' ').trim();
+  if (out.length > maxLen) out = out.slice(0, maxLen).replace(/\s+\S*$/, '') + '…';
+  return out;
+}
 function firstAttr(xml, tag, attr = 'value') {
   const m = xml.match(new RegExp('<' + tag + '\\b[^>]*\\b' + attr + '="([^"]*)"'));
   return m ? m[1] : null;

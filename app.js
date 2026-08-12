@@ -3625,7 +3625,9 @@ function checkNewGameName() {
             </div>
           </div>
         </div>
-        <button class="btn" style="margin-top:-2px;padding:12px;" onclick="agGoRecord('${dup.game_id}')">📋 플레이 결과 기록</button>`;
+        <div style="text-align:right;margin:-4px 4px 12px;">
+          <button type="button" class="lnk-bgg" style="font-size:12px;" onclick="agGoRecord('${dup.game_id}')">📋 플레이 결과 기록 ›</button>
+        </div>`;
       dupCard.style.display = 'block';
     }
     return;
@@ -5209,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.86';
+const APP_VERSION = '1.0.87';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -2965,7 +2965,7 @@ function renderAddGameForm() {
         </div>
         <div class="hint">구글에서 이미지를 찾아 '이미지 주소 복사' 후 여기에 붙여넣으세요</div>
       </div>
-      <div class="field"><label>게임 요약</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
+      <div class="field"><label>요약(선택)</label><textarea class="input" id="ag-summary" placeholder="게임 설명"></textarea></div>
       <div class="field" id="ag-photo-field">
         <label>게임 사진 (URL과 둘 중 하나 필수 — 찍거나 앨범에서 선택)</label>
         <input class="input" id="ag-photo" type="file" accept="image/*" onchange="onPhotoPick(this,'ag')" />
@@ -3334,10 +3334,7 @@ function apBggForm(g) {
         </select></div>
     </div>
     <div class="field">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px;">
-        <label style="margin:0;">게임 요약</label>
-        <span class="hint" style="margin:0;">필수 아님</span>
-      </div>
+      <label>요약(선택)</label>
       <textarea class="input" id="ap-bgg-summary" placeholder="게임 설명 (비워둬도 돼요)"></textarea>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;">
@@ -5161,7 +5158,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.76';
+const APP_VERSION = '1.0.77';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

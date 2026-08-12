@@ -3121,7 +3121,7 @@ function agRenderCatalogResults(list, term) {
        <div class="hint" style="margin-bottom:10px;">"${esc(term)}" — 게임을 누르면 정보를 그대로 가져와요.</div>
        ${list.map(agResultCardHtml).join('')}
        ${bggSlot}
-       <div class="hint" style="margin:12px 0 9px;text-align:center;">찾는 게임이 없나요? 직접 등록해주세요.</div>
+       <div class="hint" style="margin:12px 0 18px;text-align:center;">찾는 게임이 없나요? 직접 등록해주세요.</div>
        <div class="sheet-save" style="display:flex;gap:8px;">
          <button class="btn ghost" style="flex:1;" onclick="closeOverlay()">닫기</button>
          <button class="btn" style="flex:1;" onclick="agRegisterNew()">직접 등록하기</button>
@@ -3153,7 +3153,7 @@ function agGoogleImage() {
 async function agSearchBGG(term) {
   const slot = document.getElementById('ag-bgg-slot');
   if (!slot || state._agTerm !== term) return;
-  slot.innerHTML = `<div class="hint" style="text-align:center;margin:10px 0;">🌐 BGG에서도 찾는 중…</div>`;
+  slot.innerHTML = `<div class="hint" style="text-align:center;margin:10px 0 22px;">🌐 BGG에서도 찾는 중…</div>`;
   try {
     const url = BGG_PROXY_URL.replace(/\/$/, '') + '/?q=' + encodeURIComponent(term);
     const res = await fetch(url);
@@ -3184,7 +3184,7 @@ async function agSearchBGG(term) {
          </div>`;
   } catch (e) {
     if (state._agTerm === term)
-      slot.innerHTML = `<div class="hint" style="text-align:center;margin:8px 0;color:var(--text-sub);">BGG 검색을 지금은 쓸 수 없어요</div>`;
+      slot.innerHTML = `<div class="hint" style="text-align:center;margin:8px 0 22px;color:var(--text-sub);">BGG 검색을 지금은 쓸 수 없어요</div>`;
   }
 }
 
@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.88';
+const APP_VERSION = '1.0.89';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

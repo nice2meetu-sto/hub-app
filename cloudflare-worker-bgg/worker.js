@@ -14,7 +14,8 @@
 //  호출: GET  https://<worker>/?q=검색어
 //        POST https://<worker>/   body: {"q":"검색어"}
 //  반환: { results: [{ bgg_id, name_en, min_players, max_players,
-//                      playtime_min, image_url }] }
+//                      playtime_min, image_url, weight, best_players }] }
+//  (weight = BGG 평균 난이도, best_players = 커뮤니티 투표 '베스트 인원')
 // ============================================================
 
 // 정책상 요청 도메인은 boardgamegeek.com (www 없이)
@@ -54,8 +55,8 @@ export default {
       }
       if (!ids.length) return json({ results: [] });
 
-      // 2) 상세(thing) 한 번에 여러 id
-      const thingXml = await bggFetch('/xmlapi2/thing?id=' + ids.join(','));
+      // 2) 상세(thing) 한 번에 여러 id — stats=1로 난이도(averageweight)까지
+      const thingXml = await bggFetch('/xmlapi2/thing?id=' + ids.join(',') + '&stats=1');
       const results = [];
       const itemRe = /<item\b[^>]*\bid="(\d+)"[^>]*>([\s\S]*?)<\/item>/g;
       while ((m = itemRe.exec(thingXml))) {
@@ -63,6 +64,14 @@ export default {
         const nameM = b.match(/<name\b[^>]*type="primary"[^>]*value="([^"]*)"/);
         const image = (b.match(/<image>([^<]*)<\/image>/) || [])[1] ||
                       (b.match(/<thumbnail>([^<]*)<\/thumbnail>/) || [])[1] || '';
+        // 난이도: 평점 통계의 averageweight (소수 둘째 자리 반올림)
+        const wM = b.match(/<averageweight\b[^>]*value="([^"]*)"/);
+        const weight = wM && Number(wM[1]) > 0 ? Math.round(Number(wM[1]) * 100) / 100 : null;
+        // 베스트 인원: 투표 요약 "Best with 2–3 players" → "2-3"
+        const bwM = b.match(/<result\b[^>]*name="bestwith"[^>]*value="([^"]*)"/);
+        let best = bwM ? decodeEntities(bwM[1]) : '';
+        best = best.replace(/^Best with\s*/i, '').replace(/\s*players?\.?\s*$/i, '')
+                   .replace(/[–—]/g, '-').trim();
         results.push({
           bgg_id: id,
           name_en: nameM ? decodeEntities(nameM[1]) : '',
@@ -70,6 +79,8 @@ export default {
           max_players: num(firstAttr(b, 'maxplayers')),
           playtime_min: num(firstAttr(b, 'playingtime') || firstAttr(b, 'maxplaytime')),
           image_url: image,
+          weight,
+          best_players: best || null,
         });
       }
       results.sort((a, b) => ids.indexOf(a.bgg_id) - ids.indexOf(b.bgg_id));
@@ -94,7 +105,8 @@ function firstAttr(xml, tag, attr = 'value') {
 function decodeEntities(s) {
   return s
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(+n));
+    .replace(/&quot;/g, '"').replace(/&ndash;/g, '–').replace(/&mdash;/g, '—')
+    .replace(/&#(\d+);/g, (_m, n) => String.fromCharCode(+n));
 }
 async function bggFetch(path, tries = 4) {
   let last = '';

@@ -3148,11 +3148,12 @@ async function agSearchBGG(term) {
         game_id: 'bgg:' + r.bgg_id, _bgg: true, on_shelf: false,
         name_kr: '', name_en: r.name_en, category: '', summary_kr: '',
         min_players: r.min_players, max_players: r.max_players,
-        playtime_min: r.playtime_min, image_url: r.image_url || ''
+        playtime_min: r.playtime_min, image_url: r.image_url || '',
+        weight: r.weight ?? null, best_players: r.best_players || ''
       };
     });
     slot.innerHTML =
-      `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·시간·사진을 가져와요</div>`
+      `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·베스트·시간·난이도·사진을 가져와요</div>`
       + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('')
       // BGG 정책: 공개 앱은 'Powered by BGG' 표기(+BGG 링크) 필수
       + `<div class="hint" style="text-align:right;margin:4px 2px 0;">
@@ -3177,6 +3178,7 @@ function agPickCatalog(gid) {
     set('ag-nameen', g.name_en);
     set('ag-min', g.min_players); set('ag-max', g.max_players);
     set('ag-time-max', g.playtime_min); set('ag-image', g.image_url);
+    set('ag-weight', g.weight); set('ag-best', g.best_players);   // BGG 난이도·베스트 인원
     document.getElementById('ag-cat-hub').value = '';
     agHubCatWarn();
     state.agPick = null;
@@ -5034,7 +5036,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.68';
+const APP_VERSION = '1.0.69';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

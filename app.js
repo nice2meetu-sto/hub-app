@@ -3106,8 +3106,8 @@ function agRenderCatalogResults(list, term) {
   state._agResults = {};
   list.forEach(g => { state._agResults[g.game_id] = g; });
   const el = document.getElementById('detail-body');
-  // 게임 추가 맥락 + BGG 프록시가 설정돼 있으면 BGG 결과 슬롯을 이어 붙임
-  const withBgg = state._agCtx === 'game' && !!BGG_PROXY_URL;
+  // 게임 추가·플레이 맥락 + BGG 프록시가 설정돼 있으면 BGG 결과 슬롯을 이어 붙임
+  const withBgg = (state._agCtx === 'game' || state._agCtx === 'play') && !!BGG_PROXY_URL;
   const bggSlot = withBgg ? `<div id="ag-bgg-slot"></div>` : '';
   el.innerHTML = list.length
     ? `<h2>📚 도감 검색 결과</h2>
@@ -3258,6 +3258,7 @@ function agRegisterNew() {
 // ===== 플레이 추가 → 도감 검색으로 고른 게임 처리 =====
 // 도감 게임 선택(플레이 맥락): 이미 우리 허브면 바로 사용, 아니면 분류만 정해 추가
 function apPickCatalog(g) {
+  if (g._bgg) { apBggForm(g); return; }   // BGG 결과 → 이름·분류만 정해 등록
   if (g.on_shelf) {
     apUseGame(g.name_kr || g.name_en);   // 이미 등록된 게임 → 바로 사용
     return;
@@ -3301,6 +3302,72 @@ async function apAddCatalogGame() {
     state.games = await api('getGames');
     toast('게임을 추가했어요! 이어서 플레이 기록을 남겨보세요.');
     apUseGame(g.name_kr || g.name_en);
+  } catch (e) { toast(e.message, true); } finally { hideLoader(); }
+}
+
+// BGG 결과(플레이 맥락): BGG 정보(인원·시간·난이도·사진)는 그대로 쓰고
+// 게임명·영문명·도감/Hub 분류만 정해 등록 → 이어서 플레이 기록
+function apBggForm(g) {
+  state._apBggGame = g;
+  const typed = (((document.getElementById('ap-game') || {}).value) || '').split(',')[0].trim();
+  const el = document.getElementById('detail-body');
+  el.innerHTML = `
+    <h2>게임 추가</h2>
+    <div class="hint" style="margin-bottom:12px;">BGG의 "${esc(g.name_en)}" 정보(인원·시간·난이도·사진)로 등록할게요.<br/>이름과 분류만 확인해주세요.</div>
+    <div class="field"><label>게임명 *</label><input class="input" id="ap-bgg-kr" value="${esc(typed)}" placeholder="한글 게임명" /></div>
+    <div class="field"><label>영문 게임명</label><input class="input" id="ap-bgg-en" value="${esc(g.name_en || '')}" /></div>
+    <div class="row2">
+      <div class="field"><label>도감 분류 *</label>
+        <select class="input" id="ap-bgg-cat" onchange="apBggSyncHub()">
+          ${CATALOG_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select></div>
+      <div class="field"><label>Hub 분류 *</label>
+        <select class="input" id="ap-bgg-hub">
+          <option value="">선택해주세요</option>
+          ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn ghost sm" style="flex:1;" onclick="apSearchCatalog()">‹ 목록</button>
+      <button class="btn sm" style="flex:1;" onclick="apAddBggGame()">추가하고 계속</button>
+    </div>`;
+  showDetailSheet();
+  apBggSyncHub();   // 도감 분류와 같은 이름의 Hub 분류 자동 선택
+}
+function apBggSyncHub() {
+  const cat = (document.getElementById('ap-bgg-cat') || {}).value || '';
+  const hub = document.getElementById('ap-bgg-hub');
+  if (hub && cat && [...hub.options].some(o => o.value === cat)) hub.value = cat;
+}
+async function apAddBggGame() {
+  const g = state._apBggGame;
+  if (!g) return;
+  const nameKr = document.getElementById('ap-bgg-kr').value.trim();
+  const nameEn = document.getElementById('ap-bgg-en').value.trim();
+  const cat = document.getElementById('ap-bgg-cat').value;
+  const hubCat = document.getElementById('ap-bgg-hub').value;
+  if (!nameKr) { toast('게임명을 입력하세요.', true); return; }
+  if (!hubCat) { toast('❗️Hub 분류를 선택해주세요.', true); return; }
+  const nk = normGameName(nameKr);
+  if (state.games.some(x => normGameName(x.name_kr) === nk)) {
+    toast('이미 등록된 게임명입니다.', true); return;
+  }
+  const pin = await promptPin();
+  if (pin == null) return;
+  showLoader('게임 추가 중…');
+  try {
+    await api('addGame', { payload: JSON.stringify({
+      player_id: state.user.player_id, pin,
+      name_kr: nameKr, name_en: nameEn,
+      category: cat, hub_category: hubCat,
+      min_players: g.min_players, max_players: g.max_players,
+      best_players: g.best_players || '',
+      max_playtime: g.playtime_min, playtime_min: g.playtime_min,
+      weight: g.weight, image_url: g.image_url || '', summary_kr: ''
+    }) });
+    state.games = await api('getGames');
+    toast('게임을 추가했어요! 이어서 플레이 기록을 남겨보세요.');
+    apUseGame(nameKr);
   } catch (e) { toast(e.message, true); } finally { hideLoader(); }
 }
 
@@ -3577,12 +3644,41 @@ function renderAddPlayForm() {
         </span>
       </div>
       <div id="ap-participants" onscroll="apScrollBtnUpdate()"></div>
+      <div id="ap-game-photo" style="display:none;flex:0 0 auto;text-align:center;padding:8px 0 2px;"></div>
     </div>
     <div class="sheet-save" style="display:flex;gap:8px;">
       <button class="btn ghost" style="flex:1;" onclick="closeAddSheet()">취소</button>
       <button class="btn" style="flex:1;" onclick="submitAddPlay()">저장</button>
     </div>`;
+  // 참가자칸에 커서가 있는 동안은 게임 사진 미리보기를 숨김(공간 확보)
+  const partsBox = document.getElementById('ap-participants');
+  partsBox.addEventListener('focusin', apUpdateGamePhoto);
+  partsBox.addEventListener('focusout', () => setTimeout(apUpdateGamePhoto, 80));
   renderParticipants();
+}
+
+// 등록된 게임을 입력하면 참가자칸 아래 빈 공간에 게임 사진 미리보기.
+// 참가자칸에 커서가 있거나 참가자를 입력하기 시작하면 숨긴다.
+function apUpdateGamePhoto() {
+  const box = document.getElementById('ap-game-photo');
+  if (!box) return;
+  const g = gameByExactName((((document.getElementById('ap-game') || {}).value) || '').trim());
+  const img = g && g.image_url;
+  const partsUsed = (addPlayState.participants || []).some(p =>
+    (p.name || '').trim() || String(p.score ?? '').trim() || p.is_guest);
+  const focused = !!(document.activeElement && document.activeElement.closest
+    && document.activeElement.closest('#ap-participants'));
+  if (img && !partsUsed && !focused) {
+    if (box.dataset.src !== img) {
+      box.dataset.src = img;
+      box.innerHTML = `<img src="${esc(img)}" alt="" referrerpolicy="no-referrer"
+        style="max-width:65%;max-height:170px;border-radius:14px;box-shadow:0 4px 14px rgba(0,0,0,.12);"
+        onerror="this.parentElement.style.display='none'" />`;
+    }
+    box.style.display = '';
+  } else {
+    box.style.display = 'none';
+  }
 }
 
 // ===== 접두어 자동완성 (입력한 글자로 '시작하는' 항목만 표시) =====
@@ -3634,6 +3730,7 @@ function updateGameBadge() {
   const el = document.getElementById('gmchk');
   const inp = document.getElementById('ap-game');
   if (!el || !inp) return;
+  apUpdateGamePhoto();   // 게임명 바뀔 때 사진 미리보기도 갱신
   const v = inp.value.trim();
   if (gameByExactName(v)) {
     el.textContent = '✓ 등록된 게임이에요';
@@ -3686,6 +3783,7 @@ function renderParticipants() {
         </label>
       </div>
     </div>`).join('');
+  apUpdateGamePhoto();   // 참가자 상태가 바뀔 때 사진 미리보기 갱신
 }
 
 function addParticipant() {
@@ -3786,6 +3884,7 @@ function applyPartHistory(idx) {
 function updatePart(i, field, val) {
   addPlayState.participants[i][field] = val;
   if (field === 'name') updateMemberBadge(i);   // 회원 일치 배지 실시간 갱신
+  apUpdateGamePhoto();                          // 입력 시작하면 사진 미리보기 숨김
 }
 function toggleWin(i) { addPlayState.participants[i].is_win = !addPlayState.participants[i].is_win; renderParticipants(); }
 function toggleGuest(i, checked) { addPlayState.participants[i].is_guest = checked; renderParticipants(); }
@@ -5047,7 +5146,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.72';
+const APP_VERSION = '1.0.73';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

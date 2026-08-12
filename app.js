@@ -2936,7 +2936,7 @@ function renderAddGameForm() {
       </div>
       <div class="row2">
         <div class="field"><label>도감 분류 *</label>
-          <select class="input" id="ag-category">
+          <select class="input" id="ag-category" onchange="agSyncHubCat()">
             ${CATALOG_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
         </div>
@@ -2947,7 +2947,7 @@ function renderAddGameForm() {
           </select>
         </div>
       </div>
-      <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;text-align:right;">❗️Hub 카테고리를 선택해주세요</div>
+      <div class="mchk dup" id="ag-hubcat-warn" style="display:none;margin-top:-8px;margin-bottom:10px;text-align:right;">❗️카테고리를 확인해주세요</div>
       <div class="row2">
         <div class="field" style="flex:3;"><label>최소 인원 *</label><input class="input" id="ag-min" type="number" inputmode="numeric" /></div>
         <div class="field" style="flex:3;"><label>최대 인원 *</label><input class="input" id="ag-max" type="number" inputmode="numeric" /></div>
@@ -3009,6 +3009,15 @@ function openBgg(enId, krId) {
   // &B1=Go : BGG 검색 폼의 실제 제출 파라미터(없으면 빈 고급검색 폼만 뜨는 경우가 있음)
   window.open('https://boardgamegeek.com/geeksearch.php?action=search&objecttype=boardgame&q='
     + encodeURIComponent(nm) + '&B1=Go', '_blank');
+}
+
+// 도감 분류와 같은 이름의 Hub 분류가 있으면 자동 선택
+// (허브 카테고리를 서비스 기본 분류 그대로 쓰는 허브는 손 안 대도 되게)
+function agSyncHubCat() {
+  const cat = (document.getElementById('ag-category') || {}).value || '';
+  const hub = document.getElementById('ag-cat-hub');
+  if (hub && cat && [...hub.options].some(o => o.value === cat)) hub.value = cat;
+  agHubCatWarn();
 }
 
 function agHubCatWarn() {
@@ -3180,7 +3189,7 @@ function agPickCatalog(gid) {
     set('ag-time-max', g.playtime_min); set('ag-image', g.image_url);
     set('ag-weight', g.weight); set('ag-best', g.best_players);   // BGG 난이도·베스트 인원
     document.getElementById('ag-cat-hub').value = '';
-    agHubCatWarn();
+    agSyncHubCat();   // 도감 분류와 같은 이름의 Hub 분류가 있으면 자동 선택
     state.agPick = null;
     agShowDetail('manual');
     closeOverlay();          // 검색 팝업 닫기(추가 시트로 복귀)
@@ -3222,6 +3231,7 @@ function agRegisterNew() {
     if (inp) inp.value = name;      // 입력한 이름 이어받기
     state._agCtx = 'game';
     agShowDetail('manual');         // 바로 직접 등록 입력창 열기
+    agSyncHubCat();                 // 도감 분류와 같은 Hub 분류 자동 선택
     checkNewGameName();
     return;
   }
@@ -3241,6 +3251,7 @@ function agRegisterNew() {
   }
   state.agPick = null;
   agShowDetail('manual');
+  agSyncHubCat();   // 도감 분류와 같은 Hub 분류 자동 선택
   closeOverlay();
 }
 
@@ -5036,7 +5047,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.71';
+const APP_VERSION = '1.0.72';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

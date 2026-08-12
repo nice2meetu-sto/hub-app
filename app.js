@@ -3127,7 +3127,7 @@ function agRenderCatalogResults(list, term) {
          <button class="btn" style="flex:1;" onclick="agRegisterNew()">직접 등록하기</button>
        </div>`
     : `<h2>📚 도감 검색</h2>
-       <div class="empty" style="padding:22px 0 10px;">등록된 게임이 없어요<br/>BGG 검색 결과 또는 직접 추가하기 버튼을 눌러주세요</div>
+       <div class="empty" style="padding:22px 0 10px;">등록된 게임이 없어요 직접 등록해주세요</div>
        ${bggSlot}
        <div class="sheet-save" style="display:flex;gap:8px;">
          <button class="btn ghost" style="flex:1;" onclick="closeOverlay()">닫기</button>
@@ -5211,7 +5211,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.89';
+const APP_VERSION = '1.0.90';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

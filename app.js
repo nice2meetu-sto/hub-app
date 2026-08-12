@@ -2972,7 +2972,7 @@ function renderAddGameForm() {
         <div id="ag-photo-preview"></div>
         <div class="hint">사진을 올리면 작게 압축해서 저장합니다. 올리면 url 대신 사용합니다</div>
       </div>
-      <div class="sheet-save" style="display:flex;gap:8px;">
+      <div class="sheet-save" style="display:flex;gap:8px;margin-top:26px;">
         <button class="btn ghost" style="flex:1;" onclick="closeAddSheet()">취소</button>
         <button class="btn" id="ag-submit" style="flex:1;" onclick="submitAddGame()">도감 추가</button>
       </div>
@@ -3171,7 +3171,8 @@ async function agSearchBGG(term) {
       `<div class="hint" style="margin:14px 0 6px;">🌐 BGG 검색 결과 — 누르면 영문명·인원·베스트·시간·난이도·사진을 가져와요</div>`
       + fresh.map(r => agResultCardHtml(state._agResults['bgg:' + r.bgg_id])).join('')
       // BGG 정책: 공개 앱은 'Powered by BGG' 표기(+BGG 링크) 필수
-      + `<div class="hint" style="text-align:right;margin:4px 2px 0;">
+      // (하단 고정 버튼의 블러 그림자에 안 묻히게 아래 여백을 넉넉히)
+      + `<div class="hint" style="text-align:right;margin:6px 2px 18px;">
            <span onclick="window.open('https://boardgamegeek.com','_blank','noopener')" style="cursor:pointer;font-weight:700;">Powered by BGG</span>
          </div>`;
   } catch (e) {
@@ -5160,7 +5161,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.79';
+const APP_VERSION = '1.0.80';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

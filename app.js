@@ -3611,8 +3611,10 @@ function checkNewGameName() {
       if (dup.best_players) meta.push(`🤩 ${dup.best_players}명`);
       { const _pt = playtimeText(dup); if (_pt) meta.push(`⏱ ${_pt}`); }
       if (dup.weight) meta.push(`🧠 ${Number(dup.weight).toFixed(2)}`);
+      // 카드 자체는 눌러도 이동하지 않음 — 자동완성 드롭다운과 겹쳐
+      // 눌리는 오입력 방지. 아래 버튼으로만 플레이 결과 탭 이동.
       dupCard.innerHTML = `
-        <div class="gcard" style="cursor:pointer;" onclick="agGoRecord('${dup.game_id}')">
+        <div class="gcard">
           <div class="gcard-top">
             ${thumb(dup.image_url, 'gcard-img')}
             <div class="gcard-body">
@@ -3622,7 +3624,8 @@ function checkNewGameName() {
               <div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
             </div>
           </div>
-        </div>`;
+        </div>
+        <button class="btn" style="margin-top:-2px;padding:12px;" onclick="agGoRecord('${dup.game_id}')">📋 플레이 결과 기록</button>`;
       dupCard.style.display = 'block';
     }
     return;
@@ -5206,7 +5209,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.85';
+const APP_VERSION = '1.0.86';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

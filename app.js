@@ -3123,14 +3123,14 @@ function agRenderCatalogResults(list, term) {
        ${bggSlot}
        <div class="hint" style="margin:12px 0 9px;text-align:center;">찾는 게임이 없나요? 직접 등록해주세요.</div>
        <div class="sheet-save" style="display:flex;gap:8px;">
-         <button class="btn ghost" style="flex:0 0 auto;padding:14px 22px;" onclick="closeOverlay()">닫기</button>
+         <button class="btn ghost" style="flex:1;" onclick="closeOverlay()">닫기</button>
          <button class="btn" style="flex:1;" onclick="agRegisterNew()">직접 등록하기</button>
        </div>`
     : `<h2>📚 도감 검색</h2>
        <div class="empty" style="padding:22px 0 10px;">우리 도감엔 없는 게임이에요.</div>
        ${bggSlot}
        <div class="sheet-save" style="display:flex;gap:8px;">
-         <button class="btn ghost" style="flex:0 0 auto;padding:14px 22px;" onclick="closeOverlay()">닫기</button>
+         <button class="btn ghost" style="flex:1;" onclick="closeOverlay()">닫기</button>
          <button class="btn" style="flex:1;" onclick="agRegisterNew()">직접 등록하기</button>
        </div>`;
   showDetailSheet();
@@ -5206,7 +5206,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.84';
+const APP_VERSION = '1.0.85';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

@@ -549,9 +549,10 @@
   .ap-parts-field { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .ap-parts-field > #ap-participants { flex: 1; min-height: 0; overflow-y: auto; }
   @keyframes slideup { from { transform: translateY(30px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
-  .sheet-grip { width: 40px; height: 4px; background: #d3d3dc; border-radius: 3px; margin: 8px auto 12px; }
+  /* flex 시트(추가 시트) 안에서 내용이 길어져도 막대·탭 줄이 찌부러지지 않게 */
+  .sheet-grip { width: 40px; height: 4px; background: #d3d3dc; border-radius: 3px; margin: 8px auto 12px; flex: 0 0 auto; }
   .sheet h2 { font-size: 18px; margin: 4px 2px 16px; font-weight: 900; }
-  .sheet-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .sheet-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex: 0 0 auto; }
   .sheet-tabs button {
     flex: 1; padding: 10px; border-radius: 10px; background: var(--card);
     border: 1px solid var(--border); font-weight: 700; font-size: 14px; color: var(--text-sub);

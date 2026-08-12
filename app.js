@@ -2926,6 +2926,7 @@ function renderAddGameForm() {
       </div>
       <div class="hint" style="margin-top:4px;text-align:center;">쉼표로 여러 이름 검색(예: 스컬킹, skull) · 없으면 직접 등록해요.</div>
     </div>
+    <div id="ag-dup-card" style="display:none;"></div>
     <div id="ag-detail" style="display:none;">
       <div class="field">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
@@ -3587,8 +3588,10 @@ function checkNewGameName() {
   const el = document.getElementById('ag-namecheck');
   const inp = document.getElementById('ag-namekr');
   if (!el || !inp) return;
+  const dupCard = document.getElementById('ag-dup-card');
+  const hideDup = () => { if (dupCard) { dupCard.style.display = 'none'; dupCard.innerHTML = ''; } };
   const name = inp.value.trim();
-  if (!name) { el.style.display = 'none'; return; }
+  if (!name) { el.style.display = 'none'; hideDup(); return; }
   el.style.display = 'block';
   const key = normGameName(name);
   // 한글명·영문명 어느 쪽과 같아도(띄어쓰기·대소문자 무시) 중복으로 잡음
@@ -3597,8 +3600,29 @@ function checkNewGameName() {
   if (dup) {
     el.className = 'mchk dup';
     el.textContent = '⚠ 이미 Hub에 등록된 게임이에요';
+    // 등록된 게임 카드 표시 — 누르면 플레이 결과 탭으로 전환해 바로 기록
+    if (dupCard) {
+      const meta = [];
+      if (dup.min_players || dup.max_players) {
+        const mn = dup.min_players || '?', mx = dup.max_players || '?';
+        meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
+      }
+      { const _pt = playtimeText(dup); if (_pt) meta.push(`⏱ ${_pt}`); }
+      dupCard.innerHTML = `
+        <div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0;" onclick="agGoRecord('${dup.game_id}')">
+          ${thumb(dup.image_url, 'session-thumb')}
+          <div style="flex:1;min-width:0;">
+            <div class="g-name" style="font-weight:800;">${esc(dup.name_kr || dup.name_en)}
+              ${dup.category ? `<span class="badge" style="margin-left:6px;">${esc(dup.category)}</span>` : ''}</div>
+            <div class="g-meta">${meta.join(' · ')}</div>
+          </div>
+          <span class="hint" style="flex:0 0 auto;margin:0;color:var(--main);font-weight:700;">플레이 기록 ›</span>
+        </div>`;
+      dupCard.style.display = 'block';
+    }
     return;
   }
+  hideDup();
   const sim = similarGameName(name);
   if (sim) {
     el.className = 'mchk no';
@@ -3612,6 +3636,16 @@ function checkNewGameName() {
     state.agPick = null;
     if (state.agMode === 'catalog') agShowDetail('manual');
   }
+}
+
+// 이미 등록된 게임 카드 탭 → 플레이 결과 탭으로 전환하고 게임명 채움
+function agGoRecord(gid) {
+  const g = gameById(gid);
+  if (!g) return;
+  switchAddTab('play');
+  const inp = document.getElementById('ap-game');
+  if (inp) inp.value = g.name_kr || g.name_en;
+  updateGameBadge();
 }
 
 // 정확히 일치하는 게임/플레이어만 허용(데이터 오류 방지)
@@ -5167,7 +5201,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.82';
+const APP_VERSION = '1.0.83';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

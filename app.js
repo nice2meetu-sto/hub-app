@@ -3165,19 +3165,6 @@ async function agSearchBGG(term) {
   }
 }
 
-// BGG 게임 설명을 가져와 요약칸에 채움(한글 번역본 우선, 없으면 영문).
-// 비동기 도착 — 사용자가 이미 직접 입력했으면 덮어쓰지 않는다.
-async function fetchBggSummary(bggId) {
-  if (!BGG_PROXY_URL || !bggId) return;
-  try {
-    const res = await fetch(BGG_PROXY_URL.replace(/\/$/, '') + '/?desc=' + encodeURIComponent(bggId));
-    const d = await res.json();
-    const text = ((d && (d.description_kr || d.description_en)) || '').trim();
-    const el = document.getElementById('ag-summary');
-    if (text && el && !el.value.trim()) el.value = text;
-  } catch (e) { /* 요약은 부가 정보 — 실패해도 조용히 넘어감 */ }
-}
-
 // 도감 게임 선택 → 모든 정보를 도감 그대로 채움
 function agPickCatalog(gid) {
   const g = state._agResults && state._agResults[gid];
@@ -3192,7 +3179,6 @@ function agPickCatalog(gid) {
     set('ag-min', g.min_players); set('ag-max', g.max_players);
     set('ag-time-max', g.playtime_min); set('ag-image', g.image_url);
     set('ag-weight', g.weight); set('ag-best', g.best_players);   // BGG 난이도·베스트 인원
-    fetchBggSummary(g.game_id.slice(4));   // 게임 요약(한글 번역)은 도착하는 대로 채움
     document.getElementById('ag-cat-hub').value = '';
     agHubCatWarn();
     state.agPick = null;
@@ -5050,7 +5036,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.70';
+const APP_VERSION = '1.0.71';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

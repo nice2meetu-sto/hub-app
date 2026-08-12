@@ -3600,23 +3600,28 @@ function checkNewGameName() {
   if (dup) {
     el.className = 'mchk dup';
     el.textContent = '⚠ 이미 Hub에 등록된 게임이에요';
-    // 등록된 게임 카드 표시 — 누르면 플레이 결과 탭으로 전환해 바로 기록
+    // 등록된 게임 카드 표시(게임탭 카드와 동일 — 평점 줄·버튼만 제외)
+    // 누르면 플레이 결과 탭으로 전환해 바로 기록
     if (dupCard) {
       const meta = [];
       if (dup.min_players || dup.max_players) {
         const mn = dup.min_players || '?', mx = dup.max_players || '?';
         meta.push(`👥 ${mn}${mx !== mn ? '~' + mx : ''}명`);
       }
+      if (dup.best_players) meta.push(`🤩 ${dup.best_players}명`);
       { const _pt = playtimeText(dup); if (_pt) meta.push(`⏱ ${_pt}`); }
+      if (dup.weight) meta.push(`🧠 ${Number(dup.weight).toFixed(2)}`);
       dupCard.innerHTML = `
-        <div class="card" style="display:flex;align-items:center;gap:12px;cursor:pointer;margin-bottom:0;" onclick="agGoRecord('${dup.game_id}')">
-          ${thumb(dup.image_url, 'session-thumb')}
-          <div style="flex:1;min-width:0;">
-            <div class="g-name" style="font-weight:800;">${esc(dup.name_kr || dup.name_en)}
-              ${dup.category ? `<span class="badge" style="margin-left:6px;">${esc(dup.category)}</span>` : ''}</div>
-            <div class="g-meta">${meta.join(' · ')}</div>
+        <div class="gcard" style="cursor:pointer;" onclick="agGoRecord('${dup.game_id}')">
+          <div class="gcard-top">
+            ${thumb(dup.image_url, 'gcard-img')}
+            <div class="gcard-body">
+              <div class="gcard-name">${esc(dup.name_kr || dup.name_en)}
+                ${dup.category ? `<span class="badge" style="margin-left:6px;">${esc(dup.category)}</span>` : ''}</div>
+              ${dup.name_en && dup.name_kr ? `<div class="gcard-en">${esc(dup.name_en)}</div>` : ''}
+              <div class="gcard-meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
+            </div>
           </div>
-          <span class="hint" style="flex:0 0 auto;margin:0;color:var(--main);font-weight:700;">플레이 기록 ›</span>
         </div>`;
       dupCard.style.display = 'block';
     }
@@ -5201,7 +5206,7 @@ async function adminSavePin(btn) {
 // ============================================================
 //  초기화
 // ============================================================
-const APP_VERSION = '1.0.83';
+const APP_VERSION = '1.0.84';
 
 // ============================================================
 //  멀티허브: 허브 컨텍스트 / 시작 화면 / 이메일 계정 플로우

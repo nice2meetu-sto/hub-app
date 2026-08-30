@@ -21,7 +21,20 @@
 //  반환: { description_kr, description_en }  — 앞 몇 문장만 잘라 반환.
 //  한글은 Workers AI 번역(m2m100) — 대시보드에서 이 Worker의 Bindings에
 //  'AI' 이름으로 Workers AI 바인딩을 추가해야 동작(없으면 영문만 반환).
+//
+//  Supabase 재우기 방지(keep-alive):
+//  Supabase 무료 플랜은 7일간 요청이 하나도 없으면 프로젝트를 자동 일시정지한다.
+//  Cron Trigger로 하루 한 번 가벼운 조회 RPC를 호출해 '활동 중'으로 유지한다.
+//    · 설정: 대시보드 → 이 Worker → Settings → Triggers → Cron Triggers →
+//            Add Cron Trigger → 예) 0 3 * * *  (매일 UTC 03:00 = 한국 낮 12시)
+//    · 수동 확인: GET https://<worker>/?keepalive=1 → {"ok":true,"status":200,...}
 // ============================================================
+
+// Supabase 프로젝트 주소·anon key — 앱(app.js)에 이미 공개된 값과 동일하다.
+// anon key는 공개를 전제로 설계된 키라 시크릿이 아니며, 여기 적어도 안전하다.
+// 대시보드에 SUPABASE_URL / SUPABASE_ANON_KEY 변수를 넣으면 그 값이 우선한다.
+const SUPABASE_URL_DEFAULT = 'https://pqnvfcxstfyjsufdrgcm.supabase.co';
+const SUPABASE_ANON_DEFAULT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBxbnZmY3hzdGZ5anN1ZmRyZ2NtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNDM2OTEsImV4cCI6MjA5OTkxOTY5MX0.drHD0rkKgKuzY2h4T0CW4Mo68KqW6k3nVOGJGvGnfHU';
 
 // 정책상 요청 도메인은 boardgamegeek.com (www 없이)
 const BGG_HOSTS = ['https://boardgamegeek.com', 'https://api.geekdo.com'];
@@ -44,6 +57,8 @@ export default {
       : BASE_HEADERS;
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     const url = new URL(req.url);
+    // ---- keep-alive 수동 확인 (Cron이 매일 하는 일과 똑같은 요청) ----
+    if (url.searchParams.get('keepalive')) return json(await keepAlive(env));
     // ---- 게임 설명(+한글 번역) ----
     const descId = (url.searchParams.get('desc') || '').replace(/\D/g, '');
     if (descId) {
@@ -115,7 +130,39 @@ export default {
       return json({ results: [], error: String((e && e.message) || e) }, 200);
     }
   },
+
+  // Cron Trigger가 부르는 진입점 — Supabase가 잠들지 않게 하루 한 번 깨운다
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(keepAlive(env).then((r) => {
+      // 실패해도 앱 동작에는 영향 없음. 로그는 대시보드 → Logs 에서 확인.
+      console.log('keep-alive', r.ok ? 'OK' : 'FAIL', JSON.stringify(r));
+    }));
+  },
 };
+
+// Supabase에 가벼운 조회 RPC 한 번 — '활동 있음'으로 기록되어 자동 일시정지를 막는다.
+// get_categories는 로그인 없이(anon) 호출되는 앱의 기본 조회라 부담이 거의 없다.
+async function keepAlive(env) {
+  const base = (env && env.SUPABASE_URL) || SUPABASE_URL_DEFAULT;
+  const key = (env && env.SUPABASE_ANON_KEY) || SUPABASE_ANON_DEFAULT;
+  const at = new Date().toISOString();
+  try {
+    const res = await fetch(base + '/rest/v1/rpc/get_categories', {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_hub_id: 'H001' }),
+    });
+    const body = (await res.text()).slice(0, 200);
+    // 200이면 정상. 프로젝트가 잠들어 있으면 5xx가 돌아온다(깨우는 건 대시보드에서).
+    return { ok: res.status === 200, status: res.status, at, body };
+  } catch (e) {
+    return { ok: false, status: 0, at, error: String((e && e.message) || e) };
+  }
+}
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
